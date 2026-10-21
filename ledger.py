@@ -3,7 +3,7 @@ the next day from RealGM final scores. Re-running a day never changes a locked p
 import csv
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parent.parent / "data" / "ledger.csv"
+LEDGER = Path(__file__).resolve().parent / "data" / "ledger.csv"
 FIELDS = ["game_key", "date", "when", "away_id", "away", "home_id", "home",
           "away_rating", "home_rating", "pick", "differential", "strong_pick", "total",
           "fh_pick", "fh_margin", "stats_season", "locked_at",

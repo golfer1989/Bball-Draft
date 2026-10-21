@@ -9,7 +9,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from cbb import config, fetch, ledger, model, site
+import config, fetch, ledger, model, webpage as site
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -62,7 +62,7 @@ def load_stats(today):
 
 
 def load_name_map():
-    with open(DATA / "teamrankings_names.csv", newline="", encoding="utf-8") as f:
+    with open(ROOT / "teamrankings_names.csv", newline="", encoding="utf-8") as f:
         return {r["teamrankings_name"]: int(r["realgm_id"]) for r in csv.DictReader(f)}
 
 

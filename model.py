@@ -17,7 +17,7 @@ Everything else is the spreadsheet's logic:
   Total = away ppg + home ppg
   1H pick = higher TeamRankings 1st-half PPG (Last 3), margin = the gap
 """
-from . import config
+import config
 
 
 def tov_pct(s):

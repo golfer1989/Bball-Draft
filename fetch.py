@@ -4,16 +4,14 @@ connections. Every fetch is saved under data/raw/ so a failed download falls
 back to the last good copy instead of breaking the site."""
 import re
 import time
-from pathlib import Path
 
 import requests
 from lxml import html as lh
 
-from . import config
+import config
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
-RAW = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 STAT_COLS = ["GP", "MPG", "PPG", "FGM", "FGA", "FG%", "3PM", "3PA", "3P%", "FTM", "FTA",
              "FT%", "ORB", "DRB", "RPG", "APG", "SPG", "BPG", "TOV", "PF"]

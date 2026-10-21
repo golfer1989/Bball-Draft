@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from cbb import config, fetch, ledger, model, site
+import config, fetch, ledger, model, webpage as site
 
-FX = Path(__file__).parent / "fixtures"
+FX = Path(__file__).parent
 
 
 def fx(name):
@@ -123,6 +123,7 @@ def test_end_to_end(tmp_path, monkeypatch):
         v["GP"] = 5
 
     monkeypatch.setattr(run_daily, "DATA", tmp_path)
+    monkeypatch.setattr(run_daily, "ROOT", tmp_path)
     monkeypatch.setattr(run_daily, "RAW", tmp_path / "raw")
     monkeypatch.setattr(ledger, "LEDGER", tmp_path / "ledger.csv")
     monkeypatch.setattr(ledger.load, "__defaults__", (tmp_path / "ledger.csv",))
