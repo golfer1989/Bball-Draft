@@ -45,6 +45,8 @@ jobs:
       - name: Build picks + site
         if: steps.guard.outputs.skip == 'false'
         run: python run_daily.py
+        env:
+          CBBD_API_KEY: ${{ secrets.CBBD_API_KEY }}
 
       - name: Commit
         if: steps.guard.outputs.skip == 'false'
