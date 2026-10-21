@@ -32,8 +32,10 @@ def game(gid, start, away, aid, home, hid, status="scheduled", ap=None, hp=None,
 
 # ---------------- parsers ----------------
 def test_parse_team_stats_per_game():
-    team, opp, label = fetch.parse_team_stats([stats_row(1, "A"), stats_row(2, "B", games=0)])
-    assert label == "2026-27" and list(team) == [1]          # 0-game team dropped
+    nd = dict(stats_row(3, "Elms College"), conference=None)
+    rows = [dict(stats_row(1, "A"), seasonLabel="20262027"), stats_row(2, "B", games=0), nd]
+    team, opp, label = fetch.parse_team_stats(rows)
+    assert label == "2026-27" and list(team) == [1]          # 0-game and non-D1 teams dropped
     a = team[1]
     assert a["PPG"] == 80 and a["FGA"] == 60 and a["FG%"] == 0.5 and a["FTA"] == 20
     assert a["FT%"] == 0.75 and a["ORB"] == 10 and a["DRB"] == 25 and a["TOV"] == 11

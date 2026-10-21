@@ -58,17 +58,20 @@ def _per_game(u, games, name):
 
 
 def parse_team_stats(rows):
-    """CBBD /stats/team/season rows -> (team, opp, season_label) keyed by teamId."""
+    """CBBD /stats/team/season rows -> (team, opp, season_label) keyed by teamId.
+    Division I only (non-D1 schools come back with no conference), like the spreadsheet."""
     team, opp, label = {}, {}, ""
     for r in rows:
         try:
-            if not r.get("games"):
+            if not r.get("games") or not r.get("conference"):
                 continue
             team[r["teamId"]] = _per_game(r["teamStats"], r["games"], r["team"])
             opp[r["teamId"]] = _per_game(r["opponentStats"], r["games"], r["team"])
             label = r.get("seasonLabel") or label
         except (KeyError, TypeError, ZeroDivisionError):
             continue
+    if len(label) == 8 and label.isdigit():          # "20252026" -> "2025-26"
+        label = f"{label[:4]}-{label[6:]}"
     return team, opp, label
 
 
