@@ -7,7 +7,7 @@ LEDGER = Path(__file__).resolve().parent / "data" / "ledger.csv"
 FIELDS = ["game_key", "date", "when", "away_id", "away", "home_id", "home",
           "away_rating", "home_rating", "pick", "differential", "strong_pick", "total",
           "fh_pick", "fh_margin", "stats_season", "locked_at",
-          "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error"]
+          "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct"]
 
 
 def key(date, away_id, home_id):
@@ -57,6 +57,7 @@ def lock(rows, date, preds, season, stamp):
             "fh_pick": p.get("fh_pick") or "", "fh_margin": _fmt(p.get("fh_margin"), 1),
             "stats_season": season, "locked_at": stamp,
             "away_pts": "", "home_pts": "", "pick_correct": "", "strong_correct": "", "total_error": "",
+            "fh_correct": "",
         })
         have.add(k)
         added += 1
@@ -68,7 +69,7 @@ def ungraded_dates(rows, before):
 
 
 def grade(rows, date, results):
-    """results = parsed RealGM schedule for that date. Returns number graded."""
+    """results = parsed games for that date. Returns number graded."""
     by = {key(date, g["away_id"], g["home_id"]): g for g in results if g["away_pts"] is not None}
     n = 0
     for r in rows:
@@ -83,5 +84,8 @@ def grade(rows, date, results):
         r["pick_correct"] = "1" if r["pick"] == winner else "0"
         r["strong_correct"] = ("1" if r["strong_pick"] == winner else "0") if r["strong_pick"] else ""
         r["total_error"] = f"{ap + hp - float(r['total']):.1f}" if r["total"] else ""
+        ah, hh = g.get("away_h1"), g.get("home_h1")
+        if r["fh_pick"] and ah is not None and hh is not None and ah != hh:   # halftime tie = no result
+            r["fh_correct"] = "1" if r["fh_pick"] == (r["home"] if hh > ah else r["away"]) else "0"
         n += 1
     return n

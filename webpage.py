@@ -87,6 +87,7 @@ def results_page(rows, stamp):
     graded = [r for r in rows if r["pick_correct"] in ("0", "1")]
     pw, pl = _record(graded, "pick_correct")
     sw, sl = _record(graded, "strong_correct")
+    hw, hl = _record(graded, "fh_correct")
     errs = [abs(float(r["total_error"])) for r in graded if r["total_error"]]
     mae = sum(errs) / len(errs) if errs else None
 
@@ -96,6 +97,8 @@ def results_page(rows, stamp):
     tiles = (f'<div class="tiles"><div class="tile"><div class="k">All picks</div><div class="v">{pw}-{pl}</div>'
              f'<div class="s">{pct(pw, pl)}</div></div><div class="tile"><div class="k">Strong picks</div>'
              f'<div class="v">{sw}-{sl}</div><div class="s">{pct(sw, sl)}</div></div>'
+             f'<div class="tile"><div class="k">1H picks</div><div class="v">{hw}-{hl}</div>'
+             f'<div class="s">{pct(hw, hl)}</div></div>'
              f'<div class="tile"><div class="k">Total, avg miss</div><div class="v">{_f(mae, 1)}</div>'
              f'<div class="s">points</div></div></div>')
     if not graded:
@@ -112,16 +115,19 @@ def results_page(rows, stamp):
         for r in day:
             ok = r["pick_correct"] == "1"
             sc = r["strong_correct"]
+            hc = r.get("fh_correct", "")
             trs.append(
                 f'<tr class="{"strong" if r["strong_pick"] else ""}"><td>{escape(r["away"])}</td>'
                 f'<td>{escape(r["home"])}</td><td class="n">{r["away_pts"]}-{r["home_pts"]}</td>'
                 f'<td class="pick">{escape(r["pick"])}</td><td class="{"ok" if ok else "no"}">{"W" if ok else "L"}</td>'
                 f'<td>{"" if sc == "" else ("<span class=ok>W</span>" if sc == "1" else "<span class=no>L</span>")}</td>'
-                f'<td class="n">{_f(r["total"], 1)}</td><td class="n">{int(r["away_pts"]) + int(r["home_pts"])}</td></tr>')
+                f'<td class="n">{_f(r["total"], 1)}</td><td class="n">{int(r["away_pts"]) + int(r["home_pts"])}</td>'
+                f'<td>{escape(r["fh_pick"] or "—")}</td>'
+                f'<td>{"" if hc == "" else ("<span class=ok>W</span>" if hc == "1" else "<span class=no>L</span>")}</td></tr>')
         sections.append(
             f'<h2>{escape(d)} &nbsp;<span class="meta">{dw}-{dl}</span></h2><div class="scroll"><table><thead><tr>'
             '<th>Away</th><th>Home</th><th class="n">Final</th><th>Pick</th><th>Result</th><th>Strong</th>'
-            f'<th class="n">Proj total</th><th class="n">Actual</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>')
+            f'<th class="n">Proj total</th><th class="n">Actual</th><th>1H Pick</th><th>1H</th></tr></thead><tbody>{"".join(trs)}</tbody></table></div>')
     return page("CBB Model - Season Results", "results.html", tiles + "".join(sections), stamp)
 
 
