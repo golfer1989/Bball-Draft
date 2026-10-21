@@ -1,0 +1,366 @@
+realgm_id,realgm_name
+972,Abilene Christian
+207,Air Force
+174,Akron
+253,Alabama
+289,Alabama A&M
+290,Alabama State
+6,Albany
+291,Alcorn State
+245,American University
+265,Appalachian State
+235,Arizona
+236,Arizona State
+254,Arkansas
+319,Arkansas State
+292,Arkansas-Pine Bluff
+246,Army West Point
+255,Auburn
+225,Austin Peay
+180,Ball State
+51,Baylor
+620,Bellarmine
+40,Belmont
+186,Bethune-Cookman
+7,Binghamton
+340,Boise State
+29,Boston College
+8,Boston University
+175,Bowling Green
+197,Bradley
+208,Brigham Young
+155,Brown
+129,Bryant
+247,Bucknell
+176,Buffalo
+145,Butler
+107,Cal Poly
+130,Cal State Bakersfield
+108,Cal State Fullerton
+109,Cal State Northridge
+237,California
+646,California Baptist
+41,Campbell
+164,Canisius
+277,Central Arkansas
+215,Central Connecticut State
+181,Central Michigan
+266,Charleston
+87,Charleston Southern
+15,Charlotte
+267,Chattanooga
+131,Chicago State
+63,Cincinnati
+30,Clemson
+146,Cleveland State
+88,Coastal Carolina
+248,Colgate
+52,Colorado
+209,Colorado State
+156,Columbia
+187,Coppin State
+157,Cornell
+198,Creighton
+158,Dartmouth
+269,Davidson
+16,Dayton
+65,DePaul
+116,Delaware
+188,Delaware State
+321,Denver
+147,Detroit-Mercy
+199,Drake
+117,Drexel
+31,Duke
+17,Duquesne
+128,East Carolina
+42,East Tennessee State
+1533,East Texas A&M
+226,Eastern Illinois
+227,Eastern Kentucky
+182,Eastern Michigan
+78,Eastern Washington
+270,Elon
+200,Evansville
+165,Fairfield
+216,Fairleigh Dickinson
+256,Florida
+189,Florida A&M
+322,Florida Atlantic
+43,Florida Gulf Coast
+323,Florida International
+32,Florida State
+18,Fordham
+447,Fort Wayne
+341,Fresno State
+271,Furman
+89,Gardner-Webb
+118,George Mason
+19,George Washington
+66,Georgetown
+257,Georgia
+272,Georgia Southern
+119,Georgia State
+33,Georgia Tech
+332,Gonzaga
+293,Grambling State
+489,Grand Canyon
+148,Green Bay
+190,Hampton
+159,Harvard
+342,Hawaii
+90,High Point
+120,Hofstra
+249,Holy Cross
+299,Houston
+132,Houston Christian
+191,Howard
+311,IU Indy
+343,Idaho
+79,Idaho State
+3,Illinois
+201,Illinois State
+151,Illinois-Chicago
+1025,Incarnate Word
+97,Indiana
+202,Indiana State
+166,Iona
+98,Iowa
+53,Iowa State
+294,Jackson State
+44,Jacksonville
+228,Jacksonville State
+121,James Madison
+54,Kansas
+55,Kansas State
+45,Kennesaw State
+177,Kent State
+258,Kentucky
+259,LSU
+20,La Salle
+250,Lafayette
+278,Lamar
+721,Le Moyne
+251,Lehigh
+91,Liberty
+1766,Lindenwood
+46,Lipscomb
+320,Little Rock
+110,Long Beach State
+217,Long Island
+133,Longwood
+324,Louisiana
+344,Louisiana Tech
+325,Louisiana-Monroe
+67,Louisville
+149,Loyola (IL)
+167,Loyola (MD)
+333,Loyola Marymount
+10,Maine
+168,Manhattan
+169,Marist
+68,Marquette
+300,Marshall
+34,Maryland
+192,Maryland-Eastern Shore
+21,Massachusetts
+279,McNeese State
+301,Memphis
+47,Mercer
+586,Mercyhurst
+1645,Merrimack College
+35,Miami (FL)
+178,Miami (OH)
+1,Michigan
+100,Michigan State
+326,Middle Tennessee State
+150,Milwaukee
+101,Minnesota
+261,Mississippi State
+295,Mississippi Valley State
+56,Missouri
+203,Missouri State
+218,Monmouth
+80,Montana
+81,Montana State
+229,Morehead State
+193,Morgan State
+219,Mount St. Mary's
+230,Murray State
+135,N.J.I.T.
+36,NC State
+252,Navy
+57,Nebraska
+345,Nevada
+11,New Hampshire
+1633,New Haven
+210,New Mexico
+346,New Mexico State
+327,New Orleans
+170,Niagara
+280,Nicholls State
+194,Norfolk State
+911,North Alabama
+2,North Carolina
+195,North Carolina A&T
+136,North Carolina Central
+137,North Dakota
+312,North Dakota State
+48,North Florida
+328,North Texas
+123,Northeastern
+82,Northern Arizona
+83,Northern Colorado
+183,Northern Illinois
+204,Northern Iowa
+598,Northern Kentucky
+102,Northwestern
+281,Northwestern State
+69,Notre Dame
+313,Oakland
+179,Ohio
+103,Ohio State
+4,Oklahoma
+59,Oklahoma State
+124,Old Dominion
+260,Ole Miss
+546,Omaha
+314,Oral Roberts
+238,Oregon
+239,Oregon State
+111,Pacific
+104,Penn State
+160,Pennsylvania
+334,Pepperdine
+70,Pittsburgh
+335,Portland
+84,Portland State
+296,Prairie View A&M
+93,Presbyterian
+161,Princeton
+71,Providence
+105,Purdue
+578,Queens University
+220,Quinnipiac
+94,Radford
+22,Rhode Island
+302,Rice
+23,Richmond
+171,Rider
+221,Robert Morris
+72,Rutgers
+140,SIU-Edwardsville
+85,Sacramento State
+573,Sacred Heart
+24,Saint Joseph's
+25,Saint Louis
+336,Saint Mary's
+172,Saint Peter's
+282,Sam Houston State
+273,Samford
+337,San Diego
+5,San Diego State
+338,San Francisco
+347,San Jose State
+339,Santa Clara
+139,Seattle
+73,Seton Hall
+173,Siena
+329,South Alabama
+262,South Carolina
+196,South Carolina State
+141,South Dakota
+315,South Dakota State
+74,South Florida
+231,Southeast Missouri State
+283,Southeastern Louisiana
+297,Southern
+205,Southern Illinois
+585,Southern Indiana
+303,Southern Methodist
+425,Southern Mississippi
+316,Southern Utah
+26,St. Bonaventure
+223,St. Francis (PA)
+75,St. John's
+1795,St. Thomas
+240,Stanford
+284,Stephen F. Austin
+49,Stetson
+1147,Stonehill
+12,Stony Brook
+382,Syracuse
+211,TCU
+1350,Tarleton State
+27,Temple
+263,Tennessee
+232,Tennessee State
+233,Tennessee Tech
+234,Tennessee-Martin
+60,Texas
+61,Texas A&M
+285,Texas A&M-CC
+298,Texas Southern
+286,Texas State
+62,Texas Tech
+287,Texas-Arlington
+142,Texas-RGV
+288,Texas-San Antonio
+268,The Citadel
+184,Toledo
+125,Towson
+330,Troy
+304,Tulane
+305,Tulsa
+306,UAB
+112,UC Davis
+113,UC Irvine
+114,UC Riverside
+830,UC San Diego
+115,UC Santa Barbara
+307,UCF
+241,UCLA
+64,UConn
+13,UMBC
+317,UMKC
+1549,UMass Lowell
+92,UNC Asheville
+274,UNC Greensboro
+122,UNC Wilmington
+212,UNLV
+242,USC
+50,USC Upstate
+308,UTEP
+213,Utah
+348,Utah State
+352,Utah Tech
+143,Utah Valley
+126,VCU
+152,Valparaiso
+264,Vanderbilt
+14,Vermont
+76,Villanova
+37,Virginia
+95,Virginia Military
+38,Virginia Tech
+224,Wagner
+39,Wake Forest
+163,Washington
+244,Washington State
+86,Weber State
+510,West Georgia
+77,West Virginia
+275,Western Carolina
+318,Western Illinois
+331,Western Kentucky
+185,Western Michigan
+206,Wichita State
+127,William & Mary
+96,Winthrop
+106,Wisconsin
+276,Wofford
+153,Wright State
+214,Wyoming
+28,Xavier
+162,Yale
+154,Youngstown State

@@ -1,0 +1,366 @@
+teamrankings_name,realgm_id,realgm_name
+AR-Pine Bluff,292,Arkansas-Pine Bluff
+Abl Christian,972,Abilene Christian
+Air Force,207,Air Force
+Akron,174,Akron
+Alabama,253,Alabama
+Alabama A&M,289,Alabama A&M
+Alabama St,290,Alabama State
+Albany,6,Albany
+Alcorn St,291,Alcorn State
+American,245,American University
+App State,265,Appalachian State
+Arizona,235,Arizona
+Arizona St,236,Arizona State
+Arkansas,254,Arkansas
+Arkansas St,319,Arkansas State
+Army,246,Army West Point
+Auburn,255,Auburn
+Austin Peay,225,Austin Peay
+BYU,208,Brigham Young
+Ball St,180,Ball State
+Baylor,51,Baylor
+Bellarmine,620,Bellarmine
+Belmont,40,Belmont
+Bethune,186,Bethune-Cookman
+Binghamton,7,Binghamton
+Boise St,340,Boise State
+Boston College,29,Boston College
+Boston U,8,Boston University
+Bowling Green,175,Bowling Green
+Bradley,197,Bradley
+Brown,155,Brown
+Bryant,129,Bryant
+Bucknell,247,Bucknell
+Buffalo,176,Buffalo
+Butler,145,Butler
+C Arkansas,277,Central Arkansas
+C Connecticut,215,Central Connecticut State
+C Michigan,181,Central Michigan
+CS Bakersfield,130,Cal State Bakersfield
+CS Fullerton,108,Cal State Fullerton
+CS Northridge,109,Cal State Northridge
+Cal Baptist,646,California Baptist
+Cal Poly,107,Cal Poly
+California,237,California
+Campbell,41,Campbell
+Canisius,164,Canisius
+Charleston,266,Charleston
+Charleston So,87,Charleston Southern
+Charlotte,15,Charlotte
+Chattanooga,267,Chattanooga
+Chicago St,131,Chicago State
+Cincinnati,63,Cincinnati
+Clemson,30,Clemson
+Cleveland St,146,Cleveland State
+Coastal Car,88,Coastal Carolina
+Colgate,248,Colgate
+Colorado,52,Colorado
+Colorado St,209,Colorado State
+Columbia,156,Columbia
+Coppin St,187,Coppin State
+Cornell,157,Cornell
+Creighton,198,Creighton
+Dartmouth,158,Dartmouth
+Davidson,269,Davidson
+Dayton,16,Dayton
+DePaul,65,DePaul
+Delaware,116,Delaware
+Delaware St,188,Delaware State
+Denver,321,Denver
+Detroit Mercy,147,Detroit-Mercy
+Drake,199,Drake
+Drexel,117,Drexel
+Duke,31,Duke
+Duquesne,17,Duquesne
+E Carolina,128,East Carolina
+E Illinois,226,Eastern Illinois
+E Kentucky,227,Eastern Kentucky
+E Michigan,182,Eastern Michigan
+E Tennessee St,42,East Tennessee State
+E Texas A&M,1533,East Texas A&M
+E Washington,78,Eastern Washington
+Elon,270,Elon
+Evansville,200,Evansville
+F Dickinson,216,Fairleigh Dickinson
+FGCU,43,Florida Gulf Coast
+Fairfield,165,Fairfield
+Florida,256,Florida
+Florida A&M,189,Florida A&M
+Florida Atlantic,322,Florida Atlantic
+Florida Intl,323,Florida International
+Florida St,32,Florida State
+Fordham,18,Fordham
+Fresno St,341,Fresno State
+Furman,271,Furman
+G Washington,19,George Washington
+Gardner-Webb,89,Gardner-Webb
+George Mason,118,George Mason
+Georgetown,66,Georgetown
+Georgia,257,Georgia
+Georgia So,272,Georgia Southern
+Georgia St,119,Georgia State
+Georgia Tech,33,Georgia Tech
+Gonzaga,332,Gonzaga
+Grambling,293,Grambling State
+Grand Canyon,489,Grand Canyon
+Green Bay,148,Green Bay
+Hampton,190,Hampton
+Harvard,159,Harvard
+Hawai'i,342,Hawaii
+High Point,90,High Point
+Hofstra,120,Hofstra
+Holy Cross,249,Holy Cross
+Hou Christian,132,Houston Christian
+Houston,299,Houston
+Howard,191,Howard
+IU Indy,311,IU Indy
+Idaho,343,Idaho
+Idaho St,79,Idaho State
+Illinois,3,Illinois
+Illinois Chicago,151,Illinois-Chicago
+Illinois St,201,Illinois State
+Incarnate Word,1025,Incarnate Word
+Indiana,97,Indiana
+Indiana St,202,Indiana State
+Iona,166,Iona
+Iowa,98,Iowa
+Iowa St,53,Iowa State
+J Madison,121,James Madison
+Jackson St,294,Jackson State
+Jacksonville,44,Jacksonville
+Jacksonville St,228,Jacksonville State
+Kansas,54,Kansas
+Kansas City,317,UMKC
+Kansas St,55,Kansas State
+Kennesaw St,45,Kennesaw State
+Kent St,177,Kent State
+Kentucky,258,Kentucky
+LIU,217,Long Island
+LSU,259,LSU
+La Salle,20,La Salle
+Lafayette,250,Lafayette
+Lamar,278,Lamar
+Le Moyne,721,Le Moyne
+Lehigh,251,Lehigh
+Liberty,91,Liberty
+Lindenwood,1766,Lindenwood
+Lipscomb,46,Lipscomb
+Little Rock,320,Little Rock
+Long Beach St,110,Long Beach State
+Longwood,133,Longwood
+Louisiana,324,Louisiana
+Louisiana Tech,344,Louisiana Tech
+Louisville,67,Louisville
+Loyola Chi,149,Loyola (IL)
+Loyola MD,167,Loyola (MD)
+Loyola Mymt,333,Loyola Marymount
+Maine,10,Maine
+Manhattan,168,Manhattan
+Marist,169,Marist
+Marquette,68,Marquette
+Marshall,300,Marshall
+Maryland,34,Maryland
+Maryland ES,192,Maryland-Eastern Shore
+McNeese,279,McNeese State
+Memphis,301,Memphis
+Mercer,47,Mercer
+Mercyhurst,586,Mercyhurst
+Merrimack,1645,Merrimack College
+Miami,35,Miami (FL)
+Miami OH,178,Miami (OH)
+Michigan,1,Michigan
+Michigan St,100,Michigan State
+Middle Tenn,326,Middle Tennessee State
+Milwaukee,150,Milwaukee
+Minnesota,101,Minnesota
+Miss Valley St,295,Mississippi Valley State
+Mississippi,260,Ole Miss
+Mississippi St,261,Mississippi State
+Missouri,56,Missouri
+Missouri St,203,Missouri State
+Monmouth,218,Monmouth
+Montana,80,Montana
+Montana St,81,Montana State
+Morehead St,229,Morehead State
+Morgan St,193,Morgan State
+Mt St Mary's,219,Mount St. Mary's
+Murray St,230,Murray State
+N Alabama,911,North Alabama
+N Arizona,82,Northern Arizona
+N Colorado,83,Northern Colorado
+N Dakota St,312,North Dakota State
+N Florida,48,North Florida
+N Illinois,183,Northern Illinois
+N Iowa,204,Northern Iowa
+N Kentucky,598,Northern Kentucky
+N Texas,328,North Texas
+NC A&T,195,North Carolina A&T
+NC Asheville,92,UNC Asheville
+NC Central,136,North Carolina Central
+NC Greensboro,274,UNC Greensboro
+NC State,36,NC State
+NC Wilmington,122,UNC Wilmington
+NJIT,135,N.J.I.T.
+NW State,281,Northwestern State
+Navy,252,Navy
+Nebraska,57,Nebraska
+Nevada,345,Nevada
+New Hampshire,11,New Hampshire
+New Haven,1633,New Haven
+New Mexico,210,New Mexico
+New Mexico St,346,New Mexico State
+New Orleans,327,New Orleans
+Niagara,170,Niagara
+Nicholls,280,Nicholls State
+Norfolk St,194,Norfolk State
+North Carolina,2,North Carolina
+North Dakota,137,North Dakota
+Northeastern,123,Northeastern
+Northwestern,102,Northwestern
+Notre Dame,69,Notre Dame
+Oakland,313,Oakland
+Ohio,179,Ohio
+Ohio St,103,Ohio State
+Oklahoma,4,Oklahoma
+Oklahoma St,59,Oklahoma State
+Old Dominion,124,Old Dominion
+Omaha,546,Omaha
+Oral Roberts,314,Oral Roberts
+Oregon,238,Oregon
+Oregon St,239,Oregon State
+Pacific,111,Pacific
+Penn,160,Pennsylvania
+Penn St,104,Penn State
+Pepperdine,334,Pepperdine
+Pittsburgh,70,Pittsburgh
+Portland,335,Portland
+Portland St,84,Portland State
+Prairie View,296,Prairie View A&M
+Presbyterian,93,Presbyterian
+Princeton,161,Princeton
+Providence,71,Providence
+Purdue,105,Purdue
+Purdue FW,447,Fort Wayne
+Queens,578,Queens University
+Quinnipiac,220,Quinnipiac
+Radford,94,Radford
+Rhode Island,22,Rhode Island
+Rice,302,Rice
+Richmond,23,Richmond
+Rider,171,Rider
+Robert Morris,221,Robert Morris
+Rutgers,72,Rutgers
+S Alabama,329,South Alabama
+S Carolina St,196,South Carolina State
+S Dakota St,315,South Dakota State
+S Florida,74,South Florida
+S Illinois,205,Southern Illinois
+S Indiana,585,Southern Indiana
+S Utah,316,Southern Utah
+SC Upstate,50,USC Upstate
+SE Louisiana,283,Southeastern Louisiana
+SE Missouri St,231,Southeast Missouri State
+SF Austin,284,Stephen F. Austin
+SIU Edward,140,SIU-Edwardsville
+SMU,303,Southern Methodist
+Sacramento St,85,Sacramento State
+Sacred Heart,573,Sacred Heart
+Saint Joseph's,24,Saint Joseph's
+Saint Louis,25,Saint Louis
+Saint Mary's,336,Saint Mary's
+Saint Peter's,172,Saint Peter's
+Sam Houston,282,Sam Houston State
+Samford,273,Samford
+San Diego,337,San Diego
+San Diego St,5,San Diego State
+San Francisco,338,San Francisco
+San Jose St,347,San Jose State
+Santa Clara,339,Santa Clara
+Seattle,139,Seattle
+Seton Hall,73,Seton Hall
+Siena,173,Siena
+South Carolina,262,South Carolina
+South Dakota,141,South Dakota
+Southern,297,Southern
+Southern Miss,425,Southern Mississippi
+St Bonaventure,26,St. Bonaventure
+St Francis PA,223,St. Francis (PA)
+St John's,75,St. John's
+St Thomas,1795,St. Thomas
+Stanford,240,Stanford
+Stetson,49,Stetson
+Stonehill,1147,Stonehill
+Stony Brook,12,Stony Brook
+Syracuse,382,Syracuse
+TCU,211,TCU
+Tarleton St,1350,Tarleton State
+Temple,27,Temple
+Tenn Tech,233,Tennessee Tech
+Tennessee,263,Tennessee
+Tennessee St,232,Tennessee State
+Texas,60,Texas
+Texas A&M,61,Texas A&M
+Texas A&M-CC,285,Texas A&M-CC
+Texas So,298,Texas Southern
+Texas St,286,Texas State
+Texas Tech,62,Texas Tech
+The Citadel,268,The Citadel
+Toledo,184,Toledo
+Towson,125,Towson
+Troy,330,Troy
+Tulane,304,Tulane
+Tulsa,305,Tulsa
+UAB,306,UAB
+UC Davis,112,UC Davis
+UC Irvine,113,UC Irvine
+UC Riverside,114,UC Riverside
+UCF,307,UCF
+UCLA,241,UCLA
+UCSB,115,UC Santa Barbara
+UCSD,830,UC San Diego
+UConn,64,UConn
+UL Monroe,325,Louisiana-Monroe
+UMBC,13,UMBC
+UMass,21,Massachusetts
+UMass Lowell,1549,UMass Lowell
+UNLV,212,UNLV
+USC,242,USC
+UT Arlington,287,Texas-Arlington
+UT Martin,234,Tennessee-Martin
+UT Rio Grande,142,Texas-RGV
+UTEP,308,UTEP
+UTSA,288,Texas-San Antonio
+Utah,213,Utah
+Utah St,348,Utah State
+Utah Tech,352,Utah Tech
+Utah Valley,143,Utah Valley
+VCU,126,VCU
+VMI,95,Virginia Military
+Valparaiso,152,Valparaiso
+Vanderbilt,264,Vanderbilt
+Vermont,14,Vermont
+Villanova,76,Villanova
+Virginia,37,Virginia
+Virginia Tech,38,Virginia Tech
+W Carolina,275,Western Carolina
+W Georgia,510,West Georgia
+W Illinois,318,Western Illinois
+W Kentucky,331,Western Kentucky
+W Michigan,185,Western Michigan
+Wagner,224,Wagner
+Wake Forest,39,Wake Forest
+Washington,163,Washington
+Washington St,244,Washington State
+Weber St,86,Weber State
+West Virginia,77,West Virginia
+Wichita St,206,Wichita State
+William & Mary,127,William & Mary
+Winthrop,96,Winthrop
+Wisconsin,106,Wisconsin
+Wofford,276,Wofford
+Wright St,153,Wright State
+Wyoming,214,Wyoming
+Xavier,28,Xavier
+Yale,162,Yale
+Youngstown St,154,Youngstown State
