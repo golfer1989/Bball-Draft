@@ -36,3 +36,7 @@ def season_for(d):
 
 def now_et():
     return datetime.now(ET)
+
+# Predicted score: points of margin per 1.00 of rating gap (fit on the 2026 backtest,
+# 2,319 games: margin ~= 164 x rating gap). Each team's score = total/2 +/- margin/2.
+POINTS_PER_RATING = 164

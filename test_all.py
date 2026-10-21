@@ -61,6 +61,23 @@ def test_first_half_last3():
     assert fh[2] == pytest.approx((40 + 50 + 60) / 3)
 
 
+def test_parse_teams_prefers_dark_logo():
+    t = fetch.parse_teams([{"id": 150, "mascot": "Blue Devils", "primaryColor": "001A57", "abbreviation": "DUKE",
+                            "logos": ["https://x/500/150.png", "https://x/500-dark/150.png"]},
+                           {"id": 2, "mascot": None, "primaryColor": None, "logos": None}])
+    assert t["150"] == {"mascot": "Blue Devils", "color": "001A57", "logo": "https://x/500-dark/150.png", "abbr": "DUKE"}
+    assert t["2"]["logo"] == "" and t["2"]["mascot"] == ""
+
+
+def test_predicted_score_matches_pick():
+    r = {"total": "150.0", "differential": "0.05", "pick": "Home St", "home": "Home St"}
+    a, h = site.predicted_score(r)
+    assert h > a and a + h in (149, 150, 151)          # 164 x 0.05 = 8.2 pt margin
+    r.update(differential="0.0001")                      # tiny gap still shows the pick winning
+    a, h = site.predicted_score(r)
+    assert h > a
+
+
 # ---------------- model math ----------------
 T = {"name": "A", "PPG": 80.0, "FGA": 60.0, "FTA": 20.0, "TOV": 10.0, "FG%": 0.48, "FT%": 0.75, "ORB": 10.0, "DRB": 25.0}
 O = {"name": "A", "PPG": 70.0, "FGA": 58.0, "FTA": 18.0, "TOV": 12.0, "FG%": 0.42, "FT%": 0.70, "ORB": 9.0, "DRB": 24.0}
@@ -131,6 +148,8 @@ def test_end_to_end(tmp_path, monkeypatch):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
     monkeypatch.setattr(site.write, "__defaults__", (tmp_path / "docs",))
     monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
+    monkeypatch.setattr(fetch, "teams", lambda: [{"id": 500, "mascot": "Volunteers", "primaryColor": "FF8200",
+                                                   "abbreviation": "TENN", "logos": ["https://x/500/2633.png"]}])
     monkeypatch.setattr(fetch, "games", lambda a, b: [g for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()])
     # day 1: Nov 8 picks get locked for T1@T2 ... (none of interest); run Nov 9
     monkeypatch.setattr("sys.argv", ["run_daily.py", "--date", "2026-11-09"])
@@ -141,7 +160,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     assert r["pick"] == "Tennessee" and r["stats_season"] == "2026-27"
     assert r["fh_pick"] == "Tennessee" and float(r["fh_margin"]) == pytest.approx(41 - 33, abs=0.05)
     html = (tmp_path / "docs" / "index.html").read_text()
-    assert "7:00 PM" in html and "Tennessee" in html
+    assert "7:00" in html and "Tennessee" in html and "Volunteers" in html and "https://x/500/2633.png" in html
     # next day: game is final -> graded, including 1H
     games[0].update(status="final", awayPoints=60, homePoints=75, awayPeriodPoints=[28, 32], homePeriodPoints=[36, 39])
     monkeypatch.setattr("sys.argv", ["run_daily.py", "--date", "2026-11-10"])

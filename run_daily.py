@@ -99,15 +99,17 @@ def main():
     log(f"  locked {added} new picks")
     ledger.save(rows)
 
-    # 4) website
+    # 4) website (team logos/colors are cosmetic: a failed download just means plain badges)
+    raw_teams, _ = _cache("teams", fetch.teams)
+    teams = fetch.parse_teams(raw_teams)
     def tip(r):
         try:
             return datetime.strptime(r["when"].replace(" ET", ""), "%b %d, %Y %I:%M %p")
         except ValueError:
             return datetime.max
     todays = sorted((r for r in rows if r["date"] == today_str), key=tip)
-    label = today.strftime("%A, %b %d, %Y")
-    site.write(site.today_page(todays, label, stamp, stats_note), site.results_page(rows, stamp))
+    label = today.strftime("%A, %b %-d")
+    site.write(site.today_page(todays, label, stamp, stats_note, teams), site.results_page(rows, stamp, teams))
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     log("done")
 

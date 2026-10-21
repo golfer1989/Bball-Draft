@@ -79,6 +79,27 @@ def team_stats(season):
     return _get("/stats/team/season", {"season": season})
 
 
+# ---------------- team info: logos, colors, mascots (for the website) ----------------
+def teams():
+    return _get("/teams", {})
+
+
+def parse_teams(rows):
+    """{team_id (str): {mascot, color, logo, abbr}}. Prefers the logo variant made for dark
+    backgrounds, since the site shows logos on a disc of the team's own color."""
+    out = {}
+    for t in rows or []:
+        logos = [u for u in (t.get("logos") or []) if u]
+        dark = [u for u in logos if "dark" in u.lower()]
+        out[str(t.get("id"))] = {
+            "mascot": t.get("mascot") or "",
+            "color": t.get("primaryColor") or t.get("secondaryColor") or "",
+            "logo": (dark or logos or [""])[0],
+            "abbr": t.get("abbreviation") or "",
+        }
+    return out
+
+
 # ---------------- games: schedule, finals, halftime ----------------
 def _et(iso):
     dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
