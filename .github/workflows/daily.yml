@@ -1,0 +1,56 @@
+name: Daily picks
+
+on:
+  schedule:
+    - cron: "17 12 * * *"
+    - cron: "17 13 * * *"
+    - cron: "17 14 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Already built today?
+        id: guard
+        run: |
+          today=$(TZ=America/New_York date +%F)
+          last=$(cat data/last_build.txt 2>/dev/null || echo none)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$last" = "$today" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "Already built $today"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.skip == 'false'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        if: steps.guard.outputs.skip == 'false'
+        run: pip install -r requirements.txt
+
+      - name: Build picks + site
+        if: steps.guard.outputs.skip == 'false'
+        run: python run_daily.py
+
+      - name: Commit
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          git config user.name "cbb-bot"
+          git config user.email "cbb-bot@users.noreply.github.com"
+          git add data docs
+          git diff --cached --quiet || git commit -m "Daily build $(TZ=America/New_York date +%F)"
+          git push
