@@ -1,1 +1,1 @@
-game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differential,strong_pick,total,fh_pick,fh_margin,stats_season,locked_at,away_pts,home_pts,pick_correct,strong_correct,total_error,fh_correct
+game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differential,strong_pick,total,fh_pick,fh_margin,stats_season,locked_at,away_pts,home_pts,pick_correct,strong_correct,total_error,fh_correct,neutral
