@@ -121,6 +121,8 @@ def test_schedule_adjust():
     model.schedule_adjust(rat, games)
     assert rat["A"]["rating"] > rat["B"]["rating"]                       # tougher schedule -> higher rating
     assert rat["A"]["raw_rating"] == pytest.approx(1.02) and rat["A"]["sos"] > 0 > rat["B"]["sos"]
+    # league average is unchanged by the adjustment (no drift)
+    assert sum(r["rating"] for r in rat.values()) == pytest.approx(sum(r["raw_rating"] for r in rat.values()))
     # weight 0 leaves ratings untouched
     rat2 = {"A": base(.57, .45), "S": base(.62, .50)}
     model.schedule_adjust(rat2, [("A", "S")], weight=0)

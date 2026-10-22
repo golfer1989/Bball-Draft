@@ -89,7 +89,12 @@ def schedule_adjust(rat, games, weight=None):
                 new_de[t] = r["defense"] + w * (sum(off[o] for o in op) / len(op) - avg_o)
             else:
                 new_off[t], new_de[t] = r["offense"], r["defense"]
-        off, de = new_off, new_de
+        # keep the league average where it started, so ratings don't drift upward each round
+        # (only the gaps between teams matter for picks; this keeps the displayed numbers honest)
+        so = sum(new_off.values()) / len(new_off) - avg_o
+        sd = sum(new_de.values()) / len(new_de) - avg_d
+        off = {t: v - so for t, v in new_off.items()}
+        de = {t: v - sd for t, v in new_de.items()}
     for t, r in rat.items():
         r["raw_rating"] = r["rating"]
         r["sos"] = (off[t] - r["offense"]) + (de[t] - r["defense"])
