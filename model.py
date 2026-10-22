@@ -13,7 +13,12 @@ Everything else is the spreadsheet's logic:
   Offense = .4*FG% + .25*(1-TOV%) + .2*ORB% + .15*FT%
   Defense = .4*(1-oppFG%) + .25*oppTOV% + .2*(1-oppORB%) + .15*(1-oppFT%)
   Rating  = Offense + Defense
-  Pick = higher rating (no home-court adjustment, same as the sheet)
+
+Added on top of the spreadsheet (Oct 2026):
+  Strength of schedule: Offense and Defense are adjusted for the opponents each team
+    actually played (schedule_adjust below), so beating up on weak teams counts for less.
+  Home court: the home team gets HOME_COURT_POINTS (none at neutral sites).
+  Pick = whoever the projected margin favors.
   Total = away ppg + home ppg
   1H pick = higher TeamRankings 1st-half PPG (Last 3), margin = the gap
 """
@@ -55,6 +60,43 @@ def ratings(team_stats, opp_stats):
     return out
 
 
+def schedule_adjust(rat, games, weight=None):
+    """Adjust each team's Offense/Defense for its opponents (KenPom-style, iterated).
+    games = [(team_a_id, team_b_id), ...] already played this season.
+      Offense_adj = Offense + w * (avg Defense_adj of opponents - league avg Defense)
+      Defense_adj = Defense + w * (avg Offense_adj of opponents - league avg Offense)
+    Facing good defenses makes raw offense look worse than it is, so it gets credit back."""
+    w = config.SOS_WEIGHT if weight is None else weight
+    opps = {}
+    for a, b in games:
+        if a in rat and b in rat:
+            opps.setdefault(a, []).append(b)
+            opps.setdefault(b, []).append(a)
+    if not rat or not opps or not w:
+        for r in rat.values():
+            r["raw_rating"] = r["rating"]
+        return rat
+    avg_o = sum(r["offense"] for r in rat.values()) / len(rat)
+    avg_d = sum(r["defense"] for r in rat.values()) / len(rat)
+    off = {t: r["offense"] for t, r in rat.items()}
+    de = {t: r["defense"] for t, r in rat.items()}
+    for _ in range(100):
+        new_off, new_de = {}, {}
+        for t, r in rat.items():
+            op = opps.get(t)
+            if op:
+                new_off[t] = r["offense"] + w * (sum(de[o] for o in op) / len(op) - avg_d)
+                new_de[t] = r["defense"] + w * (sum(off[o] for o in op) / len(op) - avg_o)
+            else:
+                new_off[t], new_de[t] = r["offense"], r["defense"]
+        off, de = new_off, new_de
+    for t, r in rat.items():
+        r["raw_rating"] = r["rating"]
+        r["sos"] = (off[t] - r["offense"]) + (de[t] - r["defense"])
+        r["offense"], r["defense"], r["rating"] = off[t], de[t], off[t] + de[t]
+    return rat
+
+
 def predict(game, rat, first_half):
     """game has away_id/home_id/away/home. first_half = {realgm_id: 1H ppg}."""
     a, h = rat.get(game["away_id"]), rat.get(game["home_id"])
@@ -63,12 +105,16 @@ def predict(game, rat, first_half):
         row.update(away_rating=None, home_rating=None, pick=None, differential=None,
                    strong_pick="", total=None)
     else:
-        diff = h["rating"] - a["rating"]
-        pick = game["home"] if diff > 0 else game["away"]
+        home_edge = 0.0 if game.get("neutral") else config.HOME_COURT_POINTS
+        margin = config.POINTS_PER_RATING * (h["rating"] - a["rating"]) + home_edge   # + = home wins
+        pick = game["home"] if margin > 0 else game["away"]
+        # differential stays in rating units (like the sheet) but now includes home court:
+        # |margin| / points-per-rating
+        diff = abs(margin) / config.POINTS_PER_RATING
         row.update(
             away_rating=a["rating"], home_rating=h["rating"], pick=pick,
-            differential=abs(diff),
-            strong_pick=pick if abs(diff) > config.STRONG_PICK_GAP else "",
+            differential=diff, margin=margin,
+            strong_pick=pick if diff > config.STRONG_PICK_GAP else "",
             total=a["ppg"] + h["ppg"],
         )
     fa, fh = first_half.get(game["away_id"]), first_half.get(game["home_id"])

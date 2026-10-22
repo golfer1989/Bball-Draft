@@ -53,8 +53,40 @@ def load_stats(today):
             log(f"  season {s} ({label}): median {med:g} GP < {config.MIN_MEDIAN_GP}, trying older")
             continue
         note = f"{label or s} stats, median {med:g} GP" + (" (cached)" if stale else "")
-        return label or str(s), team, opp, note
+        return s, label or str(s), team, opp, note
     raise SystemExit("No team stats available from CollegeBasketballData or cache.")
+
+
+def season_games(season, today):
+    """Every finished game of a season up to yesterday, as (away_id, home_id) pairs, for the
+    strength-of-schedule adjustment. Kept in data/raw/season_games_<season>.json so each
+    morning only the last few days are downloaded (the first run of a season pulls it all
+    in 10-day chunks, about 16 API calls)."""
+    RAW.mkdir(parents=True, exist_ok=True)
+    p = RAW / f"season_games_{season}.json"
+    saved = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {"through": "", "games": []}
+    start = date(season - 1, 11, 1)
+    end = min(today - timedelta(days=1), date(season, 4, 15))
+    if saved["through"]:
+        through = date.fromisoformat(saved["through"])
+        if through >= end and end < today - timedelta(days=3):      # finished season: nothing new
+            return [(g[1], g[2]) for g in saved["games"]]
+        start = max(start, through - timedelta(days=2))
+    games = {(g[0], g[1], g[2]): g for g in saved["games"]}
+    d = start
+    try:
+        while d <= end:
+            chunk_end = min(d + timedelta(days=9), end)
+            for g in fetch.parse_games(fetch.games(d, chunk_end)):
+                if g["away_pts"] is not None and g["away_id"] is not None and g["home_id"] is not None:
+                    games[(g["date"], g["away_id"], g["home_id"])] = [g["date"], g["away_id"], g["home_id"]]
+            d = chunk_end + timedelta(days=1)
+        if end >= start:
+            saved = {"through": end.isoformat(), "games": sorted(games.values())}
+            p.write_text(json.dumps(saved), encoding="utf-8")
+    except fetch.FetchError as e:
+        log(f"  ! season games {season}: {e} (using {len(games)} saved games)")
+    return [(g[1], g[2]) for g in games.values()]
 
 
 def main():
@@ -84,9 +116,13 @@ def main():
             log(f"  graded {n} games for {d}")
 
     # 2) stats, 1H, today's picks
-    season, team, opp, stats_note = load_stats(today)
+    season_no, season, team, opp, stats_note = load_stats(today)
     log(f"  {stats_note}")
     rat = model.ratings(team, opp)
+    played = season_games(season_no, today)
+    model.schedule_adjust(rat, played)
+    log(f"  strength of schedule from {len(played)} games")
+    stats_note += ", adjusted for schedule + home court"
     fh = fetch.first_half_last3(all_games, today_str)
     todays_games = [g for g in all_games if g["date"] == today_str]
     preds = [model.predict(g, rat, fh) for g in todays_games]

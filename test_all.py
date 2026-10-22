@@ -92,16 +92,39 @@ def test_rating_by_hand():
     assert r["rating"] == pytest.approx(off + de) and r["ppg"] == pytest.approx(75.0)
 
 
-def test_predict_rules():
+def test_predict_rules_with_home_court():
+    K, H = config.POINTS_PER_RATING, config.HOME_COURT_POINTS
     rat = {1: {"rating": 1.10, "ppg": 75.0}, 2: {"rating": 1.20, "ppg": 70.0}}
     g = {"away_id": 1, "away": "Away U", "home_id": 2, "home": "Home St", "when": "x"}
     p = model.predict(g, rat, {1: 40.0, 2: 35.0})
-    assert p["pick"] == "Home St" and p["differential"] == pytest.approx(0.10) and p["strong_pick"] == "Home St"
-    assert p["total"] == pytest.approx(145.0) and p["fh_pick"] == "Away U" and p["fh_margin"] == pytest.approx(5.0)
+    assert p["margin"] == pytest.approx(K * 0.10 + H)                     # rating edge + home court
+    assert p["pick"] == "Home St" and p["differential"] == pytest.approx(0.10 + H / K)
+    assert p["strong_pick"] == "Home St" and p["total"] == pytest.approx(145.0)
+    assert p["fh_pick"] == "Away U" and p["fh_margin"] == pytest.approx(5.0)
+    # equal ratings: home court decides at home, nobody gets it at a neutral site (tie -> away, like the sheet)
     rat[2]["rating"] = 1.10
-    p = model.predict(g, rat, {1: 30.0, 2: 30.0})
-    assert p["pick"] == "Away U" and p["strong_pick"] == "" and p["fh_pick"] == "Home St"
+    assert model.predict(g, rat, {})["pick"] == "Home St"
+    assert model.predict({**g, "neutral": True}, rat, {})["pick"] == "Away U"
+    # away team better by less than home court -> home still picked; by more -> away picked
+    rat[1]["rating"] = 1.10 + (H - 1) / K
+    assert model.predict(g, rat, {})["pick"] == "Home St"
+    rat[1]["rating"] = 1.10 + (H + 1) / K
+    assert model.predict(g, rat, {})["pick"] == "Away U"
     assert model.predict({**g, "away_id": 999}, rat, {})["pick"] is None
+
+
+def test_schedule_adjust():
+    # A and B have identical raw numbers, but A played the strong team S and B the weak team W
+    base = lambda o, d: {"offense": o, "defense": d, "rating": o + d, "ppg": 70.0, "name": "x"}  # noqa: E731
+    rat = {"A": base(.57, .45), "B": base(.57, .45), "S": base(.62, .50), "W": base(.52, .40)}
+    games = [("A", "S"), ("A", "S"), ("B", "W"), ("B", "W"), ("S", "W")]
+    model.schedule_adjust(rat, games)
+    assert rat["A"]["rating"] > rat["B"]["rating"]                       # tougher schedule -> higher rating
+    assert rat["A"]["raw_rating"] == pytest.approx(1.02) and rat["A"]["sos"] > 0 > rat["B"]["sos"]
+    # weight 0 leaves ratings untouched
+    rat2 = {"A": base(.57, .45), "S": base(.62, .50)}
+    model.schedule_adjust(rat2, [("A", "S")], weight=0)
+    assert rat2["A"]["rating"] == pytest.approx(1.02)
 
 
 def test_season_label():

@@ -7,7 +7,7 @@ LEDGER = Path(__file__).resolve().parent / "data" / "ledger.csv"
 FIELDS = ["game_key", "date", "when", "away_id", "away", "home_id", "home",
           "away_rating", "home_rating", "pick", "differential", "strong_pick", "total",
           "fh_pick", "fh_margin", "stats_season", "locked_at",
-          "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct"]
+          "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct", "neutral"]
 
 
 def key(date, away_id, home_id):
@@ -57,7 +57,7 @@ def lock(rows, date, preds, season, stamp):
             "fh_pick": p.get("fh_pick") or "", "fh_margin": _fmt(p.get("fh_margin"), 1),
             "stats_season": season, "locked_at": stamp,
             "away_pts": "", "home_pts": "", "pick_correct": "", "strong_correct": "", "total_error": "",
-            "fh_correct": "",
+            "fh_correct": "", "neutral": "1" if p.get("neutral") else "",
         })
         have.add(k)
         added += 1

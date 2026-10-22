@@ -48,6 +48,7 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .g:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--pc)}
 .g.strong{border-color:rgba(242,165,65,.45);box-shadow:0 0 0 1px rgba(242,165,65,.15) inset}
 .time{color:var(--mute);font-weight:600;font-size:14px;line-height:1.2}
+.time small{display:block;margin-top:4px;color:var(--dim);font-size:12px;font-weight:500}
 .team{display:flex;align-items:center;gap:12px;min-width:0}
 .team.h{flex-direction:row-reverse;text-align:right}
 .disc{flex:0 0 52px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;
@@ -186,7 +187,7 @@ def _row(r, teams, final=False):
                   f'<span class="dash"></span><span class="{sh}">{ph}</span></div>')
         lose_a, lose_h = home_pick, not home_pick
     return (f'<article class="g{" strong" if strong else ""}" style="--pc:{pc}">'
-            f'<div class="time">{_tip(r["when"])}</div>'
+            f'<div class="time">{_tip(r["when"])}{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div>'
             f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
             f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{escape(h["name"])}</b><span>{escape(h["mascot"])}</span></div></div>'

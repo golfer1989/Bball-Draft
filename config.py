@@ -16,10 +16,10 @@ TR_FIRST_HALF = "https://www.teamrankings.com/ncaa-basketball/stat/1st-half-poin
 # rebounding weight fixed from 2 to 0.2 so it matches defense.
 W_SHOOT, W_TOV, W_REB, W_FT = 0.40, 0.25, 0.20, 0.15
 
-# "Strong Pick" when the rating gap is bigger than this. The spreadsheet used
-# 0.2 on its (buggy) scale; 0.055 flags the same ~12% of games on the corrected
-# scale (2026 backtest: 84.5% straight-up vs 70.6% for the old flag).
-STRONG_PICK_GAP = 0.055
+# "Strong Pick" when the projected edge (rating gap incl. home court, in rating units) is
+# bigger than this. 0.06 ~= a 10-point projected margin and flags ~12% of games
+# (2026 backtest with schedule + home court: 85% straight-up on those picks).
+STRONG_PICK_GAP = 0.06
 
 # First-half pick uses TeamRankings' "Last 3" column, like the spreadsheet did.
 FIRST_HALF_COLUMN = "Last 3"
@@ -37,6 +37,12 @@ def season_for(d):
 def now_et():
     return datetime.now(ET)
 
-# Predicted score: points of margin per 1.00 of rating gap (fit on the 2026 backtest,
-# 2,319 games: margin ~= 164 x rating gap). Each team's score = total/2 +/- margin/2.
-POINTS_PER_RATING = 164
+# Predicted margin (points) = POINTS_PER_RATING x rating gap + HOME_COURT_POINTS for the
+# home team (none at neutral sites). Both fit on 2,415 games played after Jan 21, 2026.
+# Each team's predicted score = total/2 +/- margin/2.
+POINTS_PER_RATING = 165
+HOME_COURT_POINTS = 2.7
+
+# Strength of schedule: each team's Offense is credited for the defenses it faced and its
+# Defense for the offenses it faced (1.0 = full adjustment, 0 = off).
+SOS_WEIGHT = 1.0
