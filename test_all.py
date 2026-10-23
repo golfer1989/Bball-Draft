@@ -113,21 +113,37 @@ def test_predict_rules_with_home_court():
     assert model.predict({**g, "away_id": 999}, rat, {})["pick"] is None
 
 
-def test_schedule_adjust():
-    # A and B have identical raw numbers, but A played the strong team S and B the weak team W
-    base = lambda o, d: {"offense": o, "defense": d, "rating": o + d, "ppg": 70.0, "name": "x"}  # noqa: E731
-    rat = {"A": base(.57, .45), "B": base(.57, .45), "S": base(.62, .50), "W": base(.52, .40)}
-    games = [("A", "S"), ("A", "S"), ("B", "W"), ("B", "W"), ("S", "W")]
-    model.schedule_adjust(rat, games)
-    assert rat["A"]["rating"] > rat["B"]["rating"]                       # tougher schedule -> higher rating
-    assert rat["A"]["raw_rating"] == pytest.approx(1.02) and rat["A"]["sos"] > 0 > rat["B"]["sos"]
-    # league average is unchanged by the adjustment (no drift)
-    assert sum(r["rating"] for r in rat.values()) == pytest.approx(sum(r["raw_rating"] for r in rat.values()))
-    # weight 0 leaves ratings untouched
-    rat2 = {"A": base(.57, .45), "S": base(.62, .50)}
-    model.schedule_adjust(rat2, [("A", "S")], weight=0)
-    assert rat2["A"]["rating"] == pytest.approx(1.02)
+def test_results_ratings():
+    # neutral-site games: X beats Y by 10, Y beats Z by 10 -> X > Y > Z, evenly spaced
+    g = [("Y", "X", 60, 70, True), ("Z", "Y", 60, 70, True), ("Y", "X", 61, 71, True), ("Z", "Y", 61, 71, True)]
+    r = model.results_ratings(g)
+    assert r["X"] > r["Y"] > r["Z"]
+    assert (r["X"] - r["Y"]) == pytest.approx(r["Y"] - r["Z"], abs=0.5)
+    assert sum(r.values()) == pytest.approx(0, abs=1e-9)
+    # blowouts are capped at 25
+    big = model.results_ratings([("B", "A", 40, 100, True)] * 4)
+    capped = model.results_ratings([("B", "A", 40, 65, True)] * 4)
+    assert big["A"] == pytest.approx(capped["A"])
+    # home court is learned from home games and removed from team strength
+    home = model.results_ratings([("P", "Q", 70, 74, False), ("Q", "P", 70, 74, False)] * 3)
+    assert home["P"] == pytest.approx(home["Q"], abs=1e-6)       # each won at home by 4: equal teams
 
+
+def test_schedule_adjust():
+    # A and B have identical four-factor numbers, but A played the strong team S and B the weak W
+    base = lambda: {"offense": .57, "defense": .45, "rating": 1.02, "ppg": 70.0, "name": "x"}  # noqa: E731
+    rat = {"A": base(), "B": base(), "S": base(), "W": base()}
+    games = [("W", "S", 50, 80, True), ("W", "S", 55, 80, True),      # S crushes W
+             ("A", "S", 65, 70, True), ("A", "S", 66, 70, True),      # A plays S close
+             ("B", "W", 70, 65, True), ("B", "W", 71, 66, True)]      # B beats W
+    model.schedule_adjust(rat, games)
+    assert rat["A"]["rating"] > rat["A"]["raw_rating"] == pytest.approx(1.02)   # tough schedule credited
+    assert rat["B"]["rating"] < rat["B"]["raw_rating"]                          # soft schedule docked
+    assert rat["A"]["sos"] > 0 > rat["B"]["sos"]
+    # weight 0 leaves ratings untouched
+    rat2 = {"A": base(), "S": base()}
+    model.schedule_adjust(rat2, [("A", "S", 60, 80, True)], weight=0)
+    assert rat2["A"]["rating"] == pytest.approx(1.02)
 
 def test_season_label():
     assert config.season_for(date(2026, 11, 5)) == 2027 and config.season_for(date(2027, 3, 15)) == 2027

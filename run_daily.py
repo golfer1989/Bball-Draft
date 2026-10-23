@@ -58,19 +58,25 @@ def load_stats(today):
 
 
 def season_games(season, today):
-    """Every finished game of a season up to yesterday, as (away_id, home_id) pairs, for the
-    strength-of-schedule adjustment. Kept in data/raw/season_games_<season>.json so each
-    morning only the last few days are downloaded (the first run of a season pulls it all
-    in 10-day chunks, about 16 API calls)."""
+    """Every finished game of a season up to yesterday, as
+    (away_id, home_id, away_pts, home_pts, neutral), for the strength-of-schedule adjustment.
+    Kept in data/raw/season_games_<season>.json so each morning only the last few days are
+    downloaded (the first run of a season pulls it all in 10-day chunks, about 16 API calls)."""
     RAW.mkdir(parents=True, exist_ok=True)
     p = RAW / f"season_games_{season}.json"
-    saved = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {"through": "", "games": []}
+    saved = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    if saved.get("format") != 2:                       # older file without scores: rebuild once
+        saved = {"format": 2, "through": "", "games": []}
     start = date(season - 1, 11, 1)
     end = min(today - timedelta(days=1), date(season, 4, 15))
+
+    def as_tuples(rows):
+        return [(g[1], g[2], g[3], g[4], bool(g[5])) for g in rows]
+
     if saved["through"]:
         through = date.fromisoformat(saved["through"])
         if through >= end and end < today - timedelta(days=3):      # finished season: nothing new
-            return [(g[1], g[2]) for g in saved["games"]]
+            return as_tuples(saved["games"])
         start = max(start, through - timedelta(days=2))
     games = {(g[0], g[1], g[2]): g for g in saved["games"]}
     d = start
@@ -79,14 +85,15 @@ def season_games(season, today):
             chunk_end = min(d + timedelta(days=9), end)
             for g in fetch.parse_games(fetch.games(d, chunk_end)):
                 if g["away_pts"] is not None and g["away_id"] is not None and g["home_id"] is not None:
-                    games[(g["date"], g["away_id"], g["home_id"])] = [g["date"], g["away_id"], g["home_id"]]
+                    games[(g["date"], g["away_id"], g["home_id"])] = [
+                        g["date"], g["away_id"], g["home_id"], g["away_pts"], g["home_pts"], int(g["neutral"])]
             d = chunk_end + timedelta(days=1)
         if end >= start:
-            saved = {"through": end.isoformat(), "games": sorted(games.values())}
+            saved = {"format": 2, "through": end.isoformat(), "games": sorted(games.values())}
             p.write_text(json.dumps(saved), encoding="utf-8")
     except fetch.FetchError as e:
         log(f"  ! season games {season}: {e} (using {len(games)} saved games)")
-    return [(g[1], g[2]) for g in games.values()]
+    return as_tuples(games.values())
 
 
 def main():

@@ -15,8 +15,8 @@ Everything else is the spreadsheet's logic:
   Rating  = Offense + Defense
 
 Added on top of the spreadsheet (Oct 2026):
-  Strength of schedule: Offense and Defense are adjusted for the opponents each team
-    actually played (schedule_adjust below), so beating up on weak teams counts for less.
+  Strength of schedule: the rating is credited (or docked) for how strong the opponents
+    each team actually played were, measured from game results (schedule_adjust below).
   Home court: the home team gets HOME_COURT_POINTS (none at neutral sites).
   Pick = whoever the projected margin favors.
   Total = away ppg + home ppg
@@ -60,45 +60,67 @@ def ratings(team_stats, opp_stats):
     return out
 
 
+def results_ratings(games, cap=25, ridge=1.0, iters=400):
+    """Results-based team strength in points (Massey-style, like the ratings sites use):
+    home margin = r_home - r_away + home court (none at neutral sites).
+    games = [(away_id, home_id, away_pts, home_pts, neutral), ...]; blowouts capped at `cap`
+    points so running up the score doesn't count; a small `ridge` keeps teams with few games
+    near average. Returns {team_id: rating}, centered on 0."""
+    r = {}
+    for a, h, *_ in games:
+        r[a] = r.get(a, 0.0)
+        r[h] = r.get(h, 0.0)
+    if not r:
+        return {}
+    clip = lambda m: max(-cap, min(cap, m))  # noqa: E731
+    hca = 3.0
+    for _ in range(iters):
+        num = {t: 0.0 for t in r}
+        den = {t: ridge for t in r}
+        hs = hn = 0
+        for a, h, ap, hp, neutral in games:
+            if not neutral:
+                hs += clip(hp - ap) - (r[h] - r[a])
+                hn += 1
+        hca = hs / hn if hn else 0.0
+        for a, h, ap, hp, neutral in games:
+            m = clip(hp - ap) - (0.0 if neutral else hca)
+            num[h] += m + r[a]
+            den[h] += 1
+            num[a] += -m + r[h]
+            den[a] += 1
+        r = {t: num[t] / den[t] for t in r}
+        mean = sum(r.values()) / len(r)
+        r = {t: v - mean for t, v in r.items()}
+    return r
+
+
 def schedule_adjust(rat, games, weight=None):
-    """Adjust each team's Offense/Defense for its opponents (KenPom-style, iterated).
-    games = [(team_a_id, team_b_id), ...] already played this season.
-      Offense_adj = Offense + w * (avg Defense_adj of opponents - league avg Defense)
-      Defense_adj = Defense + w * (avg Offense_adj of opponents - league avg Offense)
-    Facing good defenses makes raw offense look worse than it is, so it gets credit back."""
+    """Strength of schedule for your four-factor rating.
+    A team's four-factor numbers are earned against its opponents, so a team that played
+    strong opponents is better than its raw numbers say. Opponent strength comes from game
+    results (results_ratings), which non-conference games tie together across leagues:
+      SOS    = average results-rating of the D-I opponents played (points) / POINTS_PER_RATING
+      Rating = Offense + Defense + weight x SOS
+    games = [(away_id, home_id, away_pts, home_pts, neutral), ...] played this season."""
     w = config.SOS_WEIGHT if weight is None else weight
-    opps = {}
-    for a, b in games:
-        if a in rat and b in rat:
-            opps.setdefault(a, []).append(b)
-            opps.setdefault(b, []).append(a)
-    if not rat or not opps or not w:
-        for r in rat.values():
-            r["raw_rating"] = r["rating"]
-        return rat
-    avg_o = sum(r["offense"] for r in rat.values()) / len(rat)
-    avg_d = sum(r["defense"] for r in rat.values()) / len(rat)
-    off = {t: r["offense"] for t, r in rat.items()}
-    de = {t: r["defense"] for t, r in rat.items()}
-    for _ in range(100):
-        new_off, new_de = {}, {}
-        for t, r in rat.items():
-            op = opps.get(t)
-            if op:
-                new_off[t] = r["offense"] + w * (sum(de[o] for o in op) / len(op) - avg_d)
-                new_de[t] = r["defense"] + w * (sum(off[o] for o in op) / len(op) - avg_o)
-            else:
-                new_off[t], new_de[t] = r["offense"], r["defense"]
-        # keep the league average where it started, so ratings don't drift upward each round
-        # (only the gaps between teams matter for picks; this keeps the displayed numbers honest)
-        so = sum(new_off.values()) / len(new_off) - avg_o
-        sd = sum(new_de.values()) / len(new_de) - avg_d
-        off = {t: v - so for t, v in new_off.items()}
-        de = {t: v - sd for t, v in new_de.items()}
-    for t, r in rat.items():
+    for r in rat.values():
         r["raw_rating"] = r["rating"]
-        r["sos"] = (off[t] - r["offense"]) + (de[t] - r["defense"])
-        r["offense"], r["defense"], r["rating"] = off[t], de[t], off[t] + de[t]
+        r["sos"] = 0.0
+    if not games or not w:
+        return rat
+    strength = results_ratings(games)
+    d1 = [v for t, v in strength.items() if t in rat]
+    center = sum(d1) / len(d1) if d1 else 0.0          # average D-I opponent = 0
+    opps = {}
+    for a, h, *_ in games:
+        if a in rat and h in rat:
+            opps.setdefault(a, []).append(strength[h] - center)
+            opps.setdefault(h, []).append(strength[a] - center)
+    for t, r in rat.items():
+        if opps.get(t):
+            r["sos"] = sum(opps[t]) / len(opps[t]) / config.POINTS_PER_RATING
+            r["rating"] = r["raw_rating"] + w * r["sos"]
     return rat
 
 

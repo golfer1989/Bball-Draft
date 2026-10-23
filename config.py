@@ -40,9 +40,9 @@ def now_et():
 # Predicted margin (points) = POINTS_PER_RATING x rating gap + HOME_COURT_POINTS for the
 # home team (none at neutral sites). Both fit on 2,415 games played after Jan 21, 2026.
 # Each team's predicted score = total/2 +/- margin/2.
-POINTS_PER_RATING = 165
+POINTS_PER_RATING = 170
 HOME_COURT_POINTS = 2.7
 
-# Strength of schedule: each team's Offense is credited for the defenses it faced and its
-# Defense for the offenses it faced (1.0 = full adjustment, 0 = off).
+# Strength of schedule: rating += SOS_WEIGHT x (average results-based strength of the
+# opponents played, in points / POINTS_PER_RATING). 1.0 = full adjustment, 0 = off.
 SOS_WEIGHT = 1.0
