@@ -140,6 +140,9 @@ def main():
     # 3) lock + save
     added = ledger.lock(rows, today_str, preds, season, now.isoformat(timespec="minutes"))
     log(f"  locked {added} new picks")
+    raw_lines, _ = _cache("lines_today", lambda: fetch.lines(today, today))
+    n_lines = ledger.attach_lines(rows, today_str, fetch.parse_lines(raw_lines))
+    log(f"  betting lines found for {n_lines} games")
     ledger.save(rows)
 
     # 4) website (team logos/colors are cosmetic: a failed download just means plain badges)

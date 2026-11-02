@@ -189,6 +189,8 @@ def test_end_to_end(tmp_path, monkeypatch):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
     monkeypatch.setattr(site.write, "__defaults__", (tmp_path / "docs",))
     monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
+    monkeypatch.setattr(fetch, "lines", lambda a, b: [_gl(600, "Wofford", 500, "Tennessee",
+                        [{"provider": "consensus", "spread": -9.5, "overUnder": 152.5}])])
     monkeypatch.setattr(fetch, "teams", lambda: [{"id": 500, "mascot": "Volunteers", "primaryColor": "FF8200",
                                                    "abbreviation": "TENN", "logos": ["https://x/500/2633.png"]}])
     monkeypatch.setattr(fetch, "games", lambda a, b: [g for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()])
@@ -201,6 +203,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     assert r["pick"] == "Tennessee" and r["stats_season"] == "2026-27"
     assert r["fh_pick"] == "Tennessee" and float(r["fh_margin"]) == pytest.approx(41 - 33, abs=0.05)
     html = (tmp_path / "docs" / "index.html").read_text()
+    assert "Tennessee \u22129.5" in html and "152.5" in html
     assert "7:00" in html and "Tennessee" in html and "Volunteers" in html and "https://x/500/2633.png" in html
     # next day: game is final -> graded, including 1H
     games[0].update(status="final", awayPoints=60, homePoints=75, awayPeriodPoints=[28, 32], homePeriodPoints=[36, 39])
@@ -215,3 +218,46 @@ def test_missing_key_is_clear(monkeypatch):
     monkeypatch.delenv("CBBD_API_KEY", raising=False)
     with pytest.raises(fetch.FetchError, match="CBBD_API_KEY"):
         fetch.team_stats(2027)
+
+# ---------------- betting lines ----------------
+def _gl(aid, away, hid, home, books):
+    return {"gameId": 1, "awayTeamId": aid, "awayTeam": away, "homeTeamId": hid, "homeTeam": home, "lines": books}
+
+
+def test_parse_lines_favorite_spread_total():
+    rows = [
+        # moneylines decide the favorite (home -300 vs away +240 -> home favored)
+        _gl(1, "Wofford", 2, "Tennessee", [{"provider": "Bovada", "spread": -14.5, "overUnder": 141.5,
+                                            "homeMoneyline": -300, "awayMoneyline": 240}]),
+        # no moneylines: spread is from the home side, +3.5 means the AWAY team is favored
+        _gl(3, "Duke", 4, "Clemson", [{"provider": "ESPN Bet", "spread": 3.5, "overUnder": 150}]),
+        # pick'em
+        _gl(5, "A", 6, "B", [{"provider": "consensus", "spread": 0, "overUnder": 140}]),
+        # consensus preferred over other books
+        _gl(7, "C", 8, "D", [{"provider": "Bovada", "spread": -2, "overUnder": 130},
+                             {"provider": "consensus", "spread": -4, "overUnder": 133.5}]),
+        # no usable numbers -> skipped
+        _gl(9, "E", 10, "F", [{"provider": "x", "spread": None, "overUnder": None}]),
+    ]
+    m = fetch.parse_lines(rows)
+    assert m[(1, 2)] == {"fav": "Tennessee", "spread": 14.5, "total": 141.5, "book": "Bovada"}
+    assert m[(3, 4)]["fav"] == "Duke" and m[(3, 4)]["spread"] == 3.5
+    assert m[(5, 6)]["fav"] == "" and m[(5, 6)]["spread"] == 0
+    assert m[(7, 8)]["spread"] == 4 and m[(7, 8)]["book"] == "consensus"
+    assert (9, 10) not in m
+
+
+def test_lines_on_ledger_and_page():
+    rows = []
+    pred = {"when": "Nov 3, 2026 7:00 PM ET", "away_id": 1, "away": "Wofford", "home_id": 2, "home": "Tennessee",
+            "away_rating": 1.0, "home_rating": 1.1, "pick": "Tennessee", "differential": 0.1, "strong_pick": "Tennessee",
+            "total": 140.0, "fh_pick": None, "fh_margin": None}
+    ledger.lock(rows, "2026-11-03", [pred], "2026-27", "t")
+    lm = {(1, 2): {"fav": "Tennessee", "spread": 14.5, "total": 141.5, "book": "consensus"}}
+    assert ledger.attach_lines(rows, "2026-11-03", lm) == 1
+    assert ledger.attach_lines(rows, "2026-11-03", {(1, 2): {"fav": "Wofford", "spread": 1, "total": 1, "book": "x"}}) == 0
+    assert (rows[0]["line_fav"], rows[0]["line_spread"], rows[0]["line_total"]) == ("Tennessee", "14.5", "141.5")
+    html = site.today_page(rows, "Tuesday, Nov 3", "now", "note", {})
+    assert "Tennessee \u221214.5" in html and "141.5" in html and "Strong pick" in html
+    rows[0]["line_spread"], rows[0]["line_fav"] = "0", ""
+    assert "Pick\u2019em" in site.today_page(rows, "x", "now", "note", {})

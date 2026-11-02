@@ -43,7 +43,7 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .chip{border:1px solid var(--line);background:var(--panel);color:var(--mute);font:600 14px Barlow,sans-serif;padding:7px 14px;border-radius:999px;cursor:pointer}
 .chip.on{color:var(--ink);border-color:#3a3a42;background:var(--panel2)}
 .games{display:flex;flex-direction:column;gap:10px;padding-bottom:48px}
-.g{position:relative;display:grid;grid-template-columns:76px 1fr 190px 1fr 210px;align-items:center;gap:14px;
+.g{position:relative;display:grid;grid-template-columns:76px 1fr 270px 1fr 200px;align-items:center;gap:14px;
  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;overflow:hidden}
 .g:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--pc)}
 .g.strong{border-color:rgba(242,165,65,.45);box-shadow:0 0 0 1px rgba(242,165,65,.15) inset}
@@ -63,6 +63,11 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .score .w{color:var(--ink)}.score .l{color:var(--dim)}
 .score .dash{width:10px;height:3px;background:var(--dim);border-radius:2px}
 .score small{display:block}
+.mid{display:flex;flex-direction:column;align-items:center;gap:9px;min-width:0}
+.line{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.ln{font:600 12.5px/1 Barlow,sans-serif;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
+ border-radius:999px;padding:5px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ln i{font-style:normal;color:var(--mute);font-weight:500;margin-right:6px}
 .side{display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-align:right}
 .pick{font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center}
 .flag{font:700 12px Barlow,sans-serif;color:#000;background:var(--amber);padding:2px 8px;border-radius:999px}
@@ -81,10 +86,11 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .empty b{display:block;color:var(--ink);font:800 28px/1.1 'Big Shoulders Display',sans-serif;margin-bottom:6px}
 footer{color:var(--dim);font-size:12px;padding:0 0 30px}
 @media (max-width:860px){
- .g{grid-template-columns:1fr auto 1fr;grid-template-areas:"time time time" "a s h" "side side side";row-gap:10px;padding:14px}
+ .g{grid-template-columns:1fr auto 1fr;grid-template-areas:"time time time" "a s h" "line line line" "side side side";row-gap:10px;padding:14px}
+ .mid{display:contents}.mid .score,.mid>div:first-child{grid-area:s}.line{grid-area:line}
  .time{grid-area:time}.time br{display:none}
  .team.a{grid-area:a;flex-direction:column;text-align:center;gap:6px}.team.h{grid-area:h;flex-direction:column;text-align:center;gap:6px}
- .score{grid-area:s;font-size:38px}.side{grid-area:side;flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap}
+ .score{font-size:38px}.side{grid-area:side;flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap}
  .nm b{font-size:15px;white-space:normal}.disc{flex-basis:46px;width:46px;height:46px}.disc img{width:32px;height:32px}
  .meter{width:90px}.stats{gap:18px}
 }
@@ -155,6 +161,30 @@ def _tip(when):
     return f"{parts[-2]}<br> {parts[-1]}" if len(parts) >= 2 and parts[-1] in ("AM", "PM") else escape(when or "")
 
 
+def _short(teams, tid, name):
+    """School name, or its abbreviation when the name is too long for the line pill."""
+    if len(name) <= 14:
+        return name
+    t = teams.get(str(tid)) or {}
+    return (t.get("abbr") or name).strip()
+
+
+def _line_pills(r, teams):
+    """Market line under the predicted score: favorite and spread, then the over/under."""
+    pills = []
+    if r.get("line_spread"):
+        sp = float(r["line_spread"])
+        if sp == 0 or not r.get("line_fav"):
+            pills.append('<span class="ln"><i>Line</i>Pick\u2019em</span>')
+        else:
+            fav = r["line_fav"]
+            tid = r["home_id"] if fav == r["home"] else r["away_id"]
+            pills.append(f'<span class="ln"><i>Line</i>{escape(_short(teams, tid, fav))} \u2212{sp:g}</span>')
+    if r.get("line_total"):
+        pills.append(f'<span class="ln"><i>O/U</i>{float(r["line_total"]):g}</span>')
+    return f'<div class="line">{"".join(pills)}</div>' if pills else ""
+
+
 def _row(r, teams, final=False):
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
     pa, ph = predicted_score(r)
@@ -176,16 +206,16 @@ def _row(r, teams, final=False):
         side = (f'<div class="pick">{flag}{res}{fhres}</div>'
                 f'<div class="meta">Picked <b>{escape(r["pick"])}</b></div>'
                 f'<div class="meta">Total {float(r["total"]):.0f} proj, {int(r["away_pts"]) + int(r["home_pts"])} actual</div>')
-        center = (f'<div><div class="score"><span class="{"w" if int(r["away_pts"]) > int(r["home_pts"]) else "l"}">{r["away_pts"]}</span>'
+        center = (f'<div class="mid"><div><div class="score"><span class="{"w" if int(r["away_pts"]) > int(r["home_pts"]) else "l"}">{r["away_pts"]}</span>'
                   f'<span class="dash"></span><span class="{"w" if int(r["home_pts"]) > int(r["away_pts"]) else "l"}">{r["home_pts"]}</span></div>'
-                  f'<div class="final">Final, model had {pa}-{ph}</div></div>')
+                  f'<div class="final">Final, model had {pa}-{ph}</div></div>{_line_pills(r, teams)}</div>')
         lose_a, lose_h = int(r["away_pts"]) < int(r["home_pts"]), int(r["home_pts"]) < int(r["away_pts"])
     else:
         side = (f'<div class="pick">{flag}<span>{escape(r["pick"])}</span></div>'
                 f'<div class="meter{" r" if home_pick else ""}" title="Edge"><i style="width:{max(edge, .06) * 100:.0f}%"></i></div>'
                 f'<div class="meta">Total <b>{float(r["total"]):.1f}</b>{"&ensp;" + fh if fh else ""}</div>')
-        center = (f'<div class="score" aria-label="Predicted score {pa} to {ph}"><span class="{sa}">{pa}</span>'
-                  f'<span class="dash"></span><span class="{sh}">{ph}</span></div>')
+        center = (f'<div class="mid"><div class="score" aria-label="Predicted score {pa} to {ph}"><span class="{sa}">{pa}</span>'
+                  f'<span class="dash"></span><span class="{sh}">{ph}</span></div>{_line_pills(r, teams)}</div>')
         lose_a, lose_h = home_pick, not home_pick
     return (f'<article class="g{" strong" if strong else ""}" style="--pc:{pc}">'
             f'<div class="time">{_tip(r["when"])}{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div>'

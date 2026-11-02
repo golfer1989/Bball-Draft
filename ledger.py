@@ -7,7 +7,8 @@ LEDGER = Path(__file__).resolve().parent / "data" / "ledger.csv"
 FIELDS = ["game_key", "date", "when", "away_id", "away", "home_id", "home",
           "away_rating", "home_rating", "pick", "differential", "strong_pick", "total",
           "fh_pick", "fh_margin", "stats_season", "locked_at",
-          "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct", "neutral"]
+          "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct", "neutral",
+          "line_fav", "line_spread", "line_total", "line_book"]
 
 
 def key(date, away_id, home_id):
@@ -58,10 +59,29 @@ def lock(rows, date, preds, season, stamp):
             "stats_season": season, "locked_at": stamp,
             "away_pts": "", "home_pts": "", "pick_correct": "", "strong_correct": "", "total_error": "",
             "fh_correct": "", "neutral": "1" if p.get("neutral") else "",
+            "line_fav": "", "line_spread": "", "line_total": "", "line_book": "",
         })
         have.add(k)
         added += 1
     return added
+
+
+def attach_lines(rows, date, line_map):
+    """Fill in the betting line for that day's games that don't have one yet (keeps the first
+    line seen, i.e. the line at pick time). Returns how many games got a line."""
+    n = 0
+    for r in rows:
+        if r["date"] != date or r.get("line_spread") or r.get("line_total"):
+            continue
+        ln = line_map.get((int(r["away_id"]), int(r["home_id"])))
+        if not ln:
+            continue
+        r["line_fav"] = ln["fav"]
+        r["line_spread"] = "" if ln["spread"] is None else f"{ln['spread']:g}"
+        r["line_total"] = "" if ln["total"] is None else f"{ln['total']:g}"
+        r["line_book"] = ln["book"]
+        n += 1
+    return n
 
 
 def ungraded_dates(rows, before):

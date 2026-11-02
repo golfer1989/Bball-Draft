@@ -100,6 +100,52 @@ def parse_teams(rows):
     return out
 
 
+# ---------------- betting lines (spread, over/under) ----------------
+PROVIDER_ORDER = ["consensus", "ESPN Bet", "DraftKings", "FanDuel", "Bovada", "William Hill (New Jersey)"]
+
+
+def lines(start_date, end_date):
+    s = datetime.combine(start_date, datetime.min.time(), config.ET).astimezone(timezone.utc)
+    e = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), config.ET).astimezone(timezone.utc)
+    return _get("/lines", {"startDateRange": s.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                           "endDateRange": e.strftime("%Y-%m-%dT%H:%M:%SZ")})
+
+
+def _num_or_none(v):
+    try:
+        return None if v is None else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_lines(rows):
+    """{(away_id, home_id): {"fav": team name or "", "spread": points (>=0), "total": points, "book": name}}
+    One sportsbook per game (consensus first). The favorite comes from the moneylines when the
+    book has them (lower moneyline = favorite), otherwise from the spread's sign, which the
+    API gives from the home team's side (-6.5 = home favored by 6.5)."""
+    out = {}
+    for g in rows or []:
+        books = [b for b in (g.get("lines") or []) if _num_or_none(b.get("spread")) is not None
+                 or _num_or_none(b.get("overUnder")) is not None]
+        if not books:
+            continue
+        rank = {p.lower(): i for i, p in enumerate(PROVIDER_ORDER)}
+        b = sorted(books, key=lambda x: rank.get((x.get("provider") or "").lower(), 99))[0]
+        spread, total = _num_or_none(b.get("spread")), _num_or_none(b.get("overUnder"))
+        hml, aml = _num_or_none(b.get("homeMoneyline")), _num_or_none(b.get("awayMoneyline"))
+        fav = ""
+        if spread is not None and abs(spread) < 0.25:
+            fav, spread = "", 0.0                                     # pick'em
+        elif hml is not None and aml is not None and hml != aml:
+            fav = g.get("homeTeam") if hml < aml else g.get("awayTeam")
+        elif spread is not None:
+            fav = g.get("homeTeam") if spread < 0 else g.get("awayTeam")
+        out[(g.get("awayTeamId"), g.get("homeTeamId"))] = {
+            "fav": fav or "", "spread": abs(spread) if spread is not None else None,
+            "total": total, "book": b.get("provider") or ""}
+    return out
+
+
 # ---------------- games: schedule, finals, halftime ----------------
 def _et(iso):
     dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
