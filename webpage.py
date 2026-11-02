@@ -17,7 +17,7 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="
 CSS = """
 :root{--bg:#000;--panel:#0c0c0e;--panel2:#141418;--line:#222228;--ink:#f3f3f1;--mute:#8d8f97;--dim:#5c5e66;
 --amber:#f2a541;--win:#45d48a;--loss:#ff6161;--r:14px}
-*{box-sizing:border-box}html{background:var(--bg)}
+*{box-sizing:border-box}[hidden]{display:none!important}html{background:var(--bg)}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:1120px;margin:0 auto;padding:0 16px}
@@ -95,7 +95,8 @@ JS = """<script>
 document.querySelectorAll('.chip[data-f]').forEach(c=>c.addEventListener('click',()=>{
  document.querySelectorAll('.chip[data-f]').forEach(x=>x.classList.toggle('on',x===c));
  const f=c.dataset.f;document.querySelectorAll('.g').forEach(g=>{g.hidden=f==='strong'&&!g.classList.contains('strong')});
- document.querySelectorAll('.day').forEach(d=>{const n=d.nextElementSibling;d.hidden=n&&[...n.children].every(g=>g.hidden)});
+ document.querySelectorAll('.day').forEach(d=>{const n=d.nextElementSibling;const none=n&&[...n.children].every(g=>g.hidden);d.hidden=none;if(n)n.hidden=none});
+ const msg=document.getElementById('nostrong');if(msg)msg.hidden=!(f==='strong'&&![...document.querySelectorAll('.g')].some(g=>!g.hidden));
 }));</script>"""
 
 
@@ -215,7 +216,8 @@ def today_page(rows, date_label, stamp, stats_note, teams=None):
         body = hero + '<div class="empty"><b>No games today</b>Picks post here each morning on game days.</div>'
     else:
         chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
-                 '<button class="chip" data-f="strong">Strong picks only</button></div>')
+                 '<button class="chip" data-f="strong">Strong picks only</button></div>'
+                 '<div class="empty" id="nostrong" hidden><b>No strong picks</b>None of these games has a big enough edge.</div>')
         body = hero + chips + '<div class="games">' + "".join(_row(r, teams) for r in rows) + "</div>"
     return page("Bball Draft - Today", "index.html", body, stamp)
 
@@ -250,7 +252,8 @@ def results_page(rows, stamp, teams=None):
     for r in graded:
         by_date.setdefault(r["date"], []).append(r)
     chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
-             '<button class="chip" data-f="strong">Strong picks only</button></div>')
+             '<button class="chip" data-f="strong">Strong picks only</button></div>'
+             '<div class="empty" id="nostrong" hidden><b>No strong picks</b>No graded strong picks yet.</div>')
     parts = []
     from datetime import date as _d
     for d in sorted(by_date, reverse=True):
