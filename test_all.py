@@ -261,3 +261,41 @@ def test_lines_on_ledger_and_page():
     assert "Tennessee \u221214.5" in html and "141.5" in html and "Strong pick" in html
     rows[0]["line_spread"], rows[0]["line_fav"] = "0", ""
     assert "Pick\u2019em" in site.today_page(rows, "x", "now", "note", {})
+
+
+# ---------------- O/U plays and upset picks ----------------
+def _r(**kw):
+    base = {"home": "Home St", "away": "Away U", "home_id": "2", "away_id": "1", "pick": "Home St", "strong_pick": "",
+            "total": "150.0", "line_fav": "Home St", "line_spread": "4.5", "line_total": "145.5",
+            "away_pts": "", "home_pts": "", "differential": "0.02", "when": "x", "pick_correct": ""}
+    base.update(kw)
+    return base
+
+
+def test_ou_play_threshold_and_grading():
+    E = config.OU_EDGE_POINTS
+    assert site.ou_play(_r(total=str(145.5 + E))) == "Over"
+    assert site.ou_play(_r(total=str(145.5 - E))) == "Under"
+    assert site.ou_play(_r(total=str(145.5 + E - 0.1))) == ""
+    assert site.ou_play(_r(line_total="")) == ""
+    over = _r(total="160", away_pts="80", home_pts="70")                 # 150 > 145.5 -> Over wins
+    assert site.ou_result(over) == "1"
+    assert site.ou_result(_r(total="130", away_pts="80", home_pts="70")) == "0"     # Under, went over
+    assert site.ou_result(_r(total="160", line_total="150", away_pts="80", home_pts="70")) == ""  # push
+
+
+def test_upset_and_ultra():
+    assert site.upset(_r()) == ""                                       # model agrees with favorite
+    assert site.upset(_r(pick="Away U")) == "upset"                     # model takes the underdog
+    assert site.upset(_r(pick="Away U", strong_pick="Away U")) == "ultra"
+    assert site.upset(_r(pick="Away U", line_spread="0", line_fav="")) == ""   # pick'em: no favorite
+    assert site.upset(_r(pick="Away U", line_fav="", line_spread="")) == ""    # no line
+
+
+def test_today_page_tags_and_counts():
+    rows = [_r(), _r(pick="Away U", total="160"), _r(pick="Away U", strong_pick="Away U", total="120")]
+    html = site.today_page(rows, "x", "now", "note", {})
+    assert html.count("Upset pick</span>") == 1 and html.count("Ultra upset</span>") == 1
+    assert ">Over<" in html and ">Under<" in html
+    assert 'data-f="ou"' in html and 'data-f="upset"' in html
+    assert '<b>2</b><span>O/U plays' in html and '<b>2</b><span>upset picks' in html

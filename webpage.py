@@ -35,15 +35,15 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .hero{padding:34px 0 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .hero h1{margin:0;font:800 clamp(40px,7vw,72px)/.9 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
 .hero p{margin:8px 0 0;color:var(--mute)}
-.stats{display:flex;gap:28px}
+.stats{display:flex;gap:28px;flex-wrap:wrap}
 .stat b{display:block;font:800 34px/1 'Big Shoulders Display',sans-serif}
 .stat span{color:var(--mute);font-size:13px}
-.stat.am b{color:var(--amber)}
+.stat.am b{color:var(--amber)}.stat.up b{color:#a78bfa}
 .bar{display:flex;gap:8px;margin:6px 0 16px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--panel);color:var(--mute);font:600 14px Barlow,sans-serif;padding:7px 14px;border-radius:999px;cursor:pointer}
 .chip.on{color:var(--ink);border-color:#3a3a42;background:var(--panel2)}
 .games{display:flex;flex-direction:column;gap:10px;padding-bottom:48px}
-.g{position:relative;display:grid;grid-template-columns:76px 1fr 270px 1fr 200px;align-items:center;gap:14px;
+.g{position:relative;display:grid;grid-template-columns:70px 1fr 310px 1fr 190px;align-items:center;gap:14px;
  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;overflow:hidden}
 .g:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--pc)}
 .g.strong{border-color:rgba(242,165,65,.45);box-shadow:0 0 0 1px rgba(242,165,65,.15) inset}
@@ -68,6 +68,15 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .ln{font:600 12.5px/1 Barlow,sans-serif;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
  border-radius:999px;padding:5px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ln i{font-style:normal;color:var(--mute);font-weight:500;margin-right:6px}
+.flag.up{background:#a78bfa;color:#0b0820}
+.flag.ultra{background:linear-gradient(90deg,#ff5f6d,#f2a541);color:#16070a;box-shadow:0 0 16px -4px rgba(255,95,109,.8)}
+.g.upset{border-color:rgba(167,139,250,.45)}
+.g.ultra{border-color:rgba(255,95,109,.6);box-shadow:0 0 0 1px rgba(255,95,109,.2) inset,0 0 24px -12px rgba(255,95,109,.7)}
+.ln.hot{border-color:rgba(242,165,65,.7);background:rgba(242,165,65,.1);box-shadow:0 0 14px -4px rgba(242,165,65,.55)}
+.ln b{margin-left:7px;font-weight:700;color:#000;background:var(--amber);border-radius:999px;padding:2px 7px;font-size:11.5px}
+.ln.won b{background:var(--win)}.ln.lost b{background:var(--loss);color:#fff}
+.ln.won{border-color:rgba(69,212,138,.6);background:rgba(69,212,138,.08);box-shadow:none}
+.ln.lost{border-color:rgba(255,97,97,.5);background:rgba(255,97,97,.07);box-shadow:none}
 .side{display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-align:right}
 .pick{font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center}
 .flag{font:700 12px Barlow,sans-serif;color:#000;background:var(--amber);padding:2px 8px;border-radius:999px}
@@ -100,9 +109,9 @@ footer{color:var(--dim);font-size:12px;padding:0 0 30px}
 JS = """<script>
 document.querySelectorAll('.chip[data-f]').forEach(c=>c.addEventListener('click',()=>{
  document.querySelectorAll('.chip[data-f]').forEach(x=>x.classList.toggle('on',x===c));
- const f=c.dataset.f;document.querySelectorAll('.g').forEach(g=>{g.hidden=f==='strong'&&!g.classList.contains('strong')});
+ const f=c.dataset.f;document.querySelectorAll('.g').forEach(g=>{g.hidden=f!=='all'&&!g.classList.contains(f)});
  document.querySelectorAll('.day').forEach(d=>{const n=d.nextElementSibling;const none=n&&[...n.children].every(g=>g.hidden);d.hidden=none;if(n)n.hidden=none});
- const msg=document.getElementById('nostrong');if(msg)msg.hidden=!(f==='strong'&&![...document.querySelectorAll('.g')].some(g=>!g.hidden));
+ document.querySelectorAll('[data-empty]').forEach(m=>{m.hidden=!(m.dataset.empty===f&&![...document.querySelectorAll('.g')].some(g=>!g.hidden))});
 }));</script>"""
 
 
@@ -169,7 +178,44 @@ def _short(teams, tid, name):
     return (t.get("abbr") or name).strip()
 
 
-def _line_pills(r, teams):
+def ou_play(r):
+    """'Over' / 'Under' when the model's total is OU_EDGE_POINTS+ away from the line, else ''."""
+    try:
+        edge = float(r["total"]) - float(r["line_total"])
+    except (TypeError, ValueError, KeyError):
+        return ""
+    if edge >= config.OU_EDGE_POINTS:
+        return "Over"
+    if edge <= -config.OU_EDGE_POINTS:
+        return "Under"
+    return ""
+
+
+def upset(r):
+    """'ultra' when the model picks the betting underdog AND it's a strong pick, 'upset' when it
+    just picks the underdog, '' otherwise (no line, pick'em, or model agrees with the favorite)."""
+    fav = r.get("line_fav") or ""
+    try:
+        spread = float(r.get("line_spread") or 0)
+    except ValueError:
+        spread = 0
+    if not fav or spread <= 0 or not r.get("pick") or r["pick"] == fav:
+        return ""
+    return "ultra" if r.get("strong_pick") else "upset"
+
+
+def ou_result(r):
+    """For a graded over/under play: '1' win, '0' loss, '' push or no play."""
+    play = ou_play(r)
+    if not play or r.get("away_pts") in ("", None):
+        return ""
+    actual, line = int(r["away_pts"]) + int(r["home_pts"]), float(r["line_total"])
+    if actual == line:
+        return ""
+    return "1" if (actual > line) == (play == "Over") else "0"
+
+
+def _line_pills(r, teams, final=False):
     """Market line under the predicted score: favorite and spread, then the over/under."""
     pills = []
     if r.get("line_spread"):
@@ -181,7 +227,17 @@ def _line_pills(r, teams):
             tid = r["home_id"] if fav == r["home"] else r["away_id"]
             pills.append(f'<span class="ln"><i>Line</i>{escape(_short(teams, tid, fav))} \u2212{sp:g}</span>')
     if r.get("line_total"):
-        pills.append(f'<span class="ln"><i>O/U</i>{float(r["line_total"]):g}</span>')
+        play = ou_play(r)
+        if play:
+            tag = play
+            if final:
+                res = ou_result(r)
+                tag += "" if res == "" else (" \u2713" if res == "1" else " \u2717")
+            cls = "ln hot" + (" won" if final and ou_result(r) == "1" else " lost" if final and ou_result(r) == "0" else "")
+            pills.append(f'<span class="{cls}" title="Model total {float(r["total"]):.1f} vs line">'
+                         f'<i>O/U</i>{float(r["line_total"]):g}<b>{tag}</b></span>')
+        else:
+            pills.append(f'<span class="ln"><i>O/U</i>{float(r["line_total"]):g}</span>')
     return f'<div class="line">{"".join(pills)}</div>' if pills else ""
 
 
@@ -196,7 +252,10 @@ def _row(r, teams, final=False):
     except (TypeError, ValueError):
         edge = 0
     sa, sh = ("w", "l") if not home_pick else ("l", "w")
-    flag = '<span class="flag">Strong pick</span>' if strong else ""
+    up = upset(r)
+    flag = ('<span class="flag ultra" title="Model picks the betting underdog with a strong-pick edge">Ultra upset</span>' if up == "ultra"
+            else '<span class="flag up" title="Model picks the betting underdog">Upset pick</span>' if up == "upset"
+            else '<span class="flag">Strong pick</span>' if strong else "")
     fh = f'1H <b>{escape(r["fh_pick"])}</b> by {float(r["fh_margin"]):.1f}' if r.get("fh_pick") and r.get("fh_margin") else ""
     if final:
         res = f'<span class="res {"W" if r["pick_correct"] == "1" else "L"}">{"W" if r["pick_correct"] == "1" else "L"}</span>'
@@ -208,7 +267,7 @@ def _row(r, teams, final=False):
                 f'<div class="meta">Total {float(r["total"]):.0f} proj, {int(r["away_pts"]) + int(r["home_pts"])} actual</div>')
         center = (f'<div class="mid"><div><div class="score"><span class="{"w" if int(r["away_pts"]) > int(r["home_pts"]) else "l"}">{r["away_pts"]}</span>'
                   f'<span class="dash"></span><span class="{"w" if int(r["home_pts"]) > int(r["away_pts"]) else "l"}">{r["home_pts"]}</span></div>'
-                  f'<div class="final">Final, model had {pa}-{ph}</div></div>{_line_pills(r, teams)}</div>')
+                  f'<div class="final">Final, model had {pa}-{ph}</div></div>{_line_pills(r, teams, final=True)}</div>')
         lose_a, lose_h = int(r["away_pts"]) < int(r["home_pts"]), int(r["home_pts"]) < int(r["away_pts"])
     else:
         side = (f'<div class="pick">{flag}<span>{escape(r["pick"])}</span></div>'
@@ -217,7 +276,8 @@ def _row(r, teams, final=False):
         center = (f'<div class="mid"><div class="score" aria-label="Predicted score {pa} to {ph}"><span class="{sa}">{pa}</span>'
                   f'<span class="dash"></span><span class="{sh}">{ph}</span></div>{_line_pills(r, teams)}</div>')
         lose_a, lose_h = home_pick, not home_pick
-    return (f'<article class="g{" strong" if strong else ""}" style="--pc:{pc}">'
+    return (f'<article class="g{" strong" if strong else ""}{" ou" if ou_play(r) else ""}'
+            f'{" upset" if up else ""}{" ultra" if up == "ultra" else ""}" style="--pc:{pc}">'
             f'<div class="time">{_tip(r["when"])}{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div>'
             f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
@@ -239,15 +299,23 @@ def page(title, active, body, stamp):
 def today_page(rows, date_label, stamp, stats_note, teams=None):
     teams = teams or {}
     n_strong = sum(1 for r in rows if r["strong_pick"])
+    n_ou = sum(1 for r in rows if ou_play(r))
+    n_up = sum(1 for r in rows if upset(r))
     hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{escape(stats_note)}</p></div>'
             f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
-            f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div></div></section>')
+            f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
+            f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
+            f'<div class="stat up"><b>{n_up}</b><span>upset picks</span></div></div></section>')
     if not rows:
         body = hero + '<div class="empty"><b>No games today</b>Picks post here each morning on game days.</div>'
     else:
         chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
-                 '<button class="chip" data-f="strong">Strong picks only</button></div>'
-                 '<div class="empty" id="nostrong" hidden><b>No strong picks</b>None of these games has a big enough edge.</div>')
+                 '<button class="chip" data-f="strong">Strong picks only</button>'
+                 '<button class="chip" data-f="ou">O/U plays</button>'
+                 '<button class="chip" data-f="upset">Upset picks</button></div>'
+                 '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>None of these games has a big enough edge.</div>'
+                 '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>The model agrees with every betting favorite today.</div>'
+                 f'<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No projected total is {config.OU_EDGE_POINTS}+ points off the line.</div>')
         body = hero + chips + '<div class="games">' + "".join(_row(r, teams) for r in rows) + "</div>"
     return page("Bball Draft - Today", "index.html", body, stamp)
 
@@ -264,6 +332,11 @@ def results_page(rows, stamp, teams=None):
     pw, pl = _record(graded, "pick_correct")
     sw, sl = _record(graded, "strong_correct")
     hw, hl = _record(graded, "fh_correct")
+    ou = [ou_result(r) for r in graded]
+    ow, ol = ou.count("1"), ou.count("0")
+    ups = [r for r in graded if upset(r)]
+    uw, ul = _record(ups, "pick_correct")
+    xw, xl = _record([r for r in ups if upset(r) == "ultra"], "pick_correct")
     errs = [abs(float(r["total_error"])) for r in graded if r["total_error"]]
     mae = f"{sum(errs) / len(errs):.1f}" if errs else "—"
 
@@ -273,6 +346,9 @@ def results_page(rows, stamp, teams=None):
     hero = (f'<section class="hero"><div><h1>Season results</h1><p>Every pick is locked before tip-off and graded from the final score.</p></div>'
             f'<div class="stats"><div class="stat"><b>{pw}-{pl}</b><span>all picks, {pct(pw, pl)}</span></div>'
             f'<div class="stat am"><b>{sw}-{sl}</b><span>strong, {pct(sw, sl)}</span></div>'
+            f'<div class="stat am"><b>{ow}-{ol}</b><span>O/U plays, {pct(ow, ol)}</span></div>'
+            f'<div class="stat up"><b>{uw}-{ul}</b><span>upset picks, {pct(uw, ul)}</span></div>'
+            f'<div class="stat up"><b>{xw}-{xl}</b><span>ultra upsets, {pct(xw, xl)}</span></div>'
             f'<div class="stat"><b>{hw}-{hl}</b><span>first half, {pct(hw, hl)}</span></div>'
             f'<div class="stat"><b>{mae}</b><span>avg total miss</span></div></div></section>')
     if not graded:
@@ -282,8 +358,12 @@ def results_page(rows, stamp, teams=None):
     for r in graded:
         by_date.setdefault(r["date"], []).append(r)
     chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
-             '<button class="chip" data-f="strong">Strong picks only</button></div>'
-             '<div class="empty" id="nostrong" hidden><b>No strong picks</b>No graded strong picks yet.</div>')
+             '<button class="chip" data-f="strong">Strong picks only</button>'
+             '<button class="chip" data-f="ou">O/U plays</button>'
+             '<button class="chip" data-f="upset">Upset picks</button></div>'
+             '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>No graded strong picks yet.</div>'
+             '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>No graded upset picks yet.</div>'
+             '<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No graded over/under plays yet.</div>')
     parts = []
     from datetime import date as _d
     for d in sorted(by_date, reverse=True):

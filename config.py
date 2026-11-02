@@ -21,6 +21,10 @@ W_SHOOT, W_TOV, W_REB, W_FT = 0.40, 0.25, 0.20, 0.15
 # (2026 backtest with schedule + home court: 85% straight-up on those picks).
 STRONG_PICK_GAP = 0.06
 
+# Over/under play: flagged when the model's projected total is at least this many points
+# above (Over) or below (Under) the betting line's over/under.
+OU_EDGE_POINTS = 10
+
 # First-half pick uses TeamRankings' "Last 3" column, like the spreadsheet did.
 FIRST_HALF_COLUMN = "Last 3"
 
