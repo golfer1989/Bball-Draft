@@ -8,7 +8,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import config, fetch, ledger, model, webpage as site
+import bets, config, fetch, ledger, model, webpage as site
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -168,7 +168,8 @@ def main():
     if n_final:
         log(f"  graded {n_final} finished games from today")
     raw_lines, _ = _cache("lines_today", lambda: fetch.lines(today, today))
-    line_map = {k: v for k, v in fetch.parse_lines(raw_lines).items() if k in pre_tip}
+    all_lines = fetch.parse_lines(raw_lines)
+    line_map = {k: v for k, v in all_lines.items() if k in pre_tip}
     n_lines = ledger.attach_lines(rows, today_str, line_map)
     log(f"  betting lines found for {n_lines} games")
     ledger.save(rows)
@@ -184,8 +185,14 @@ def main():
     todays = sorted((r for r in rows if r["date"] == today_str and r["away_pts"] == ""), key=tip)
     done_today = sum(1 for r in rows if r["date"] == today_str and r["away_pts"] != "")
     label = today.strftime("%A, %b %-d")
+    # Best Bets: only games that haven't tipped yet, priced with the latest lines
+    open_rows = [r for r in todays if (int(r["away_id"]), int(r["home_id"])) in pre_tip]
+    day_rows = [r for r in rows if r["date"] == today_str]
+    best = bets.best(open_rows, all_lines, cal_rows=day_rows)
+    log(f"  best bets: {best['pool']} qualifying bets (margin scale {best['cal']['scale']:.2f}, "
+        f"total shift {best['cal']['total_shift']:+.1f})")
     site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today),
-               site.results_page(rows, stamp, teams))
+               site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams))
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     log("done")
 

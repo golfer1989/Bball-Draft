@@ -102,7 +102,7 @@ def parse_teams(rows):
 
 
 # ---------------- betting lines (spread, over/under) ----------------
-PROVIDER_ORDER = ["consensus", "ESPN Bet", "DraftKings", "FanDuel", "Bovada", "William Hill (New Jersey)"]
+PROVIDER_ORDER = ["consensus", "ESPN Bet", "DraftKings", "Draft Kings", "FanDuel", "Bovada", "William Hill (New Jersey)"]
 
 
 def lines(start_date, end_date):
@@ -131,7 +131,9 @@ def parse_lines(rows):
         if not books:
             continue
         rank = {p.lower(): i for i, p in enumerate(PROVIDER_ORDER)}
-        b = sorted(books, key=lambda x: rank.get((x.get("provider") or "").lower(), 99))[0]
+        full = lambda x: sum(_num_or_none(x.get(k)) is not None                      # noqa: E731
+                             for k in ("spread", "overUnder", "homeMoneyline", "awayMoneyline"))
+        b = sorted(books, key=lambda x: (-full(x), rank.get((x.get("provider") or "").lower(), 99)))[0]
         spread, total = _num_or_none(b.get("spread")), _num_or_none(b.get("overUnder"))
         hml, aml = _num_or_none(b.get("homeMoneyline")), _num_or_none(b.get("awayMoneyline"))
         fav = ""
@@ -143,7 +145,7 @@ def parse_lines(rows):
             fav = g.get("homeTeam") if spread < 0 else g.get("awayTeam")
         out[(g.get("awayTeamId"), g.get("homeTeamId"))] = {
             "fav": fav or "", "spread": abs(spread) if spread is not None else None,
-            "total": total, "book": b.get("provider") or ""}
+            "total": total, "book": b.get("provider") or "", "aml": aml, "hml": hml}
     return out
 
 

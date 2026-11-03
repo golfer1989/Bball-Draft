@@ -130,6 +130,47 @@ footer{color:var(--dim);font-size:12px;padding:0 0 30px}
  .nm b{font-size:15px;white-space:normal}.disc{flex-basis:46px;width:46px;height:46px}.disc img{width:32px;height:32px}
  .meter{width:90px}.stats{gap:18px}
 }
+/* best bets */
+.sect{display:flex;align-items:baseline;gap:12px;margin:26px 0 12px}
+.sect h2{margin:0;font:800 28px/1 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
+.sect span{color:var(--mute);font-size:14px}
+.singles{display:grid;gap:10px}
+.bet{display:grid;grid-template-columns:34px 52px 1fr 90px 150px;align-items:center;gap:14px;background:var(--panel);
+ border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
+.bet .rk{font:900 30px/1 'Big Shoulders Display',sans-serif;color:var(--dim);text-align:center}
+.bet:first-child .rk{color:var(--amber)}
+.bl b{display:block;font:700 19px/1.2 Barlow,sans-serif}
+.bl small{color:var(--mute);font-size:13px}
+.kind{justify-self:start;font:700 11px/1 Barlow,sans-serif;letter-spacing:.8px;text-transform:uppercase;color:var(--mute);
+ border:1px solid var(--line);border-radius:999px;padding:6px 9px;background:var(--panel2)}
+.kind.ML{color:#7dd3fc;border-color:#1e3a4a}.kind.Spread{color:var(--amber);border-color:#4a3618}.kind.Total{color:#a78bfa;border-color:#352a55}
+.pc{text-align:right}.pc b{font:800 26px/1 'Big Shoulders Display',sans-serif}
+.pc small{display:block;color:var(--mute);font-size:12px;margin-top:3px}
+.pc .bar2{height:5px;border-radius:9px;background:#1c1c22;margin-top:6px;overflow:hidden}
+.pc .bar2 i{display:block;height:100%;background:linear-gradient(90deg,#3b82f6,var(--win));border-radius:9px}
+.disc.ou{--c:#26262e}.disc.ou em{font-size:20px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.card header{padding:18px 18px 14px;border-bottom:1px solid var(--line);
+ background:linear-gradient(160deg,rgba(242,165,65,.13),transparent 60%)}
+.card h3{margin:0;color:var(--mute);font:700 13px/1 Barlow,sans-serif;letter-spacing:1px;text-transform:uppercase}
+.card .od{font:900 46px/1 'Big Shoulders Display',sans-serif;margin:8px 0 6px;color:var(--amber)}
+.card .cs{color:var(--mute);font-size:14px}.card .cs b{color:var(--ink)}
+.card ol{list-style:none;margin:0;padding:6px 0}
+.card li{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:9px 18px}
+.card li+li{border-top:1px solid #18181d}
+.card li .disc{flex-basis:34px;width:34px;height:34px}.card li .disc img{width:24px;height:24px}.card li .disc em{font-size:13px}
+.card li b{display:block;font-weight:700;font-size:15px;line-height:1.2}.card li small{color:var(--mute);font-size:12px}
+.card li .p{font:800 18px/1 'Big Shoulders Display',sans-serif;color:var(--ink)}
+.card.none{padding:26px 18px;color:var(--mute)}.card.none h3{margin-bottom:10px}
+.note{color:var(--dim);font-size:13px;margin:22px 0 0;max-width:760px}
+@media (max-width:900px){.cards{grid-template-columns:1fr}}
+@media (max-width:700px){
+ .bet{grid-template-columns:26px 42px 1fr auto;gap:10px;padding:12px 14px}
+ .bet .disc{flex-basis:42px;width:42px;height:42px}.bet .disc img{width:30px;height:30px}
+ .bet .kind,.pc .mc{display:none}.bet .rk{font-size:24px}.bl b{font-size:16px}.pc b{font-size:22px}.pc{min-width:70px}
+ .top .wrap{gap:10px}.brand{font-size:21px}.brand i{width:18px;height:18px}nav{gap:2px}nav a{padding:7px 10px;font-size:14px}
+}
 @media (prefers-reduced-motion:no-preference){.g{animation:in .35s ease-out both}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
 """
 
@@ -389,7 +430,7 @@ def _row(r, teams, final=False):
 
 
 def page(title, active, body, stamp):
-    tabs = [("index.html", "Today"), ("results.html", "Results")]
+    tabs = [("index.html", "Today"), ("bets.html", "Best Bets"), ("results.html", "Results")]
     nav = "".join(f'<a href="{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in tabs)
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
             f'content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">'
@@ -495,8 +536,67 @@ def results_page(rows, stamp, teams=None):
     return page("Bball Draft - Results", "results.html", hero + chips + "".join(parts), stamp)
 
 
-def write(index_html, results_html, docs=DOCS):
+def _bet_disc(b, teams, mini=False):
+    if b["kind"] == "Total":
+        return f'<div class="disc ou"><em>{"O" if b["side"] == "over" else "U"}</em></div>'
+    tid, name = (b["home_id"], b["home"]) if b["side"] == "home" else (b["away_id"], b["away"])
+    return _disc(_team(teams, tid, name))
+
+
+def _bet_where(b, teams):
+    t = tip_ct(b["when"])
+    tip = t.strftime("%-I:%M %p") if t else "TBD"
+    return (f'{escape(_short(teams, b["away_id"], b["away"]))} @ {escape(_short(teams, b["home_id"], b["home"]))}'
+            f' \u00b7 {tip}')
+
+
+def bets_page(best, date_label, stamp, teams=None):
+    import bets as B
+    teams = teams or {}
+    hero = ('<section class="hero"><div><h1>Best Bets</h1>'
+            f'<p>{escape(date_label)}. The model\u2019s projections against the current lines, for games that '
+            'haven\u2019t tipped off yet. Rebuilt before each time block. Times are Central.</p></div></section>')
+    singles = best["singles"]
+    if singles:
+        rows = "".join(
+            f'<div class="bet"><div class="rk">{i}</div>{_bet_disc(b, teams)}'
+            f'<div class="bl"><b>{escape(b["label"])} <span style="color:var(--mute);font-weight:600">{B.fmt_odds(b["odds"])}</span></b>'
+            f'<small>{_bet_where(b, teams)}</small></div>'
+            f'<span class="kind {b["kind"]}">{"Moneyline" if b["kind"] == "ML" else b["kind"]}</span>'
+            f'<div class="pc"><b>{b["chance"] * 100:.0f}%</b><small><span class="mc">model chance, </span>+{b["edge"] * 100:.0f}<span class="mc"> pts</span> edge</small>'
+            f'<div class="bar2"><i style="width:{b["chance"] * 100:.0f}%"></i></div></div></div>'
+            for i, b in enumerate(singles, 1))
+        single_html = (f'<div class="sect"><h2>Top {len(singles)} single bets</h2><span>Biggest edge over the line</span></div>'
+                       f'<div class="singles">{rows}</div>')
+    else:
+        single_html = ('<div class="empty"><b>No qualifying bets right now</b>Lines usually post by late morning, '
+                       'or every game today has already tipped off.</div>')
+    cards = []
+    for n, pl in best["parlays"].items():
+        if not pl:
+            cards.append(f'<div class="card none"><h3>{n}-leg parlay</h3>Only {best["pool"]} bet'
+                         f'{"" if best["pool"] == 1 else "s"} qualify right now, not enough for {n} legs.</div>')
+            continue
+        legs = "".join(f'<li>{_bet_disc(b, teams)}<div><b>{escape(b["label"])}</b><small>{_bet_where(b, teams)}'
+                       f' \u00b7 {B.fmt_odds(b["odds"])}</small></div><span class="p">{b["chance"] * 100:.0f}%</span></li>'
+                       for b in pl["legs"])
+        cards.append(f'<div class="card"><header><h3>{n}-leg parlay</h3><div class="od">{B.fmt_odds(pl["odds"])}</div>'
+                     f'<div class="cs">Model chance <b>{pl["chance"] * 100:.1f}%</b> \u00b7 $10 pays <b>${10 * pl["decimal"]:,.2f}</b></div>'
+                     f'</header><ol>{legs}</ol></div>')
+    parlay_html = ('<div class="sect"><h2>Parlays</h2><span>The top bets, one per game</span></div>'
+                   f'<div class="cards">{"".join(cards)}</div>')
+    note = (f'<p class="note">How these are picked: each game\u2019s moneyline, spread and over/under are scored by the '
+            f'model\u2019s chance of winning them, based on how far off its projections usually are. A bet needs at least a '
+            f'{B.MIN_CHANCE * 100:.0f}% model chance and has to beat its price; each game\u2019s best one makes the list, ranked by edge '
+            f'(model chance minus the chance the odds imply). Spread and total bets assume the usual {B.fmt_odds(B.STD_ODDS)} odds, '
+            'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>')
+    return page("Bball Draft - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)
+
+
+def write(index_html, results_html, bets_html="", docs=DOCS):
     docs.mkdir(parents=True, exist_ok=True)
     (docs / "index.html").write_text(index_html, encoding="utf-8")
     (docs / "results.html").write_text(results_html, encoding="utf-8")
+    if bets_html:
+        (docs / "bets.html").write_text(bets_html, encoding="utf-8")
     (docs / ".nojekyll").write_text("", encoding="utf-8")

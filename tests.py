@@ -188,7 +188,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(build, "RAW", tmp_path / "raw")
     for fn in (ledger.load, ledger.save):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
-    monkeypatch.setattr(site.write, "__defaults__", (tmp_path / "docs",))
+    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs"))
     monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
     monkeypatch.setattr(fetch, "lines", lambda a, b: [_gl(600, "Wofford", 500, "Tennessee",
                         [{"provider": "consensus", "spread": -9.5, "overUnder": 152.5}])])
@@ -205,6 +205,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     assert r["fh_pick"] == "Tennessee" and float(r["fh_margin"]) == pytest.approx(41 - 33, abs=0.05)
     html = (tmp_path / "docs" / "index.html").read_text()
     assert "Tennessee \u22129.5" in html and "152.5" in html
+    assert "Best Bets" in (tmp_path / "docs" / "bets.html").read_text()
     assert "6:00" in html and "Tennessee" in html          # 7:00 PM ET shown as 6:00 PM Central and "Volunteers" in html and "https://x/500/2633.png" in html
     # same evening, game over: a re-run moves it to Results (halftime score not posted yet)
     games[0].update(status="final", awayPoints=60, homePoints=75)
@@ -249,7 +250,7 @@ def test_parse_lines_favorite_spread_total():
         _gl(9, "E", 10, "F", [{"provider": "x", "spread": None, "overUnder": None}]),
     ]
     m = fetch.parse_lines(rows)
-    assert m[(1, 2)] == {"fav": "Tennessee", "spread": 14.5, "total": 141.5, "book": "Bovada"}
+    assert m[(1, 2)] == {"fav": "Tennessee", "spread": 14.5, "total": 141.5, "book": "Bovada", "aml": 240, "hml": -300}
     assert m[(3, 4)]["fav"] == "Duke" and m[(3, 4)]["spread"] == 3.5
     assert m[(5, 6)]["fav"] == "" and m[(5, 6)]["spread"] == 0
     assert m[(7, 8)]["spread"] == 4 and m[(7, 8)]["book"] == "consensus"
@@ -343,3 +344,44 @@ def test_results_stats_switch(monkeypatch):
     assert 'class="stats"' not in off and "Season results" in off and "Monday, Nov 2" in off
     monkeypatch.setattr(config, "SHOW_RESULTS_STATS", True)
     assert "all picks" in webpage.results_page([row], "now")
+
+
+def test_best_bets_math_and_page():
+    import bets
+    assert bets.decimal(-110) == pytest.approx(1.9091, abs=1e-4) and bets.decimal(150) == 2.5
+    assert bets.american(2.5) == 150 and bets.american(1.5) == -200
+    assert bets.chance(0, 10) == pytest.approx(0.5)
+
+    def row(i, pick_home, diff, total):
+        return {"away_id": str(2 * i), "away": f"Away{i}", "home_id": str(2 * i + 1), "home": f"Home{i}",
+                "pick": f"Home{i}" if pick_home else f"Away{i}", "differential": str(diff), "total": str(total),
+                "when": "Nov 2, 2026 8:00 PM ET"}
+    rows = [row(i, True, 0.06 + 0.01 * i, 140) for i in range(1, 10)]
+    lm = {(2 * i, 2 * i + 1): {"fav": f"Home{i}", "spread": 3.5, "total": 140.5, "aml": 150, "hml": -180}
+          for i in range(1, 10)}
+    # game 1: model says home by ~11.9 vs a 3.5 line -> home spread (or ML) qualifies
+    b = bets.game_bets(rows[0], lm[(2, 3)])
+    sp = [x for x in b if x["kind"] == "Spread" and x["side"] == "home"][0]
+    est = 3.5 + bets.MODEL_WEIGHT * (170 * 0.07 - 3.5)          # line nudged toward the model
+    assert sp["label"] == "Home1 \u22123.5" and sp["chance"] == pytest.approx(bets.chance(est - 3.5, bets.MARGIN_SD))
+    under = [x for x in b if x["label"] == "Under 140.5"][0]
+    assert under["chance"] == pytest.approx(1 - bets.chance(bets.MODEL_WEIGHT * -0.5, bets.TOTAL_SD))
+    # calibration: model margins half the size of the spreads -> scale 2
+    cal_rows = [row(i, True, 0.05, 140) for i in range(20)]
+    cal_lines = {(2 * i, 2 * i + 1): {"fav": f"Home{i}", "spread": 17.0, "total": 145} for i in range(20)}
+    cal = bets.calibrate(cal_rows, cal_lines)
+    assert cal["scale"] == pytest.approx(2.0) and cal["total_shift"] == pytest.approx(5.0)
+    best = bets.best(rows, lm)
+    assert best["pool"] == 9 and len(best["singles"]) == 6
+    assert len({(x["away"]) for x in best["singles"]}) == 6                     # one bet per game
+    edges = [x["edge"] for x in best["singles"]]
+    assert edges == sorted(edges, reverse=True) and all(x["chance"] >= 0.6 for x in best["singles"])
+    p3 = best["parlays"][3]
+    assert p3["legs"] == best["singles"][:3]
+    assert p3["chance"] == pytest.approx(best["singles"][0]["chance"] * best["singles"][1]["chance"] * best["singles"][2]["chance"])
+    assert best["parlays"][8] is not None
+    html = site.bets_page(best, "Monday, Nov 2", "now", {})
+    assert "Top 6 single bets" in html and "3-leg parlay" in html and "8-leg parlay" in html and "$10 pays" in html
+    small = bets.best(rows[:4], lm)
+    assert small["parlays"][6] is None and "not enough for 6 legs" in site.bets_page(small, "x", "now", {})
+    assert "No qualifying bets" in site.bets_page(bets.best([], {}), "x", "now", {})
