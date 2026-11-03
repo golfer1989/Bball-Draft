@@ -96,6 +96,7 @@ def parse_teams(rows):
             "color": t.get("primaryColor") or t.get("secondaryColor") or "",
             "logo": (dark or logos or [""])[0],
             "abbr": t.get("abbreviation") or "",
+            "espn": str(t.get("sourceId") or ""),          # ESPN team id, used for live scores
         }
     return out
 

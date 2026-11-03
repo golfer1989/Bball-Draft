@@ -25,6 +25,10 @@ STRONG_PICK_GAP = 0.06
 # above (Over) or below (Under) the betting line's over/under.
 OU_EDGE_POINTS = 10
 
+# Season record totals at the top of the Results page. Hidden early in the season while the
+# sample is small; set to True to show them again (the per-game results always show).
+SHOW_RESULTS_STATS = False
+
 # First-half pick uses TeamRankings' "Last 3" column, like the spreadsheet did.
 FIRST_HALF_COLUMN = "Last 3"
 

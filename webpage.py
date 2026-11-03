@@ -3,10 +3,15 @@
 Look: true black, a scoreboard-style predicted score in condensed numerals as the
 centerpiece of every game row, team logos on a disc of each team's own color.
 """
+import re
+from datetime import datetime
 from html import escape
 from pathlib import Path
 
 import config
+
+SLOTS = [("early", "Before 2 PM", 0, 14), ("aft", "2\u20135 PM", 14, 17),
+         ("eve", "5\u20138 PM", 17, 20), ("late", "After 8 PM", 20, 24)]   # Central time
 
 DOCS = Path(__file__).resolve().parent   # site pages live at the top of the repo
 
@@ -91,6 +96,27 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .day{display:flex;align-items:baseline;gap:12px;margin:26px 0 10px}
 .day h2{margin:0;font:800 26px/1 'Big Shoulders Display',sans-serif}
 .day span{color:var(--mute);font-weight:600}
+.bar.slots{margin-bottom:6px}
+.chip .n{color:var(--dim);margin-left:6px;font-weight:500}
+.chip.on .n{color:var(--mute)}
+.chip.livechip.has{color:#ff8a8a;border-color:rgba(255,59,59,.45)}
+.sc{display:flex;flex-direction:column;align-items:center;gap:6px}
+.lv{display:flex;flex-direction:column;align-items:center;gap:6px}
+.lstat{display:flex;gap:8px;align-items:center;font:600 13px Barlow,sans-serif;color:var(--mute)}
+.livetag{display:inline-flex;align-items:center;gap:5px;background:#ff3b3b;color:#fff;font:800 11px/1 Barlow,sans-serif;
+ letter-spacing:.06em;padding:4px 7px 4px 6px;border-radius:5px}
+.livetag:before{content:"";width:6px;height:6px;border-radius:50%;background:#fff}
+@media (prefers-reduced-motion:no-preference){.livetag:before{animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.25}}}
+.fintag{background:var(--panel2);border:1px solid var(--line);color:var(--ink);font:700 11px/1 Barlow,sans-serif;padding:4px 7px;border-radius:5px}
+.g.is-live{border-color:rgba(255,59,59,.55)}
+.g.is-live .pred .score,.g.is-done .pred .score{font-size:17px;gap:6px;color:var(--mute)}
+.g.is-live .pred .score span,.g.is-done .pred .score span{color:var(--mute)}
+.g.is-live .pred .score .dash,.g.is-done .pred .score .dash{width:6px;height:2px}
+.g.is-live .pred:before,.g.is-done .pred:before{content:"Model";font:600 11px Barlow,sans-serif;color:var(--dim);margin-right:6px}
+.g.is-live .pred,.g.is-done .pred{display:flex;align-items:center}
+.g.is-done{opacity:.82}
+.okx{font:800 12px Barlow,sans-serif;padding:3px 8px;border-radius:999px}
+.okx.W{background:rgba(69,212,138,.15);color:var(--win)}.okx.L{background:rgba(255,97,97,.15);color:var(--loss)}
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:56px 20px;text-align:center;color:var(--mute)}
 .empty b{display:block;color:var(--ink);font:800 28px/1.1 'Big Shoulders Display',sans-serif;margin-bottom:6px}
 footer{color:var(--dim);font-size:12px;padding:0 0 30px}
@@ -107,12 +133,62 @@ footer{color:var(--dim);font-size:12px;padding:0 0 30px}
 """
 
 JS = """<script>
-document.querySelectorAll('.chip[data-f]').forEach(c=>c.addEventListener('click',()=>{
- document.querySelectorAll('.chip[data-f]').forEach(x=>x.classList.toggle('on',x===c));
- const f=c.dataset.f;document.querySelectorAll('.g').forEach(g=>{g.hidden=f!=='all'&&!g.classList.contains(f)});
+(()=>{
+const games=[...document.querySelectorAll('.g')];
+const box=document.querySelector('[data-date]');
+let F='all',S='all';
+function apply(){
+ games.forEach(g=>{const t=F==='all'||g.classList.contains(F);
+  const s=S==='all'||(S==='live'?g.classList.contains('is-live'):g.dataset.slot===S);g.hidden=!(t&&s)});
  document.querySelectorAll('.day').forEach(d=>{const n=d.nextElementSibling;const none=n&&[...n.children].every(g=>g.hidden);d.hidden=none;if(n)n.hidden=none});
- document.querySelectorAll('[data-empty]').forEach(m=>{m.hidden=!(m.dataset.empty===f&&![...document.querySelectorAll('.g')].some(g=>!g.hidden))});
-}));</script>"""
+ const any=games.some(g=>!g.hidden);
+ document.querySelectorAll('[data-empty]').forEach(m=>{const k=m.dataset.empty;
+  m.hidden=any||!((k===F&&S==='all')||(k==='slot'&&S!=='all'&&S!=='live'&&F==='all')||(k==='live'&&S==='live')||(k==='mix'&&F!=='all'&&S!=='all'))});
+}
+function pick(sel,attr,set){document.querySelectorAll(sel).forEach(c=>c.addEventListener('click',()=>{
+ document.querySelectorAll(sel).forEach(x=>x.classList.toggle('on',x===c));set(c.dataset[attr]);apply()}))}
+pick('.chip[data-f]','f',v=>F=v);pick('.chip[data-s]','s',v=>S=v);
+const etDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+const isToday=box&&box.dataset.date===etDay();
+if(isToday){ // open on the block that's on now, or the next one with games
+ const h=+new Date().toLocaleString('en-US',{timeZone:'America/Chicago',hour:'numeric',hourCycle:'h23'});
+ const slots=[...document.querySelectorAll('.chip[data-s]')].filter(c=>c.dataset.hi);
+ const cur=slots.find(c=>h<+c.dataset.hi&&games.some(g=>g.dataset.slot===c.dataset.s));
+ if(cur){S=cur.dataset.s;document.querySelectorAll('.chip[data-s]').forEach(x=>x.classList.toggle('on',x===cur))}
+}
+apply();
+if(!isToday)return;
+const liveChip=document.querySelector('.chip[data-s=live]');
+async function poll(){
+ try{
+  const d=box.dataset.date.replace(/-/g,'');
+  const j=await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=500&dates='+d,{cache:'no-store'}).then(r=>r.json());
+  const map={};
+  for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};
+   c.competitors.forEach(p=>sc[p.team.id]=p.score);const st=(c.status||e.status).type;
+   map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:st.state,detail:st.shortDetail||st.detail||''}}
+  let live=0,open=0;
+  games.forEach(g=>{
+   const m=map[[g.dataset.ea,g.dataset.eh].sort().join('-')];
+   if(!m||m.state==='pre'){open++;return}
+   const a=+m.sc[g.dataset.ea]||0,h=+m.sc[g.dataset.eh]||0,lv=g.querySelector('.lv');if(!lv)return;
+   lv.hidden=false;lv.querySelector('.la').textContent=a;lv.querySelector('.lh').textContent=h;
+   lv.querySelector('.la').className='la '+(a>=h?'w':'l');lv.querySelector('.lh').className='lh '+(h>=a?'w':'l');
+   const ls=lv.querySelector('.lstat');
+   if(m.state==='in'){live++;open++;g.classList.add('is-live');g.classList.remove('is-done');
+    ls.innerHTML='<span class="livetag">LIVE</span><span class="clock"></span>';ls.querySelector('.clock').textContent=m.detail}
+   else{g.classList.remove('is-live');g.classList.add('is-done');g.style.order=1;
+    const ok=(a>h?'a':'h')===g.dataset.pick;
+    ls.innerHTML='<span class="fintag">Final</span><span class="okx '+(ok?'W':'L')+'">'+(ok?'\\u2713 Pick':'\\u2717 Pick')+'</span>'}
+  });
+  if(liveChip){liveChip.querySelector('.n').textContent=live;liveChip.classList.toggle('has',live>0)}
+  apply();
+  if(!open)clearInterval(timer);
+ }catch(e){}
+}
+const timer=setInterval(poll,60000);poll();
+})();
+</script>"""
 
 
 # ---------------- helpers ----------------
@@ -141,7 +217,7 @@ def _team(teams, tid, name):
     t = teams.get(str(tid)) or teams.get(tid) or {}
     return {"name": name, "mascot": t.get("mascot") or "", "logo": t.get("logo") or "",
             "abbr": (t.get("abbr") or name[:3]).upper()[:4], "color": _hex(t.get("color")),
-            "vivid": _vivid(t.get("color"))}
+            "vivid": _vivid(t.get("color")), "espn": str(t.get("espn") or "")}
 
 
 def _disc(t):
@@ -165,9 +241,28 @@ def predicted_score(r):
     return (lose, win) if r["pick"] == r["home"] else (win, lose)
 
 
+def tip_ct(when):
+    """'Nov 2, 2026 7:30 PM ET' -> aware datetime in Central time, or None."""
+    try:
+        et = datetime.strptime((when or "").replace(" ET", ""), "%b %d, %Y %I:%M %p").replace(tzinfo=config.ET)
+    except ValueError:
+        return None
+    return et.astimezone(config.CT)
+
+
+def slot_of(when):
+    t = tip_ct(when)
+    if not t:
+        return "late"
+    return next(k for k, _, lo, hi in SLOTS if lo <= t.hour < hi)
+
+
 def _tip(when):
-    parts = (when or "").replace(" ET", "").split()
-    return f"{parts[-2]}<br> {parts[-1]}" if len(parts) >= 2 and parts[-1] in ("AM", "PM") else escape(when or "")
+    t = tip_ct(when)
+    if not t:
+        return escape(when or "")
+    return f'{t.strftime("%-I:%M")}<br> {t.strftime("%p")}'
+
 
 
 def _short(teams, tid, name):
@@ -273,11 +368,18 @@ def _row(r, teams, final=False):
         side = (f'<div class="pick">{flag}<span>{escape(r["pick"])}</span></div>'
                 f'<div class="meter{" r" if home_pick else ""}" title="Edge"><i style="width:{max(edge, .06) * 100:.0f}%"></i></div>'
                 f'<div class="meta">Total <b>{float(r["total"]):.1f}</b>{"&ensp;" + fh if fh else ""}</div>')
-        center = (f'<div class="mid"><div class="score" aria-label="Predicted score {pa} to {ph}"><span class="{sa}">{pa}</span>'
-                  f'<span class="dash"></span><span class="{sh}">{ph}</span></div>{_line_pills(r, teams)}</div>')
+        center = (f'<div class="mid"><div class="sc">'
+                  f'<div class="lv" hidden><div class="score"><span class="la">0</span><span class="dash"></span><span class="lh">0</span></div>'
+                  f'<div class="lstat"><span class="livetag">LIVE</span><span class="clock"></span></div></div>'
+                  f'<div class="pred"><div class="score" aria-label="Predicted score {pa} to {ph}"><span class="{sa}">{pa}</span>'
+                  f'<span class="dash"></span><span class="{sh}">{ph}</span></div></div>'
+                  f'</div>{_line_pills(r, teams)}</div>')
         lose_a, lose_h = home_pick, not home_pick
+    live_attrs = "" if final else (
+        f' data-slot="{slot_of(r["when"])}" data-ea="{escape(a["espn"])}" data-eh="{escape(h["espn"])}"'
+        f' data-pick="{"h" if home_pick else "a"}"')
     return (f'<article class="g{" strong" if strong else ""}{" ou" if ou_play(r) else ""}'
-            f'{" upset" if up else ""}{" ultra" if up == "ultra" else ""}" style="--pc:{pc}">'
+            f'{" upset" if up else ""}{" ultra" if up == "ultra" else ""}" style="--pc:{pc}"{live_attrs}>'
             f'<div class="time">{_tip(r["when"])}{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div>'
             f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
@@ -296,12 +398,12 @@ def page(title, active, body, stamp):
             f'<footer class="wrap">Updated {escape(stamp)}</footer>{JS}</body></html>')
 
 
-def today_page(rows, date_label, stamp, stats_note, teams=None):
+def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso=""):
     teams = teams or {}
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
-    hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{escape(stats_note)}</p></div>'
+    hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{escape(stats_note)}. Times are Central.</p></div>'
             f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
             f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
             f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
@@ -316,7 +418,17 @@ def today_page(rows, date_label, stamp, stats_note, teams=None):
                  '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>None of these games has a big enough edge.</div>'
                  '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>The model agrees with every betting favorite today.</div>'
                  f'<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No projected total is {config.OU_EDGE_POINTS}+ points off the line.</div>')
-        body = hero + chips + '<div class="games">' + "".join(_row(r, teams) for r in rows) + "</div>"
+        counts = {k: sum(1 for r in rows if slot_of(r["when"]) == k) for k, *_ in SLOTS}
+        slot_chips = ('<div class="bar slots"><button class="chip on" data-s="all">All day<span class="n">'
+                      f'{len(rows)}</span></button>'
+                      + "".join(f'<button class="chip" data-s="{k}" data-hi="{hi}">{lab}<span class="n">{counts[k]}</span></button>'
+                                for k, lab, lo, hi in SLOTS if counts[k])
+                      + '<button class="chip livechip" data-s="live">Live now<span class="n">0</span></button></div>'
+                      '<div class="empty" data-empty="slot" hidden><b>No games in this window</b>Pick another time block.</div>'
+                      '<div class="empty" data-empty="live" hidden><b>Nothing live right now</b>Live games show up here with the score and clock.</div>'
+                      '<div class="empty" data-empty="mix" hidden><b>Nothing here</b>No games match both filters in this time block.</div>')
+        body = (hero + slot_chips + chips + f'<div class="games" data-date="{escape(date_iso)}">'
+                + "".join(_row(r, teams) for r in rows) + "</div>")
     return page("Bball Draft - Today", "index.html", body, stamp)
 
 
@@ -351,6 +463,8 @@ def results_page(rows, stamp, teams=None):
             f'<div class="stat up"><b>{xw}-{xl}</b><span>ultra upsets, {pct(xw, xl)}</span></div>'
             f'<div class="stat"><b>{hw}-{hl}</b><span>first half, {pct(hw, hl)}</span></div>'
             f'<div class="stat"><b>{mae}</b><span>avg total miss</span></div></div></section>')
+    if not config.SHOW_RESULTS_STATS:          # record totals switched off in config.py for now
+        hero = re.sub(r'<div class="stats">.*</div></section>$', '</section>', hero)
     if not graded:
         return page("Bball Draft - Results", "results.html",
                     hero + '<div class="empty"><b>No graded games yet</b>Results appear the morning after each game day.</div>', stamp)
