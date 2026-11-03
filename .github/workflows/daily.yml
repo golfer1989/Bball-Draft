@@ -65,7 +65,7 @@ jobs:
 
       - name: Build picks + site
         if: steps.guard.outputs.run == 'true'
-        run: python run_daily.py ${{ startsWith(steps.guard.outputs.why, 'refresh') && '--refresh' || '' }}
+        run: python build.py ${{ startsWith(steps.guard.outputs.why, 'refresh') && '--refresh' || '' }}
         env:
           CBBD_API_KEY: ${{ secrets.CBBD_API_KEY }}
 
