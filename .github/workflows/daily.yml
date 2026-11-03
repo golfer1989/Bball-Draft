@@ -2,9 +2,13 @@ name: Daily picks
 
 on:
   schedule:
-    - cron: "17 8 * * *"
-    - cron: "17 9 * * *"
-    - cron: "17 10 * * *"
+    # Overnight build (2-4 AM Central): grades yesterday, locks today's picks + lines.
+    - cron: "17 8,9,10 * * *"
+    # Every 15 min from late morning to late evening. Each run checks the Central-time
+    # clock and only rebuilds ~5-20 min before a tip-time block (11 AM, 2 PM, 5 PM, 8 PM);
+    # all other runs stop after a few seconds. Works the same after daylight-saving changes.
+    - cron: "*/15 15-23 * * *"
+    - cron: "*/15 0-3 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -21,38 +25,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Already built today?
+      - name: Time to build?
         id: guard
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
           today=$(TZ=America/New_York date +%F)
+          hhmm=$(TZ=America/Chicago date +%H%M)
+          nowm=$(( 10#${hhmm:0:2} * 60 + 10#${hhmm:2:2} ))
           last=$(cat data/last_build.txt 2>/dev/null || echo none)
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$last" = "$today" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "Already built $today"
+          run=false; why=""; mark=""
+          if [ "$EVENT" != "schedule" ]; then
+            run=true; why="manual run"
+          elif [ "$last" != "$today" ]; then
+            run=true; why="overnight build"
           else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            for seg in 1100 1400 1700 2000; do
+              start=$(( (seg / 100) * 60 ))
+              if [ $nowm -ge $((start - 20)) ] && [ $nowm -lt $((start + 90)) ] \
+                 && ! grep -qx "$today $seg" data/refresh_marks.txt 2>/dev/null; then
+                run=true; why="refresh before the $((seg / 100 > 12 ? seg / 100 - 12 : seg / 100)) o'clock block"; mark="$today $seg"; break
+              fi
+            done
           fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "why=$why" >> "$GITHUB_OUTPUT"
+          echo "mark=$mark" >> "$GITHUB_OUTPUT"
+          echo "Central time $hhmm, last build $last -> run=$run $why"
 
       - uses: actions/setup-python@v5
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.guard.outputs.run == 'true'
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.guard.outputs.run == 'true'
         run: pip install -r requirements.txt
 
       - name: Build picks + site
-        if: steps.guard.outputs.skip == 'false'
-        run: python run_daily.py
+        if: steps.guard.outputs.run == 'true'
+        run: python run_daily.py ${{ startsWith(steps.guard.outputs.why, 'refresh') && '--refresh' || '' }}
         env:
           CBBD_API_KEY: ${{ secrets.CBBD_API_KEY }}
 
       - name: Commit
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.guard.outputs.run == 'true'
+        env:
+          MARK: ${{ steps.guard.outputs.mark }}
+          WHY: ${{ steps.guard.outputs.why }}
         run: |
+          if [ -n "$MARK" ]; then echo "$MARK" >> data/refresh_marks.txt; fi
           git config user.name "cbb-bot"
           git config user.email "cbb-bot@users.noreply.github.com"
           git add data index.html results.html .nojekyll
-          git diff --cached --quiet || git commit -m "Daily build $(TZ=America/New_York date +%F)"
+          git diff --cached --quiet || git commit -m "Build $(TZ=America/New_York date +%F) ($WHY)"
+          git pull --rebase --quiet || true
           git push
