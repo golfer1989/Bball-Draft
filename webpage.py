@@ -40,6 +40,7 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .hero{padding:34px 0 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .hero h1{margin:0;font:800 clamp(40px,7vw,72px)/.9 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
 .hero p{margin:8px 0 0;color:var(--mute)}
+.donelink{color:var(--amber);text-decoration:none;font-weight:600;white-space:nowrap}.donelink:hover{text-decoration:underline}
 .stats{display:flex;gap:28px;flex-wrap:wrap}
 .stat b{display:block;font:800 34px/1 'Big Shoulders Display',sans-serif}
 .stat span{color:var(--mute);font-size:13px}
@@ -398,17 +399,22 @@ def page(title, active, body, stamp):
             f'<footer class="wrap">Updated {escape(stamp)}</footer>{JS}</body></html>')
 
 
-def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso=""):
+def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0):
     teams = teams or {}
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
-    hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{escape(stats_note)}. Times are Central.</p></div>'
+    done_note = (f' <a class="donelink" href="results.html">{n_final} finished game{"s" if n_final != 1 else ""}'
+                 ' now on Results &rarr;</a>') if n_final else ""
+    hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{escape(stats_note)}. Times are Central.{done_note}</p></div>'
             f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
             f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
             f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
             f'<div class="stat up"><b>{n_up}</b><span>upset picks</span></div></div></section>')
-    if not rows:
+    if not rows and n_final:
+        body = hero + ('<div class="empty"><b>All of today\'s games are final</b>'
+                       'See how the picks did on the <a class="donelink" href="results.html">Results</a> page.</div>')
+    elif not rows:
         body = hero + '<div class="empty"><b>No games today</b>Picks post here each morning on game days.</div>'
     else:
         chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'

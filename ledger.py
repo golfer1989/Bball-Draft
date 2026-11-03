@@ -85,7 +85,9 @@ def attach_lines(rows, date, line_map):
 
 
 def ungraded_dates(rows, before):
-    return sorted({r["date"] for r in rows if r["away_pts"] == "" and r["date"] < before})
+    """Dates before `before` with a game still to grade, or a graded game still missing its 1H result."""
+    return sorted({r["date"] for r in rows if r["date"] < before and
+                   (r["away_pts"] == "" or (r["fh_pick"] and r["fh_correct"] == ""))})
 
 
 def grade(rows, date, results):
@@ -93,10 +95,15 @@ def grade(rows, date, results):
     by = {key(date, g["away_id"], g["home_id"]): g for g in results if g["away_pts"] is not None}
     n = 0
     for r in rows:
-        if r["date"] != date or r["away_pts"] != "":
+        if r["date"] != date:
             continue
         g = by.get(r["game_key"])
         if not g:
+            continue
+        if r["away_pts"] != "":                 # already graded: only fill in a late halftime score
+            ah, hh = g.get("away_h1"), g.get("home_h1")
+            if r["fh_pick"] and r["fh_correct"] == "" and ah is not None and hh is not None and ah != hh:
+                r["fh_correct"] = "1" if r["fh_pick"] == (r["home"] if hh > ah else r["away"]) else "0"
             continue
         ap, hp = g["away_pts"], g["home_pts"]
         winner = r["home"] if hp > ap else r["away"]
