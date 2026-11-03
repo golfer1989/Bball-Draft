@@ -14,8 +14,8 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-02|138|34,2026-11-02,"Nov 2, 2026 7:00 PM ET",138,Lafayette,34,Butler,0.9539,1.0346,Butler,0.0966,Butler,150.4,,,2025-26,2026-11-02T12:31-05:00,60,96,1,1,5.6,,,Butler,19.5,,Bovada
 2026-11-02|140|188,2026-11-02,"Nov 2, 2026 7:30 PM ET",140,Le Moyne,188,Nebraska,0.9669,1.0734,Nebraska,0.1224,Nebraska,144.6,,,2025-26,2026-11-02T12:31-05:00,64,106,1,1,25.4,,,Nebraska,34.5,151.5,Bovada
 2026-11-02|141|252,2026-11-02,"Nov 2, 2026 8:00 PM ET",141,Lehigh,252,Saint Louis,0.9603,1.0718,Saint Louis,0.1273,Saint Louis,152.1,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Saint Louis,25,158,Bovada
-2026-11-02|143|272,2026-11-02,"Nov 2, 2026 7:30 PM ET",143,Lipscomb,272,Southeast Missouri State,0.9953,0.9934,Southeast Missouri State,0.0140,,150.3,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Lipscomb,1.5,156.5,Draft Kings
-2026-11-02|144|333,2026-11-02,"Nov 2, 2026 7:00 PM ET",144,Little Rock,333,VCU,0.9693,1.0395,VCU,0.0861,VCU,148.6,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,VCU,18.5,155,Bovada
+2026-11-02|143|272,2026-11-02,"Nov 2, 2026 7:30 PM ET",143,Lipscomb,272,Southeast Missouri State,0.9953,0.9934,Southeast Missouri State,0.0140,,150.3,,,2025-26,2026-11-02T12:31-05:00,79,86,1,,14.7,,,Lipscomb,1.5,156.5,Draft Kings
+2026-11-02|144|333,2026-11-02,"Nov 2, 2026 7:00 PM ET",144,Little Rock,333,VCU,0.9693,1.0395,VCU,0.0861,VCU,148.6,,,2025-26,2026-11-02T12:31-05:00,72,82,1,1,5.4,,,VCU,18.5,155,Bovada
 2026-11-02|145|331,2026-11-02,"Nov 2, 2026 9:00 PM ET",145,Long Beach State,331,Utah,0.9917,1.0172,Utah,0.0414,,153.0,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Utah,,147,Bovada
 2026-11-02|146|86,2026-11-02,"Nov 2, 2026 7:00 PM ET",146,Long Island University,86,Florida Atlantic,0.9857,1.0234,Florida Atlantic,0.0536,,149.2,,,2025-26,2026-11-02T12:31-05:00,60,74,1,,-15.2,,,Florida Atlantic,11.5,,Bovada
 2026-11-02|1507|286,2026-11-02,"Nov 2, 2026 7:00 PM ET",1507,New Haven,286,Syracuse,0.9609,1.0235,Syracuse,0.0784,Syracuse,140.2,,,2025-26,2026-11-02T12:31-05:00,58,74,1,1,-8.2,,,Syracuse,27.5,132.5,Bovada
@@ -24,7 +24,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-02|159|342,2026-11-02,"Nov 2, 2026 8:00 PM ET",159,Maryland Eastern Shore,342,Wake Forest,0.9602,1.0437,Wake Forest,0.0994,Wake Forest,145.5,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Wake Forest,32.5,144.5,Draft Kings
 2026-11-02|15|72,2026-11-02,"Nov 2, 2026 6:30 PM ET",15,Army,72,Duke,0.9577,1.1159,Duke,0.1741,Duke,147.3,,,2025-26,2026-11-02T12:31-05:00,50,84,1,1,-13.3,,,Duke,44.5,157.5,Bovada
 2026-11-02|161|302,2026-11-02,"Nov 2, 2026 7:00 PM ET",161,Massachusetts,302,Troy,1.0098,1.0103,Troy,0.0164,,155.2,,,2025-26,2026-11-02T12:31-05:00,71,60,0,,-24.2,,,Troy,3,,Bovada
-2026-11-02|163|125,2026-11-02,"Nov 2, 2026 7:00 PM ET",163,Memphis,125,Iowa State,1.0188,1.0855,Iowa State,0.0668,Iowa State,149.8,,,2025-26,2026-11-02T12:31-05:00,,,,,,,1,Iowa State,15,156,Bovada
+2026-11-02|163|125,2026-11-02,"Nov 2, 2026 7:00 PM ET",163,Memphis,125,Iowa State,1.0188,1.0855,Iowa State,0.0668,Iowa State,149.8,,,2025-26,2026-11-02T12:31-05:00,80,76,0,0,6.2,,1,Iowa State,15,156,Bovada
 2026-11-02|165|157,2026-11-02,"Nov 2, 2026 7:30 PM ET",165,Mercyhurst,157,Marquette,0.9836,1.0164,Marquette,0.0487,,143.8,,,2025-26,2026-11-02T12:31-05:00,43,78,1,,-22.8,,,Marquette,31.5,146.5,Bovada
 2026-11-02|167|129,2026-11-02,"Nov 2, 2026 7:00 PM ET",167,Miami (OH),129,James Madison,1.0250,0.9886,Miami (OH),0.0205,,156.7,,,2025-26,2026-11-02T12:31-05:00,86,77,1,,6.3,,,Miami (OH),1,158.5,Bovada
 2026-11-02|168|87,2026-11-02,"Nov 2, 2026 6:00 PM ET",168,Miami,87,Florida,1.0697,1.1093,Florida,0.0396,,155.7,,,2025-26,2026-11-02T12:31-05:00,67,77,1,,-11.7,,1,Florida,5.5,159,Bovada
@@ -36,7 +36,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-02|183|359,2026-11-02,"Nov 2, 2026 7:00 PM ET",183,Mount St. Mary's,359,Xavier,0.9764,1.0227,Xavier,0.0621,Xavier,148.6,,,2025-26,2026-11-02T12:31-05:00,52,97,1,1,0.4,,,Xavier,26.5,156.5,Draft Kings
 2026-11-02|184|290,2026-11-02,"Nov 2, 2026 11:30 AM ET",184,Murray State,290,Tennessee State,1.0064,1.0132,Tennessee State,0.0068,,159.0,,,2025-26,2026-11-02T12:31-05:00,94,64,0,,-1.0,,1,Murray State,10.5,165,Bovada
 2026-11-02|186|64,2026-11-02,"Nov 2, 2026 7:00 PM ET",186,NJIT,64,Dayton,0.9551,1.0338,Dayton,0.0946,Dayton,141.9,,,2025-26,2026-11-02T12:31-05:00,58,89,1,1,5.1,,,Dayton,23.5,143.5,Bovada
-2026-11-02|187|96,2026-11-02,"Nov 2, 2026 7:30 PM ET",187,Navy,96,George Washington,1.0075,1.0355,George Washington,0.0438,,147.3,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,George Washington,18.5,149.5,Bovada
+2026-11-02|187|96,2026-11-02,"Nov 2, 2026 7:30 PM ET",187,Navy,96,George Washington,1.0075,1.0355,George Washington,0.0438,,147.3,,,2025-26,2026-11-02T12:31-05:00,39,91,1,,-17.3,,,George Washington,18.5,149.5,Bovada
 2026-11-02|190|30,2026-11-02,"Nov 2, 2026 7:00 PM ET",190,New Hampshire,30,Brown,0.9509,0.9901,Brown,0.0551,,142.1,,,2025-26,2026-11-02T12:31-05:00,59,55,0,,-28.1,,,Brown,8.5,143.5,Bovada
 2026-11-02|194|347,2026-11-02,"Nov 2, 2026 7:00 PM ET",194,Niagara,347,West Virginia,0.9450,1.0372,West Virginia,0.1082,West Virginia,135.7,,,2025-26,2026-11-02T12:31-05:00,46,91,1,1,1.3,,,West Virginia,,141,Bovada
 2026-11-02|197|307,2026-11-02,"Nov 2, 2026 10:00 PM ET",197,North Alabama,307,UC Davis,0.9521,0.9947,UC Davis,0.0585,,149.9,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,UC Davis,9.5,148.5,Bovada
@@ -90,10 +90,10 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-02|351|219,2026-11-02,"Nov 2, 2026 7:00 PM ET",351,Western Michigan,219,Old Dominion,0.9954,0.9782,Western Michigan,0.0013,,154.2,,,2025-26,2026-11-02T12:31-05:00,49,61,0,,-44.2,,,Western Michigan,,155.5,Bovada
 2026-11-02|354|362,2026-11-02,"Nov 2, 2026 9:00 AM ET",354,Winthrop,362,Queens University,1.0164,0.9861,Winthrop,0.0303,,163.6,,,2025-26,2026-11-02T12:31-05:00,98,103,0,,37.4,,1,Queens University,3.5,168.5,Draft Kings
 2026-11-02|361|277,2026-11-02,"Nov 2, 2026 7:00 PM ET",361,Youngstown State,277,St. Bonaventure,0.9887,1.0236,St. Bonaventure,0.0508,,150.9,,,2025-26,2026-11-02T12:31-05:00,79,71,0,,-0.9,,,St. Bonaventure,10.5,153.5,Draft Kings
-2026-11-02|365|22,2026-11-02,"Nov 2, 2026 7:30 PM ET",365,Southern Indiana,22,Belmont,0.9386,1.0293,Belmont,0.1065,Belmont,149.8,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Belmont,17.5,155.5,Draft Kings
+2026-11-02|365|22,2026-11-02,"Nov 2, 2026 7:30 PM ET",365,Southern Indiana,22,Belmont,0.9386,1.0293,Belmont,0.1065,Belmont,149.8,,,2025-26,2026-11-02T12:31-05:00,54,72,1,1,-23.8,,,Belmont,17.5,155.5,Draft Kings
 2026-11-02|366|287,2026-11-02,"Nov 2, 2026 8:00 PM ET",366,Lindenwood,287,TCU,0.9971,1.0495,TCU,0.0683,TCU,149.9,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,TCU,29.5,155,Bovada
 2026-11-02|3|148,2026-11-02,"Nov 2, 2026 8:00 PM ET",3,Akron,148,Louisiana,1.0463,0.9546,Akron,0.0758,Akron,148.1,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Akron,5.5,148.5,Draft Kings
-2026-11-02|41|185,2026-11-02,"Nov 2, 2026 7:30 PM ET",41,Campbell,185,NC State,1.0023,1.0601,NC State,0.0737,NC State,158.1,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,NC State,22.5,158.5,Draft Kings
+2026-11-02|41|185,2026-11-02,"Nov 2, 2026 7:30 PM ET",41,Campbell,185,NC State,1.0023,1.0601,NC State,0.0737,NC State,158.1,,,2025-26,2026-11-02T12:31-05:00,64,83,1,1,-11.1,,,NC State,22.5,158.5,Draft Kings
 2026-11-02|42|226,2026-11-02,"Nov 2, 2026 7:30 PM ET",42,Canisius,226,Penn State,0.9541,1.0122,Penn State,0.0739,Penn State,143.2,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Penn State,23,154,Bovada
 2026-11-02|44|289,2026-11-02,"Nov 2, 2026 6:30 PM ET",44,Central Connecticut,289,Temple,0.9794,1.0045,Temple,0.0410,,144.7,,,2025-26,2026-11-02T12:31-05:00,56,68,1,,-20.7,,,Temple,14.5,145.5,Bovada
 2026-11-02|45|316,2026-11-02,"Nov 2, 2026 7:30 PM ET",45,Central Michigan,316,UL Monroe,0.9886,0.9377,Central Michigan,0.0350,,153.3,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Central Michigan,,151.5,Bovada
@@ -102,7 +102,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-02|49|150,2026-11-02,"Nov 2, 2026 9:00 PM ET",49,Chattanooga,150,Louisville,0.9883,1.0735,Louisville,0.1011,Louisville,154.4,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Louisville,30,158,Bovada
 2026-11-02|50|295,2026-11-02,"Nov 2, 2026 9:00 PM ET",50,Chicago State,295,Texas,0.9570,1.0691,Texas,0.1281,Texas,150.4,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Texas,42,,Bovada
 2026-11-02|55|343,2026-11-02,"Nov 2, 2026 10:00 PM ET",55,Colgate,343,Washington,1.0005,1.0601,Washington,0.0755,Washington,150.9,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Washington,,154.5,Bovada
-2026-11-02|62|156,2026-11-02,"Nov 2, 2026 7:00 PM ET",62,Dartmouth,156,Marist,0.9829,1.0106,Marist,0.0436,,143.0,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Marist,,137.5,Bovada
+2026-11-02|62|156,2026-11-02,"Nov 2, 2026 7:00 PM ET",62,Dartmouth,156,Marist,0.9829,1.0106,Marist,0.0436,,143.0,,,2025-26,2026-11-02T12:31-05:00,69,62,0,,-12.0,,,Marist,,137.5,Bovada
 2026-11-02|63|344,2026-11-02,"Nov 2, 2026 9:00 PM ET",63,Davidson,344,Washington State,1.0141,1.0114,Washington State,0.0132,,146.7,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Washington State,,149.5,Bovada
 2026-11-02|68|355,2026-11-02,"Nov 2, 2026 7:30 PM ET",68,Denver,355,Wisconsin,0.9972,1.0588,Wisconsin,0.0775,Wisconsin,162.4,,,2025-26,2026-11-02T12:31-05:00,68,75,1,1,-19.4,,,Wisconsin,25,161.5,Bovada
 2026-11-02|75|10,2026-11-02,"Nov 2, 2026 10:00 PM ET",75,East Tennessee State,10,Arizona State,1.0181,1.0343,Arizona State,0.0322,,150.8,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Arizona State,19,,Bovada
@@ -114,7 +114,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-02|81|58,2026-11-02,"Nov 2, 2026 7:00 PM ET",81,Elon,58,Columbia,0.9982,1.0166,Columbia,0.0343,,152.2,,,2025-26,2026-11-02T12:31-05:00,84,71,0,,2.8,,,Columbia,,153.5,Bovada
 2026-11-02|84|118,2026-11-02,"Nov 2, 2026 8:00 PM ET",84,Fairleigh Dickinson,118,Illinois,0.9705,1.0974,Illinois,0.1428,Illinois,144.7,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Illinois,39,156.5,Bovada
 2026-11-02|85|90,2026-11-02,"Nov 2, 2026 8:30 PM ET",85,Florida A&M,90,Florida State,0.9564,1.0294,Florida State,0.0730,Florida State,151.7,,,2025-26,2026-11-02T12:31-05:00,,,,,,,1,Florida State,27,157.5,Bovada
-2026-11-02|88|312,2026-11-02,"Nov 2, 2026 7:00 PM ET",88,Florida Gulf Coast,312,UCF,0.9995,1.0539,UCF,0.0703,UCF,156.4,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,UCF,22.5,153.5,Draft Kings
+2026-11-02|88|312,2026-11-02,"Nov 2, 2026 7:00 PM ET",88,Florida Gulf Coast,312,UCF,0.9995,1.0539,UCF,0.0703,UCF,156.4,,,2025-26,2026-11-02T12:31-05:00,95,96,1,1,34.6,,,UCF,22.5,153.5,Draft Kings
 2026-11-02|8|51,2026-11-02,"Nov 2, 2026 7:00 PM ET",8,American University,51,Cincinnati,0.9854,1.0474,Cincinnati,0.0779,Cincinnati,143.3,,,2025-26,2026-11-02T12:31-05:00,53,79,1,1,-11.3,,,Cincinnati,25.5,153.5,Bovada
 2026-11-02|91|131,2026-11-02,"Nov 2, 2026 8:00 PM ET",91,Fordham,131,Kansas,1.0309,1.0845,Kansas,0.0694,Kansas,139.7,,,2025-26,2026-11-02T12:31-05:00,,,,,,,,Kansas,21.5,145.5,Draft Kings
 2026-11-02|93|23,2026-11-02,"Nov 2, 2026 8:00 PM ET",93,Furman,23,Bethune-Cookman,1.0084,0.9801,Furman,0.0282,,149.7,,,2025-26,2026-11-02T12:31-05:00,,,,,,,1,,,154.5,Bovada
