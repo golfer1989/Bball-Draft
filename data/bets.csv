@@ -1,0 +1,6 @@
+date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,locked_at,result
+2026-11-04,1,ML,home,Saint Mary's ML,-1100,0.924,0.008,,202,253,North Dakota State,Saint Mary's,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 07:38 AM CT",
+2026-11-04,2,ML,home,California ML,-1600,0.945,0.003,,239,40,Radford,California,"Nov 4, 2026 9:00 PM ET","Nov 04, 2026 07:38 AM CT",
+2026-11-04,3,ML,home,Loyola Marymount ML,-340,0.775,0.003,,362,153,Queens University,Loyola Marymount,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 07:38 AM CT",
+2026-11-04,4,ML,home,Butler ML,-10000,0.991,0.001,,84,34,Fairleigh Dickinson,Butler,"Nov 4, 2026 7:00 PM ET","Nov 04, 2026 07:38 AM CT",
+2026-11-04,5,ML,home,Santa Clara ML,-2100,0.955,0.000,,172,261,Milwaukee,Santa Clara,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 07:38 AM CT",
