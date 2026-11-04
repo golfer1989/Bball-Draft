@@ -660,7 +660,7 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
                    f'<div class="cards">{"".join(cards)}</div>')
     note = (f'<p class="note">How these are picked: each game\u2019s moneyline, spread and over/under are scored by the '
             f'model\u2019s chance of winning them, based on how far off its projections usually are. A bet needs at least a '
-            f'{B.MIN_CHANCE * 100:.0f}% model chance and has to beat its price; each game\u2019s best one makes the list, ranked by edge '
+            f'{B.MIN_CHANCE * 100:.0f}% model chance and has to beat its price by {B.MIN_EDGE * 100:.0f}+ points; each game\u2019s best one makes the list, ranked by edge '
             f'(model chance minus the chance the odds imply). Spread and total bets assume the usual {B.fmt_odds(B.STD_ODDS)} odds, '
             'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>')
     return page("Bball Draft - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)

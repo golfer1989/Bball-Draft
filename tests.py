@@ -426,3 +426,19 @@ def test_best_bets_book_lock_and_grade(tmp_path):
     assert "top bets yesterday" in html and "1-0" in html and "Monday, Nov 2" in html and 'res W big' in html
     html = site.bets_page(empty, "Monday, Nov 2", "now", {}, book, "2026-11-02")
     assert "Today\u2019s top 1 single bets" in html and "final: 1-0" in html
+
+
+def test_bet_rules_skip_junk_favorites_and_relock():
+    import bets
+    assert not bets.qualifies({"kind": "ML", "odds": -10000, "chance": 0.99, "edge": 0.001})   # no real edge
+    assert not bets.qualifies({"kind": "ML", "odds": -400, "chance": 0.85, "edge": 0.05})       # too short a price
+    assert bets.qualifies({"kind": "Spread", "odds": -110, "chance": 0.57, "edge": 0.045})
+    assert not bets.qualifies({"kind": "Spread", "odds": -110, "chance": 0.54, "edge": 0.02})
+    junk = {"kind": "ML", "side": "home", "label": "Butler ML", "odds": -10000, "chance": 0.99, "edge": 0.001, "num": None,
+            "away_id": "1", "home_id": "2", "away": "FDU", "home": "Butler", "when": "Nov 4, 2026 7:00 PM ET"}
+    good = dict(junk, kind="Spread", label="FDU +26.5", odds=-110, chance=0.57, edge=0.045, num=26.5)
+    book = []
+    bets.lock_day(book, "2026-11-04", [junk], "early")
+    assert bets.lock_day(book, "2026-11-04", [good], "later") == 1 and [b["label"] for b in book] == ["FDU +26.5"]
+    book[0]["result"] = "W"
+    assert bets.lock_day(book, "2026-11-04", [junk], "later") == 0           # graded: never replaced

@@ -10,7 +10,8 @@ directly: a 30-point underdog would look like a lock. Before scoring bets, each 
      (betting lines are very sharp, so the model nudges rather than replaces them);
   3. chance of winning a bet = normal curve around that estimate (game-to-game spread of
      results: MARGIN_SD points for margins, TOTAL_SD for totals).
-A bet qualifies with at least MIN_CHANCE and a chance above what its odds imply. Each game
+A bet qualifies with at least MIN_CHANCE, an edge of MIN_EDGE over what its odds imply, and
+(for moneylines) a price no shorter than MAX_FAV_ML. Each game
 contributes only its best bet, ranked by edge = model chance - implied chance.
 Spread and total bets are priced at -110 (the line source has no juice for them)."""
 import csv
@@ -23,7 +24,9 @@ MARGIN_SD = 11.0
 TOTAL_SD = 16.0
 MODEL_WEIGHT = 0.35
 STD_ODDS = -110
-MIN_CHANCE = 0.60
+MIN_CHANCE = 0.55        # model chance a bet needs
+MIN_EDGE = 0.03          # ...and it must beat the price by at least 3 points of win chance
+MAX_FAV_ML = -250        # moneylines shorter than this are skipped (take the spread instead)
 PARLAY_SIZES = (3, 6, 8)
 SINGLES = 6
 
@@ -167,8 +170,16 @@ def save_book(book, path=BOOK):
 
 
 def lock_day(book, date, singles, stamp):
-    """Write the day's top single bets once (first build where they exist). Returns number added."""
-    if any(b["date"] == date for b in book) or not singles:
+    """Write the day's top single bets once (first build where they exist). Returns number added.
+    Bets locked under older rules that no longer qualify are dropped as long as none of the day's
+    bets has been graded yet, so a rule change re-locks the day instead of keeping stale bets."""
+    today = [b for b in book if b["date"] == date]
+    if today and not any(b["result"] for b in today):
+        stale = [b for b in today if not qualifies(b)]
+        if stale:
+            book[:] = [b for b in book if b["date"] != date]
+            today = []
+    if today or not singles:
         return 0
     for i, b in enumerate(singles, 1):
         book.append({"date": date, "rank": str(i), "kind": b["kind"], "side": b["side"], "label": b["label"],
@@ -211,11 +222,17 @@ def record(book, date=None):
     return tuple(sum(1 for b in rows if b["result"] == k) for k in "WLP")
 
 
+def qualifies(b):
+    """b may be a live bet dict or a bets.csv row."""
+    chance, edge, odds = float(b["chance"]), float(b["edge"]), int(b["odds"])
+    return chance >= MIN_CHANCE and edge >= MIN_EDGE and (b["kind"] != "ML" or odds >= MAX_FAV_ML)
+
+
 def ranked(rows, line_map, cal=None):
     """Each game's best qualifying bet, best edge first."""
     picks = []
     for r in rows:
-        ok = [b for b in game_bets(r, _lookup(line_map, r), cal) if b["chance"] >= MIN_CHANCE and b["edge"] > 0]
+        ok = [b for b in game_bets(r, _lookup(line_map, r), cal) if qualifies(b)]
         if ok:
             picks.append(max(ok, key=lambda b: b["edge"]))
     return sorted(picks, key=lambda b: (-b["edge"], -b["chance"]))
