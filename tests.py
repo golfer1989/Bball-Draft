@@ -189,6 +189,9 @@ def test_end_to_end(tmp_path, monkeypatch):
     for fn in (ledger.load, ledger.save):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
     monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs"))
+    import bets
+    for fn in (bets.load_book, bets.save_book):
+        monkeypatch.setattr(fn, "__defaults__", (tmp_path / "bets.csv",))
     monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
     monkeypatch.setattr(fetch, "lines", lambda a, b: [_gl(600, "Wofford", 500, "Tennessee",
                         [{"provider": "consensus", "spread": -9.5, "overUnder": 152.5}])])
@@ -385,3 +388,41 @@ def test_best_bets_math_and_page():
     small = bets.best(rows[:4], lm)
     assert small["parlays"][6] is None and "not enough for 6 legs" in site.bets_page(small, "x", "now", {})
     assert "No qualifying bets" in site.bets_page(bets.best([], {}), "x", "now", {})
+
+
+def test_blend_fades_last_season_in():
+    prev = {"A": {"rating": 1.00, "ppg": 70.0, "name": "A"}, "B": {"rating": 1.10, "ppg": 80.0, "name": "B"},
+            "C": {"rating": 0.90, "ppg": 60.0, "name": "C"}}
+    cur = {"A": {"rating": 1.20, "ppg": 90.0, "name": "A"}, "B": {"rating": 1.10, "ppg": 80.0, "name": "B"},
+           "D": {"rating": 1.05, "ppg": 75.0, "name": "D"}}
+    out = model.blend(prev, cur, {"A": 5, "B": 40, "D": 2}, n_full=20)
+    assert out["A"]["rating"] == pytest.approx(1.05) and out["A"]["ppg"] == pytest.approx(75) and out["A"]["blend"] == 0.25
+    assert out["B"]["blend"] == 1.0 and out["B"]["rating"] == 1.10          # 40 games: all this season
+    assert out["C"]["rating"] == 0.90 and out["C"]["blend"] == 0.0           # hasn't played yet: last season
+    assert out["D"]["rating"] == 1.05 and out["D"]["blend"] == 1.0           # new to D-I: this season only
+
+
+def test_best_bets_book_lock_and_grade(tmp_path):
+    import bets
+    spread = {"kind": "Spread", "side": "away", "num": "31.5", "label": "Mercyhurst +31.5"}
+    assert bets.grade_bet(spread, 50, 80) == "W" and bets.grade_bet(spread, 50, 82) == "L"
+    assert bets.grade_bet(dict(spread, num="30"), 50, 80) == "P"
+    assert bets.grade_bet({"kind": "ML", "side": "home"}, 70, 75) == "W"
+    assert bets.grade_bet({"kind": "Total", "side": "under", "num": "140.5"}, 70, 71) == "L"
+    assert bets.grade_bet({"kind": "Total", "side": "over", "num": "140.5"}, 70, 71) == "W"
+    single = {"kind": "Spread", "side": "home", "label": "Home1 \u22123.5", "odds": -110, "chance": 0.68, "edge": 0.16,
+              "num": -3.5, "away_id": "2", "home_id": "3", "away": "Away1", "home": "Home1", "when": "Nov 2, 2026 8:00 PM ET"}
+    book = []
+    assert bets.lock_day(book, "2026-11-02", [single], "Nov 02, 2026 03:30 AM CT") == 1
+    assert bets.lock_day(book, "2026-11-02", [single], "later") == 0           # locked once only
+    row = {k: "" for k in ledger.FIELDS}
+    row.update(date="2026-11-02", away_id="2", home_id="3", away_pts="60", home_pts="70")
+    assert bets.grade_book(book, [row]) == 1 and book[0]["result"] == "W"
+    assert bets.record(book) == (1, 0, 0) and bets.record(book, "2026-11-01") == (0, 0, 0)
+    bets.save_book(book, tmp_path / "b.csv")
+    assert bets.load_book(tmp_path / "b.csv")[0]["label"] == "Home1 \u22123.5"
+    empty = bets.best([], {})
+    html = site.bets_page(empty, "Tuesday, Nov 3", "now", {}, book, "2026-11-03")
+    assert "top bets yesterday" in html and "1-0" in html and "Monday, Nov 2" in html and 'res W big' in html
+    html = site.bets_page(empty, "Monday, Nov 2", "now", {}, book, "2026-11-02")
+    assert "Today\u2019s top 1 single bets" in html and "final: 1-0" in html

@@ -32,9 +32,11 @@ SHOW_RESULTS_STATS = False
 # First-half pick uses TeamRankings' "Last 3" column, like the spreadsheet did.
 FIRST_HALF_COLUMN = "Last 3"
 
-# Use the new season's stats once the median team has played this many games;
-# before that, fall back to last season's final numbers.
-MIN_MEDIAN_GP = 3
+# Early season: last season's rating fades into this season's as each team plays games.
+# A team's weight on this season = games played / BLEND_GAMES (100% from that game on), so
+# rosters that changed over the summer take over gradually instead of a 3-game sample
+# of mismatches replacing a full season at once.
+BLEND_GAMES = 20
 
 
 def season_for(d):

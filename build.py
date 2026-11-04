@@ -43,25 +43,49 @@ def _cache(name, loader):
         return None, True
 
 
-def load_stats(today):
-    """Newest season whose median team has played enough games (pre-season -> last season).
-    Tries three season numbers so it works whichever year the API uses to label a season."""
+def load_stats(season):
+    """(label, team, opp) for one season, or None if the API has nothing usable for it."""
+    rows, stale = _cache(f"stats_{season}", lambda: fetch.team_stats(season))
+    if not rows:
+        return None
+    team, opp, label = fetch.parse_team_stats(rows)
+    if len(team) < 300:
+        log(f"  season {season}: only {len(team)} teams, ignored")
+        return None
+    return (label or str(season)) + (" (cached)" if stale else ""), team, opp
+
+
+def season_ratings(season, today):
+    """Schedule-adjusted ratings from one season's stats and results, or None."""
+    got = load_stats(season)
+    if not got:
+        return None
+    label, team, opp = got
+    rat = model.ratings(team, opp)
+    played = season_games(season, today)
+    model.schedule_adjust(rat, played)
+    gp = {tid: t["GP"] for tid, t in team.items()}
+    log(f"  {label}: {len(rat)} teams, median {statistics.median(gp.values()):g} GP, "
+        f"schedule from {len(played)} games")
+    return label, rat, gp
+
+
+def current_ratings(today):
+    """This season's ratings blended with last season's (see config.BLEND_GAMES).
+    Returns (ratings, season label for the ledger, note for the website)."""
     s0 = config.season_for(today)
-    for s in (s0, s0 - 1, s0 - 2):
-        rows, stale = _cache(f"stats_{s}", lambda s=s: fetch.team_stats(s))
-        if not rows:
-            log(f"  season {s}: no stats")
-            continue
-        team, opp, label = fetch.parse_team_stats(rows)
-        if len(team) < 300:
-            log(f"  season {s}: only {len(team)} teams")
-            continue
-        med = statistics.median(t["GP"] for t in team.values())
-        if med < config.MIN_MEDIAN_GP:
-            log(f"  season {s} ({label}): median {med:g} GP < {config.MIN_MEDIAN_GP}, trying older")
-            continue
-        note = f"{label or s} stats, median {med:g} GP" + (" (cached)" if stale else "")
-        return s, label or str(s), team, opp, note
+    cur, prev = season_ratings(s0, today), season_ratings(s0 - 1, today)
+    if cur and prev:
+        label, rat, gp = cur
+        med = statistics.median(gp.values()) if gp else 0
+        blended = model.blend(prev[1], rat, gp)
+        done = sum(1 for g in gp.values() if g >= config.BLEND_GAMES)
+        note = (f"{prev[0]} stats fading into {label} (median {med:g} game{'s' if med != 1 else ''} played"
+                + (f", {done} teams fully on this season" if done else "") + ")")
+        return blended, label, note
+    if cur or prev:
+        label, rat, _ = cur or prev
+        return rat, label, f"{label} stats"
     raise SystemExit("No team stats available from CollegeBasketballData or cache.")
 
 
@@ -137,12 +161,8 @@ def main():
             log(f"  graded {n} games for {d}")
 
     # 2) stats, 1H, today's picks
-    season_no, season, team, opp, stats_note = load_stats(today)
+    rat, season, stats_note = current_ratings(today)
     log(f"  {stats_note}")
-    rat = model.ratings(team, opp)
-    played = season_games(season_no, today)
-    model.schedule_adjust(rat, played)
-    log(f"  strength of schedule from {len(played)} games")
     stats_note += ", adjusted for schedule + home court"
     fh = fetch.first_half_last3(all_games, today_str)
     todays_games = [g for g in all_games if g["date"] == today_str]
@@ -191,8 +211,19 @@ def main():
     best = bets.best(open_rows, all_lines, cal_rows=day_rows)
     log(f"  best bets: {best['pool']} qualifying bets (margin scale {best['cal']['scale']:.2f}, "
         f"total shift {best['cal']['total_shift']:+.1f})")
+    # the day's top single bets are locked in once most games have a line, then graded like picks
+    book = bets.load_book()
+    with_line = sum(1 for r in day_rows if r["line_spread"] or r["line_total"])
+    if day_rows and with_line / len(day_rows) >= bets.LOCK_COVERAGE:
+        n_locked = bets.lock_day(book, today_str, best["singles"], stamp)
+        if n_locked:
+            log(f"  locked today's top {n_locked} single bets")
+    n_bets_graded = bets.grade_book(book, rows)
+    if n_bets_graded:
+        log(f"  graded {n_bets_graded} single bets")
+    bets.save_book(book)
     site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today),
-               site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams))
+               site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str))
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     log("done")
 

@@ -124,6 +124,29 @@ def schedule_adjust(rat, games, weight=None):
     return rat
 
 
+def blend(prev, cur, games_played, n_full=None):
+    """Early-season ratings: last season's rating (prev) fades into this season's (cur) as a
+    team plays games. weight on this season = min(1, GP / BLEND_GAMES). Teams missing from one
+    season use the other. Returns a new {team_id: rating dict}."""
+    n_full = config.BLEND_GAMES if n_full is None else n_full
+    out = {}
+    for tid in set(prev) | set(cur):
+        a, b = prev.get(tid), cur.get(tid)
+        if not a or not b:
+            r = dict(a or b)
+            r["blend"] = 1.0 if b else 0.0
+            out[tid] = r
+            continue
+        w = max(0.0, min(1.0, games_played.get(tid, 0) / n_full)) if n_full else 1.0
+        r = dict(b)
+        for k in ("rating", "raw_rating", "sos", "offense", "defense", "ppg"):
+            if k in a and k in b:
+                r[k] = (1 - w) * a[k] + w * b[k]
+        r["blend"] = w
+        out[tid] = r
+    return out
+
+
 def predict(game, rat, first_half):
     """game has away_id/home_id/away/home. first_half = {realgm_id: 1H ppg}."""
     a, h = rat.get(game["away_id"]), rat.get(game["home_id"])

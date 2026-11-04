@@ -13,7 +13,9 @@ directly: a 30-point underdog would look like a lock. Before scoring bets, each 
 A bet qualifies with at least MIN_CHANCE and a chance above what its odds imply. Each game
 contributes only its best bet, ranked by edge = model chance - implied chance.
 Spread and total bets are priced at -110 (the line source has no juice for them)."""
+import csv
 from math import erf, prod, sqrt
+from pathlib import Path
 
 import config
 
@@ -121,9 +123,9 @@ def game_bets(r, ln, cal=None):
             "away_id": r["away_id"], "home_id": r["home_id"]}
     out = []
 
-    def add(kind, side, label, odds, p):
+    def add(kind, side, label, odds, p, num=None):
         out.append(dict(base, kind=kind, side=side, label=label, odds=int(odds), chance=p,
-                        edge=p - 1 / decimal(odds)))
+                        edge=p - 1 / decimal(odds), num=num))
 
     for side, team, ml, m in (("home", home, ln.get("hml"), m_home), ("away", away, ln.get("aml"), -m_home)):
         if ml is not None:
@@ -133,13 +135,80 @@ def game_bets(r, ln, cal=None):
         p_home = chance(m_home + home_line, MARGIN_SD)
         for side, team, hl, p in (("home", home, home_line, p_home), ("away", away, -home_line, 1 - p_home)):
             num = "PK" if hl == 0 else (f"+{hl:g}" if hl > 0 else "\u2212" + f"{-hl:g}")
-            add("Spread", side, f"{team} {num}", STD_ODDS, p)
+            add("Spread", side, f"{team} {num}", STD_ODDS, p, hl)
     t = ln.get("total")
     if t is not None and total is not None:
         p_over = chance(total - t, TOTAL_SD)
-        add("Total", "over", f"Over {t:g}", STD_ODDS, p_over)
-        add("Total", "under", f"Under {t:g}", STD_ODDS, 1 - p_over)
+        add("Total", "over", f"Over {t:g}", STD_ODDS, p_over, t)
+        add("Total", "under", f"Under {t:g}", STD_ODDS, 1 - p_over, t)
     return out
+
+
+# ---------------- the daily book: top single bets locked in and graded ----------------
+BOOK = Path(__file__).resolve().parent / "data" / "bets.csv"
+BOOK_FIELDS = ["date", "rank", "kind", "side", "label", "odds", "chance", "edge", "num",
+               "away_id", "home_id", "away", "home", "when", "locked_at", "result"]
+LOCK_COVERAGE = 0.6      # lock the day's top bets once this share of the day's games has a line
+
+
+def load_book(path=BOOK):
+    if not path.exists():
+        return []
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def save_book(book, path=BOOK):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=BOOK_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(sorted(book, key=lambda b: (b["date"], int(b["rank"]))))
+
+
+def lock_day(book, date, singles, stamp):
+    """Write the day's top single bets once (first build where they exist). Returns number added."""
+    if any(b["date"] == date for b in book) or not singles:
+        return 0
+    for i, b in enumerate(singles, 1):
+        book.append({"date": date, "rank": str(i), "kind": b["kind"], "side": b["side"], "label": b["label"],
+                     "odds": str(b["odds"]), "chance": f"{b['chance']:.3f}", "edge": f"{b['edge']:.3f}",
+                     "num": "" if b["num"] is None else f"{b['num']:g}",
+                     "away_id": str(b["away_id"]), "home_id": str(b["home_id"]), "away": b["away"], "home": b["home"],
+                     "when": b["when"], "locked_at": stamp, "result": ""})
+    return len(singles)
+
+
+def grade_bet(b, away_pts, home_pts):
+    """'W', 'L' or 'P' (push) for a locked bet given the final score."""
+    team_margin = (home_pts - away_pts) if b["side"] == "home" else (away_pts - home_pts)
+    if b["kind"] == "ML":
+        v = team_margin
+    elif b["kind"] == "Spread":
+        v = team_margin + float(b["num"])
+    else:
+        v = (away_pts + home_pts - float(b["num"])) * (1 if b["side"] == "over" else -1)
+    return "W" if v > 0 else "L" if v < 0 else "P"
+
+
+def grade_book(book, ledger_rows):
+    """Fill results from graded ledger rows (same game, same date). Returns number graded."""
+    finals = {(r["date"], r["away_id"], r["home_id"]): r for r in ledger_rows if r["away_pts"] != ""}
+    n = 0
+    for b in book:
+        if b["result"]:
+            continue
+        r = finals.get((b["date"], b["away_id"], b["home_id"]))
+        if r:
+            b["result"] = grade_bet(b, int(r["away_pts"]), int(r["home_pts"]))
+            n += 1
+    return n
+
+
+def record(book, date=None):
+    """(wins, losses, pushes) over the whole book, or one date."""
+    rows = [b for b in book if b["result"] and (date is None or b["date"] == date)]
+    return tuple(sum(1 for b in rows if b["result"] == k) for k in "WLP")
 
 
 def ranked(rows, line_map, cal=None):

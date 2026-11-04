@@ -40,6 +40,8 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .hero{padding:34px 0 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .hero h1{margin:0;font:800 clamp(40px,7vw,72px)/.9 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
 .hero p{margin:8px 0 0;color:var(--mute)}
+.stale{margin:18px 0 -10px;padding:12px 16px;border:1px solid #4a3618;border-radius:12px;background:rgba(242,165,65,.08);color:var(--mute);font-size:14px}
+.stale b{color:var(--amber)}
 .donelink{color:var(--amber);text-decoration:none;font-weight:600;white-space:nowrap}.donelink:hover{text-decoration:underline}
 .stats{display:flex;gap:28px;flex-wrap:wrap}
 .stat b{display:block;font:800 34px/1 'Big Shoulders Display',sans-serif}
@@ -148,6 +150,11 @@ footer{color:var(--dim);font-size:12px;padding:0 0 30px}
 .pc small{display:block;color:var(--mute);font-size:12px;margin-top:3px}
 .pc .bar2{height:5px;border-radius:9px;background:#1c1c22;margin-top:6px;overflow:hidden}
 .pc .bar2 i{display:block;height:100%;background:linear-gradient(90deg,#3b82f6,var(--win));border-radius:9px}
+.res.big{font:800 20px/1 'Big Shoulders Display',sans-serif;padding:8px 14px;border-radius:10px}
+.res.P{background:#2a2a32;color:var(--mute)}
+.bet.W{border-color:rgba(69,212,138,.45)}.bet.L{border-color:rgba(255,97,97,.35);opacity:.8}
+.stat.win b{color:var(--win)}.stat.loss b{color:var(--loss)}
+.singles.past .bet{padding:10px 18px}.singles.past .rk{font-size:22px}.singles.past .bl b{font-size:16px}
 .disc.ou{--c:#26262e}.disc.ou em{font-size:20px}
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
@@ -192,6 +199,11 @@ function pick(sel,attr,set){document.querySelectorAll(sel).forEach(c=>c.addEvent
 pick('.chip[data-f]','f',v=>F=v);pick('.chip[data-s]','s',v=>S=v);
 const etDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
 const isToday=box&&box.dataset.date===etDay();
+if(box&&box.dataset.date&&box.dataset.date<etDay()){ // last build was an earlier day
+ const n=document.createElement('div');n.className='stale';
+ const d=new Date(box.dataset.date+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'});
+ n.innerHTML='<b>Showing '+d+'.</b> Today\u2019s picks haven\u2019t been built yet \u2014 the site rebuilds overnight and before each tip-off block. Check back shortly.';
+ document.querySelector('main').prepend(n)}
 if(isToday){ // open on the block that's on now, or the next one with games
  const h=+new Date().toLocaleString('en-US',{timeZone:'America/Chicago',hour:'numeric',hourCycle:'h23'});
  const slots=[...document.querySelectorAll('.chip[data-s]')].filter(c=>c.dataset.hi);
@@ -527,8 +539,9 @@ def results_page(rows, stamp, teams=None):
              '<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No graded over/under plays yet.</div>')
     parts = []
     from datetime import date as _d
+    far = datetime.max.replace(tzinfo=config.CT)
     for d in sorted(by_date, reverse=True):
-        day = by_date[d]
+        day = sorted(by_date[d], key=lambda r: tip_ct(r["when"]) or far, reverse=True)   # latest tip first
         dw, dl = _record(day, "pick_correct")
         label = _d.fromisoformat(d).strftime("%A, %b %-d")
         parts.append(f'<div class="day"><h2>{label}</h2><span>{dw}-{dl}</span></div>'
@@ -550,27 +563,87 @@ def _bet_where(b, teams):
             f' \u00b7 {tip}')
 
 
-def bets_page(best, date_label, stamp, teams=None):
+def _single(i, b, teams, status=""):
+    """One row of the single-bet list. status = HTML for the right-hand column (default: model chance)."""
     import bets as B
-    teams = teams or {}
-    hero = ('<section class="hero"><div><h1>Best Bets</h1>'
-            f'<p>{escape(date_label)}. The model\u2019s projections against the current lines, for games that '
-            'haven\u2019t tipped off yet. Rebuilt before each time block. Times are Central.</p></div></section>')
-    singles = best["singles"]
-    if singles:
-        rows = "".join(
-            f'<div class="bet"><div class="rk">{i}</div>{_bet_disc(b, teams)}'
+    if not status:
+        status = (f'<div class="pc"><b>{b["chance"] * 100:.0f}%</b><small><span class="mc">model chance, </span>'
+                  f'+{b["edge"] * 100:.0f}<span class="mc"> pts</span> edge</small>'
+                  f'<div class="bar2"><i style="width:{b["chance"] * 100:.0f}%"></i></div></div>')
+    return (f'<div class="bet{" " + b["result"] if b.get("result") else ""}"><div class="rk">{i}</div>{_bet_disc(b, teams)}'
             f'<div class="bl"><b>{escape(b["label"])} <span style="color:var(--mute);font-weight:600">{B.fmt_odds(b["odds"])}</span></b>'
             f'<small>{_bet_where(b, teams)}</small></div>'
-            f'<span class="kind {b["kind"]}">{"Moneyline" if b["kind"] == "ML" else b["kind"]}</span>'
-            f'<div class="pc"><b>{b["chance"] * 100:.0f}%</b><small><span class="mc">model chance, </span>+{b["edge"] * 100:.0f}<span class="mc"> pts</span> edge</small>'
-            f'<div class="bar2"><i style="width:{b["chance"] * 100:.0f}%"></i></div></div></div>'
-            for i, b in enumerate(singles, 1))
-        single_html = (f'<div class="sect"><h2>Top {len(singles)} single bets</h2><span>Biggest edge over the line</span></div>'
+            f'<span class="kind {b["kind"]}">{"Moneyline" if b["kind"] == "ML" else b["kind"]}</span>{status}</div>')
+
+
+def _from_book(b):
+    """A bets.csv row as the dict the renderer expects."""
+    r = dict(b)
+    r["odds"], r["chance"], r["edge"] = int(b["odds"]), float(b["chance"]), float(b["edge"])
+    return r
+
+
+def _status(b):
+    res = b.get("result")
+    if res == "W":
+        return '<div class="pc"><span class="res W big">W</span></div>'
+    if res == "L":
+        return '<div class="pc"><span class="res L big">L</span></div>'
+    if res == "P":
+        return '<div class="pc"><span class="res P big">Push</span></div>'
+    return (f'<div class="pc"><b>{b["chance"] * 100:.0f}%</b><small>model chance</small>'
+            f'<div class="bar2"><i style="width:{b["chance"] * 100:.0f}%"></i></div></div>')
+
+
+def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
+    import bets as B
+    teams = teams or {}
+    book = book or []
+    today_book = [_from_book(b) for b in book if b["date"] == date_iso]
+    past_dates = sorted({b["date"] for b in book if b["date"] < date_iso and b["result"]})
+    yday = past_dates[-1] if past_dates else ""
+    yday_book = [_from_book(b) for b in book if b["date"] == yday]
+
+    def rec(w, l, p):
+        return f"{w}-{l}" + (f"-{p}" if p else "")
+
+    def pct(w, l):
+        return f"{100 * w / (w + l):.0f}%" if w + l else "\u2014"
+    yw, yl, yp = B.record(book, yday) if yday else (0, 0, 0)
+    sw, sl, sp = B.record(book)
+    stats = ""
+    if sw + sl + sp:
+        ylabel = "yesterday" if yday and date_iso and (datetime.fromisoformat(date_iso) - datetime.fromisoformat(yday)).days == 1 \
+            else datetime.fromisoformat(yday).strftime("%a %b %-d").replace(" 0", " ") if yday else "last day"
+        stats = (f'<div class="stats"><div class="stat {"win" if yw > yl else "loss" if yl > yw else ""}"><b>{rec(yw, yl, yp)}</b>'
+                 f'<span>top bets {escape(ylabel)}</span></div>'
+                 f'<div class="stat am"><b>{rec(sw, sl, sp)}</b><span>season, {pct(sw, sl)}</span></div></div>')
+    hero = ('<section class="hero"><div><h1>Best Bets</h1>'
+            f'<p>{escape(date_label)}. The model\u2019s projections against the current lines. The top single bets lock in '
+            f'each morning and are graded from the final score; parlays rebuild before each time block from games that '
+            f'haven\u2019t tipped off. Times are Central.</p></div>{stats}</section>')
+    singles = best["singles"]
+    if today_book:
+        done = sum(1 for b in today_book if b.get("result"))
+        sub = ("locked in at " + escape(today_book[0]["locked_at"].split(", ")[-1]) if "locked_at" in today_book[0] else "locked in")
+        if done:
+            tw, tl, tp = B.record([b for b in book if b["date"] == date_iso])
+            sub = f"{rec(tw, tl, tp)} so far, {len(today_book) - done} still to play" if done < len(today_book) else f"final: {rec(tw, tl, tp)}"
+        rows = "".join(_single(i, b, teams, _status(b)) for i, b in enumerate(today_book, 1))
+        single_html = (f'<div class="sect"><h2>Today\u2019s top {len(today_book)} single bets</h2><span>{sub}</span></div>'
+                       f'<div class="singles">{rows}</div>')
+    elif singles:
+        rows = "".join(_single(i, b, teams) for i, b in enumerate(singles, 1))
+        single_html = (f'<div class="sect"><h2>Top {len(singles)} single bets</h2><span>Preview, locks in once most lines are posted</span></div>'
                        f'<div class="singles">{rows}</div>')
     else:
         single_html = ('<div class="empty"><b>No qualifying bets right now</b>Lines usually post by late morning, '
                        'or every game today has already tipped off.</div>')
+    if yday_book:
+        ylab = datetime.fromisoformat(yday).strftime("%A, %b %-d")
+        rows = "".join(_single(i, b, teams, _status(b)) for i, b in enumerate(yday_book, 1))
+        single_html += (f'<div class="sect"><h2>{escape(ylab)}</h2><span>top bets went {rec(yw, yl, yp)}</span></div>'
+                        f'<div class="singles past">{rows}</div>')
     cards = []
     for n, pl in best["parlays"].items():
         if not pl:
