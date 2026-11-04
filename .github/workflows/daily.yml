@@ -2,13 +2,17 @@ name: Daily picks
 
 on:
   schedule:
-    # Overnight build (2-4 AM Central): grades yesterday, locks today's picks + lines.
-    - cron: "17 8,9,10 * * *"
-    # Every 15 min from late morning to late evening. Each run checks the Central-time
-    # clock and only rebuilds ~5-20 min before a tip-time block (11 AM, 2 PM, 5 PM, 8 PM);
-    # all other runs stop after a few seconds. Works the same after daylight-saving changes.
-    - cron: "*/15 15-23 * * *"
-    - cron: "*/15 0-3 * * *"
+    # GitHub runs scheduled jobs on a best-effort basis and drops most of the ones that land
+    # on busy minutes (:00/:15/:30/:45), so every entry below uses off-peak minutes and each
+    # job has several chances. A run that isn't needed stops at the guard step in seconds.
+    #
+    # Overnight build (eight chances, 3:23-6:53 AM Central): grades yesterday, locks today's
+    # picks + lines. Any later firing also does it if none of these ran.
+    - cron: "23,53 9,10,11,12 * * *"
+    # Daytime, four times an hour: rebuilds ~5-20 min before 9 AM (fresh morning lines) and
+    # before each tip-time block (11 AM, 2 PM, 5 PM, 8 PM Central); other firings stop at the guard.
+    - cron: "8,23,38,53 14-23 * * *"
+    - cron: "8,23,38,53 0-3 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -40,11 +44,11 @@ jobs:
           elif [ "$last" != "$today" ]; then
             run=true; why="overnight build"
           else
-            for seg in 1100 1400 1700 2000; do
-              start=$(( (seg / 100) * 60 ))
+            for seg in 0900 1100 1400 1700 2000; do
+              hr=$(( 10#$seg / 100 )); start=$(( hr * 60 ))
               if [ $nowm -ge $((start - 20)) ] && [ $nowm -lt $((start + 90)) ] \
                  && ! grep -qx "$today $seg" data/refresh_marks.txt 2>/dev/null; then
-                run=true; why="refresh before the $((seg / 100 > 12 ? seg / 100 - 12 : seg / 100)) o'clock block"; mark="$today $seg"; break
+                run=true; why="refresh before the $((hr > 12 ? hr - 12 : hr)) o'clock block"; mark="$today $seg"; break
               fi
             done
           fi
