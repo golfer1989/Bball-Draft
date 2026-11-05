@@ -8,7 +8,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import bets, config, fetch, ledger, model, share, webpage as site, writeup
+import bets, config, fetch, ledger, model, share, video, webpage as site, writeup
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -223,9 +223,24 @@ def main():
         log(f"  graded {n_bets_graded} single bets")
     bets.save_book(book)
     rk = writeup.ranks(rat)
-    writeups = {r["game_key"]: writeup.game_writeup(r, rat, rk, all_lines.get((int(r["away_id"]), int(r["home_id"]))),
-                                                    best["cal"]["scale"])
-                for r in todays}
+
+    def line_of(r):
+        ln = all_lines.get((int(r["away_id"]), int(r["home_id"])))
+        if ln or not (r.get("line_spread") or r.get("line_total")):
+            return ln
+        return {"fav": r["line_fav"], "spread": float(r["line_spread"]) if r["line_spread"] else None,
+                "total": float(r["line_total"]) if r["line_total"] else None}
+    writeups = {r["game_key"]: writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"]) for r in todays}
+    # a page of its own for every game of the last three days (today's get the result as it comes in)
+    recent = [r for r in rows if (today - timedelta(days=2)).isoformat() <= r["date"] <= today_str]
+    n_pages = 0
+    for r in recent:
+        wu = writeups.get(r["game_key"]) or writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"])
+        out = site.DOCS / site.game_path(r)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(site.game_page(r, teams, wu, stamp), encoding="utf-8")
+        n_pages += 1
+    log(f"  wrote {n_pages} game pages")
     yday = (today - timedelta(days=1)).isoformat()
     yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))
@@ -236,7 +251,18 @@ def main():
                           site.predicted_score(gotd) if gotd else None, season_rec if config.SHOW_RESULTS_STATS else None)
     except Exception as e:                              # noqa: BLE001 - the share image is cosmetic
         log(f"  ! share image: {e}")
-    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd),
+    caption = ""
+    if gotd and not REFRESH:                            # the clip is rendered once a day, by the overnight build
+        try:
+            clip = video.daily_video(site.DOCS / "daily.mp4", label, gotd, writeups.get(gotd["game_key"]), teams,
+                                     site.predicted_score(gotd))
+            log(f"  daily clip: {'ok' if clip else 'skipped'}")
+        except Exception as e:                          # noqa: BLE001 - cosmetic
+            log(f"  ! daily clip: {e}")
+    if gotd and (site.DOCS / "daily.mp4").exists():
+        caption = video.caption(gotd, writeups.get(gotd["game_key"]), site.predicted_score(gotd))
+        (DATA / "caption.txt").write_text(caption + "\n", encoding="utf-8")
+    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, caption),
                site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
                stamp=stamp)
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")

@@ -3,6 +3,7 @@
 Look: true black, a scoreboard-style predicted score in condensed numerals as the
 centerpiece of every game row, team logos on a disc of each team's own color.
 """
+import json
 import re
 from datetime import datetime
 from html import escape
@@ -60,6 +61,16 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 @media (max-width:760px){.gbody{grid-template-columns:1fr 1fr;grid-template-areas:"a h" "m m";gap:10px}.gt.a{grid-area:a}.gt.h{grid-area:h}.gmid{grid-area:m;min-width:0}
  .gt{flex-direction:column;text-align:center;gap:8px}.gt.h{flex-direction:column}.gn b{font-size:22px}.gt .disc{flex-basis:64px;width:64px;height:64px}.gt .disc img{width:46px;height:46px}
  .gscore{font-size:52px}.greasons{columns:1}}
+.clip{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #1a1a20}
+.clip b{display:block;font-size:14px}.clip span{color:var(--mute);font-size:13px}.cb{display:flex;gap:8px}
+.btn{display:inline-block;background:var(--amber);color:#1a1000;font:700 14px Barlow,sans-serif;padding:9px 16px;border-radius:999px;text-decoration:none;border:0;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}.btn.ghost.done{border-color:var(--win);color:var(--win)}
+.crumb{margin:0 0 8px;font-size:13px;color:var(--mute)}.crumb a{color:var(--mute);text-decoration:none}.crumb a:hover{color:var(--ink)}
+.games.one{margin-top:4px}.gl{grid-column:1/-1;font-size:13px;color:var(--amber);text-decoration:none;font-weight:700;margin:2px 0 -4px;padding-top:8px;border-top:1px solid #1a1a20}
+.why li.more{list-style:none;margin-left:-18px;margin-top:8px}.why li.more a{color:var(--amber);font-weight:700;text-decoration:none}
+.verdict{margin:14px 0 4px;padding:12px 16px;border-radius:12px;font-size:15px;color:#c9c9c4}.verdict b{color:var(--ink)}
+.verdict.W{background:rgba(69,212,138,.1);border:1px solid rgba(69,212,138,.35)}.verdict.L{background:rgba(255,97,97,.08);border:1px solid rgba(255,97,97,.3)}
+.greasons.one{columns:1;border:0;padding-top:0;font-size:15px;max-width:760px}
 .confsel{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:var(--mute);font-size:13px;font-weight:600}
 .confsel select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 34px 7px 14px;font:600 14px Barlow,sans-serif;
  appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238d8f97' stroke-width='2'/%3E%3C/svg%3E");
@@ -237,6 +248,8 @@ function apply(){
 function pick(sel,attr,set){document.querySelectorAll(sel).forEach(c=>c.addEventListener('click',()=>{
  document.querySelectorAll(sel).forEach(x=>x.classList.toggle('on',x===c));set(c.dataset[attr]);apply()}))}
 pick('.chip[data-f]','f',v=>F=v);pick('.chip[data-s]','s',v=>S=v);
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',async()=>{const t=b.closest('.clip').querySelector('textarea').value;
+ try{await navigator.clipboard.writeText(t);b.textContent='Copied';b.classList.add('done')}catch(e){prompt('Copy this caption:',t)}}));
 const sel=document.getElementById('conf');if(sel)sel.addEventListener('change',()=>{C=sel.value;
  if(C){S='all';document.querySelectorAll('.chip[data-s]').forEach(x=>x.classList.toggle('on',x.dataset.s==='all'))}apply()});
 const etDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
@@ -432,17 +445,28 @@ def _line_pills(r, teams, final=False):
     return f'<div class="line">{"".join(pills)}</div>' if pills else ""
 
 
-def _why(wu, pick):
+def slug(name):
+    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-") or "team"
+
+
+def game_path(r):
+    """Site-relative path of a game's own page: games/2026-11-04/duke-vs-north-carolina.html"""
+    return f'games/{r["date"]}/{slug(r["away"])}-vs-{slug(r["home"])}.html'
+
+
+def _why(wu, pick, link=""):
     """Collapsible write-up under a game row."""
     if not wu:
         return ""
     items = "".join(f"<li>{escape(t)}</li>" for t in wu["lines"])
+    more = f'<li class="more"><a href="{escape(link)}">Full breakdown &rarr;</a></li>' if link else ""
     return (f'<details class="why"><summary><span>Why {escape(pick)}?</span><em>{escape(wu["headline"])}</em></summary>'
-            f'<ul>{items}</ul></details>')
+            f'<ul>{items}{more}</ul></details>')
 
 
-def _row(r, teams, final=False, wu=None):
+def _row(r, teams, final=False, wu=None, link=True):
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
+    href = game_path(r) if link and r.get("date") else ""
     if wu:
         a["rank"], h["rank"] = wu["away_rank"], wu["home_rank"]
     pa, ph = predicted_score(r)
@@ -494,7 +518,7 @@ def _row(r, teams, final=False, wu=None):
             f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}{_rk(a)}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
             f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{escape(h["name"])}{_rk(h)}</b><span>{escape(h["mascot"])}</span></div></div>'
-            f'<div class="side">{side}</div>{_why(wu, r["pick"])}</article>')
+            f'<div class="side">{side}</div>{_why(wu, r["pick"], href) if wu else (f"<a class=gl href={href}>Breakdown &rarr;</a>" if final and href else "")}</article>')
 
 
 def _rk(t):
@@ -521,9 +545,11 @@ def ad_slot(slot="auto"):
             '<script>(adsbygoogle=window.adsbygoogle||[]).push({});</script></div>')
 
 
-def page(title, active, body, stamp, description=""):
+def page(title, active, body, stamp, description="", root="", head_extra="", og_image=""):
+    """root = relative path back to the site root ("../../" for games/<date>/x.html)."""
     tabs = [("index.html", "Today"), ("bets.html", "Best Bets"), ("results.html", "Results")]
-    nav = "".join(f'<a href="{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in tabs)
+    nav = "".join(f'<a href="{root}{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in tabs)
+    og_image = og_image or f"{config.SITE_URL}/og.png?v={_v(stamp)}"
     ads = (f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={escape(config.ADSENSE_CLIENT)}"'
            ' crossorigin="anonymous"></script>') if config.ADSENSE_CLIENT else ""
     desc = description or ("College basketball predictions from a statistical model: picks, projected scores, "
@@ -534,17 +560,66 @@ def page(title, active, body, stamp, description=""):
             f'<link rel="canonical" href="{config.SITE_URL}/{active}">'
             f'<meta property="og:type" content="website"><meta property="og:site_name" content="{escape(config.SITE_NAME)}">'
             f'<meta property="og:title" content="{escape(title)}"><meta property="og:description" content="{escape(desc)}">'
-            f'<meta property="og:url" content="{config.SITE_URL}/{active}"><meta property="og:image" content="{config.SITE_URL}/og.png?v={_v(stamp)}">'
+            f'<meta property="og:url" content="{config.SITE_URL}/{active}"><meta property="og:image" content="{og_image}">'
             f'<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
             f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{escape(title)}">'
-            f'<meta name="twitter:description" content="{escape(desc)}"><meta name="twitter:image" content="{config.SITE_URL}/og.png?v={_v(stamp)}">'
-            f'<link rel="icon" href="{FAVICON}">{FONTS}{ads}<style>{CSS}</style></head><body>'
-            f'<header class="top"><div class="wrap"><a class="brand" href="index.html"><i></i>{escape(config.SITE_NAME)}</a>'
+            f'<meta name="twitter:description" content="{escape(desc)}"><meta name="twitter:image" content="{og_image}">'
+            f'<link rel="icon" href="{FAVICON}">{FONTS}{ads}{head_extra}<style>{CSS}</style></head><body>'
+            f'<header class="top"><div class="wrap"><a class="brand" href="{root}index.html"><i></i>{escape(config.SITE_NAME)}</a>'
             f'<nav>{nav}</nav></div></header><main class="wrap">{body}{ad_slot()}</main>'
             f'<footer class="wrap"><div>Updated {escape(stamp)}</div>'
-            f'<div class="links"><a href="about.html">About the model</a><a href="privacy.html">Privacy</a>'
+            f'<div class="links"><a href="{root}about.html">About the model</a><a href="{root}privacy.html">Privacy</a>'
             f'<span>For information and entertainment only, not betting advice. 21+. '
             f'Gambling problem? Call 1-800-GAMBLER.</span></div></footer>{JS}</body></html>')
+
+
+def game_page(r, teams, wu, stamp, line_note=""):
+    """A page of its own for one game: the model's call, the write-up, the line, and the result
+    once the game is graded. Lives at games/<date>/<away>-vs-<home>.html and never goes away,
+    so a search for "<away> vs <home> prediction" has something to land on."""
+    teams = teams or {}
+    final = r.get("away_pts") not in ("", None)
+    h = _team(teams, r["home_id"], r["home"])
+    d = datetime.fromisoformat(r["date"])
+    day = d.strftime("%A, %B %-d, %Y")
+    t = tip_ct(r["when"])
+    tip = (t.strftime("%-I:%M %p") + " Central") if t else "time TBD"
+    pa, ph = predicted_score(r)
+    title = f'{r["away"]} vs {r["home"]} prediction, {d.strftime("%b %-d, %Y")}'
+    if final:
+        title = f'{r["away"]} vs {r["home"]} ({r["away_pts"]}-{r["home_pts"]}) result and model pick, {d.strftime("%b %-d, %Y")}'
+    desc = (f'{r["pick"]} is the model pick. Projected score {r["away"]} {pa}, {r["home"]} {ph}'
+            + (f'. Final: {r["away"]} {r["away_pts"]}, {r["home"]} {r["home_pts"]}.' if final else ".")
+            + " College basketball prediction with the reasons behind it.")
+    row = _row(r, teams, final=final, wu=None, link=False)
+    reasons = "".join(f"<li>{escape(x)}</li>" for x in (wu or {}).get("lines", [])) if wu else ""
+    if final:
+        won = r.get("pick_correct") == "1"
+        verdict = (f'<p class="verdict {"W" if won else "L"}"><b>{"Correct" if won else "Missed"}.</b> The model had '
+                   f'{escape(r["pick"])}; {escape(r["home"] if int(r["home_pts"]) > int(r["away_pts"]) else r["away"])} won '
+                   f'{max(int(r["away_pts"]), int(r["home_pts"]))}-{min(int(r["away_pts"]), int(r["home_pts"]))}.</p>')
+    else:
+        verdict = ""
+    ld = {"@context": "https://schema.org", "@type": "SportsEvent", "name": f'{r["away"]} at {r["home"]}',
+          "sport": "Basketball", "startDate": r.get("start") or r["date"],
+          "homeTeam": {"@type": "SportsTeam", "name": r["home"]}, "awayTeam": {"@type": "SportsTeam", "name": r["away"]},
+          "url": f"{config.SITE_URL}/{game_path(r)}", "description": desc,
+          "eventStatus": "https://schema.org/EventScheduled"}
+    if h.get("logo"):
+        ld["image"] = h["logo"]
+    head = f'<script type="application/ld+json">{json.dumps(ld)}</script>'
+    body = (f'<section class="hero"><div><p class="crumb"><a href="../../index.html">Today</a> &rsaquo; '
+            f'<a href="../../results.html">Results</a> &rsaquo; {escape(day)}</p>'
+            f'<h1>{escape(r["away"])} vs {escape(r["home"])}</h1>'
+            f'<p>{escape(day)}, {escape(tip)}{" &middot; neutral site" if r.get("neutral") == "1" else ""}. '
+            f'{"Final score and how the model did." if final else "Model prediction, projected score and the reasons."}</p></div></section>'
+            f'<div class="games one">{row}</div>{verdict}'
+            + (f'<div class="sect"><h2>Why the model {"had" if final else "likes"} {escape(r["pick"])}</h2></div>'
+               f'<ul class="greasons one">{reasons}</ul>' if reasons else "")
+            + (f'<p class="note">{escape(line_note)}</p>' if line_note else "")
+            + '<p class="note">Every pick is locked before tip-off and graded from the final score. '
+              '<a href="../../about.html">How the model works</a>.</p>')
+    return page(title, "results.html" if final else "index.html", body, stamp, desc, root="../../", head_extra=head)
 
 
 def about_page(stamp):
@@ -606,7 +681,17 @@ def privacy_page(stamp):
     return page(f"{config.SITE_NAME} - Privacy", "privacy.html", body, stamp, f"Privacy policy for {config.SITE_NAME}.")
 
 
-def gotd_card(r, teams, wu, pa, ph):
+def clip_box(caption):
+    """Download + caption for the day's TikTok/Reels clip (shown inside the Game of the Day card)."""
+    if not caption:
+        return ""
+    return ('<div class="clip"><div><b>Today\u2019s clip</b><span>12-second vertical video for TikTok, Reels and Shorts. '
+            'Add a trending sound in the app when you post.</span></div>'
+            '<div class="cb"><a class="btn" href="daily.mp4" download="tipoffedge-daily.mp4">Download clip</a>'
+            f'<button class="btn ghost" data-copy>Copy caption</button></div><textarea hidden>{escape(caption)}</textarea></div>')
+
+
+def gotd_card(r, teams, wu, pa, ph, caption=""):
     """The marquee matchup at the top of the Today page."""
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
     ra, rh = (wu or {}).get("away_rank"), (wu or {}).get("home_rank")
@@ -627,7 +712,7 @@ def gotd_card(r, teams, wu, pa, ph):
             f'<div class="gmid"><div class="gscore"><span class="{"l" if home_pick else "w"}">{pa}</span><span class="dash"></span>'
             f'<span class="{"w" if home_pick else "l"}">{ph}</span></div><div class="gpick">{flag}Model pick: <b>{escape(r["pick"])}</b></div>{pills}</div>'
             f'{side(h, rh, "h", not home_pick)}</div>'
-            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}</section>')
+            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}{clip_box(caption)}</section>')
 
 
 LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
@@ -646,13 +731,13 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
 
 
 def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None,
-               gotd=None):
+               gotd=None, caption=""):
     teams = teams or {}
     writeups = writeups or {}
     gotd_html = ""
     if gotd:
         pa, ph = predicted_score(gotd)
-        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph)
+        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph, caption)
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
@@ -894,6 +979,7 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp=""):
     (docs / ".nojekyll").write_text("", encoding="utf-8")
     (docs / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
     pages = ["index.html", "bets.html", "results.html", "about.html", "privacy.html"]
+    pages += sorted(str(p.relative_to(docs)).replace("\\", "/") for p in (docs / "games").glob("*/*.html"))
     (docs / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         + "".join(f"<url><loc>{config.SITE_URL}/{p}</loc></url>" for p in pages) + "</urlset>\n", encoding="utf-8")

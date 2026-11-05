@@ -189,9 +189,11 @@ def test_end_to_end(tmp_path, monkeypatch):
     for fn in (ledger.load, ledger.save):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
     monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", ""))
-    import bets
+    monkeypatch.setattr(site, "DOCS", tmp_path / "docs")
+    import bets, video
     for fn in (bets.load_book, bets.save_book):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "bets.csv",))
+    monkeypatch.setattr(video, "daily_video", lambda *a, **k: None)      # no ffmpeg render in tests
     monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
     monkeypatch.setattr(fetch, "lines", lambda a, b: [_gl(600, "Wofford", 500, "Tennessee",
                         [{"provider": "consensus", "spread": -9.5, "overUnder": 152.5}])])
@@ -209,6 +211,9 @@ def test_end_to_end(tmp_path, monkeypatch):
     html = (tmp_path / "docs" / "index.html").read_text()
     assert "Tennessee \u22129.5" in html and "152.5" in html
     assert "Best Bets" in (tmp_path / "docs" / "bets.html").read_text()
+    gp = tmp_path / "docs" / "games" / "2026-11-09" / "wofford-vs-tennessee.html"
+    assert gp.exists() and "Wofford vs Tennessee prediction" in gp.read_text() and "SportsEvent" in gp.read_text()
+    assert "games/2026-11-09/wofford-vs-tennessee.html" in (tmp_path / "docs" / "sitemap.xml").read_text()
     assert "6:00" in html and "Tennessee" in html          # 7:00 PM ET shown as 6:00 PM Central and "Volunteers" in html and "https://x/500/2633.png" in html
     # same evening, game over: a re-run moves it to Results (halftime score not posted yet)
     games[0].update(status="final", awayPoints=60, homePoints=75)
@@ -225,6 +230,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     r = ledger.load(tmp_path / "ledger.csv")[0]
     assert (r["pick_correct"], r["fh_correct"], r["total_error"]) == ("1", "1", f"{135 - float(r['total']):.1f}")
     assert "1-0" in (tmp_path / "docs" / "results.html").read_text()
+    assert "Correct." in gp.read_text() and "Tennessee won 75-60" in gp.read_text()
 
 
 def test_missing_key_is_clear(monkeypatch):
@@ -496,3 +502,20 @@ def test_game_of_day_and_share_image(tmp_path):
     html = site.today_page(rows, "x", "now", "note", {}, "2026-11-04", writeups={"b": wu}, gotd=rows[1])
     assert "Game of the day" in html and "#5" in html and "Model pick: <b>Home St</b>" in html and "<li>one</li>" in html
     assert 'property="og:image"' in html and 'rel="icon"' in html
+
+
+def test_game_page_and_caption():
+    import video
+    r = dict(_r(), date="2026-11-04", game_key="k", when="Nov 4, 2026 8:00 PM ET", start="2026-11-04T20:00:00-05:00")
+    assert site.game_path(r) == "games/2026-11-04/away-u-vs-home-st.html"
+    wu = {"headline": "Home St by 3", "lines": ["reason one"], "away_rank": 50, "home_rank": 20}
+    html = site.game_page(r, {}, wu, "now")
+    assert "Away U vs Home St prediction" in html and "reason one" in html and 'href="../../index.html"' in html
+    assert '"@type": "SportsEvent"' in html and "Breakdown" not in html
+    done = dict(r, away_pts="70", home_pts="65", pick_correct="0")
+    html = site.game_page(done, {}, wu, "now")
+    assert "Missed." in html and "Away U won 70-65" in html and "(70-65) result" in html
+    cap = video.caption(r, wu, (66, 69))
+    assert cap.startswith("Away U vs Home St") and "66-69" in cap and "#collegebasketball" in cap
+    page = site.today_page([r], "x", "now", "note", {}, "2026-11-04", writeups={"k": wu}, gotd=r, caption=cap)
+    assert 'href="daily.mp4"' in page and "Copy caption" in page and "Full breakdown" in page
