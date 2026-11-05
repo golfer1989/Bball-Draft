@@ -45,8 +45,8 @@ jobs:
           run=false; why=""; mark=""
           if [ "$EVENT" != "schedule" ]; then
             run=true; why="manual run"
-          elif [ "$last" != "$today" ]; then
-            run=true; why="overnight build"
+          elif [ "$last" != "$today" ] && [ $nowm -ge 120 ]; then
+            run=true; why="overnight build"       # not before 2 AM Central: late West Coast games must be final
           else
             for seg in 0900 1100 1400 1700 2000; do
               hr=$(( 10#$seg / 100 )); start=$(( hr * 60 ))
@@ -86,7 +86,7 @@ jobs:
           if [ -n "$MARK" ]; then echo "$MARK" >> data/refresh_marks.txt; fi
           git config user.name "cbb-bot"
           git config user.email "cbb-bot@users.noreply.github.com"
-          for f in data games index.html bets.html results.html about.html privacy.html studio-*.html og.png daily.mp4 robots.txt sitemap.xml .nojekyll; do
+          for f in data games index.html live.html bets.html results.html about.html privacy.html studio-*.html og.png daily.mp4 robots.txt sitemap.xml .nojekyll; do
             [ -e "$f" ] && git add "$f"
           done
           git diff --cached --quiet || git commit -m "Build $(TZ=America/New_York date +%F) ($WHY)"
