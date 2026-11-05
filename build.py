@@ -265,7 +265,8 @@ def main():
     studio = site.studio_page(stamp, label, gotd, teams, writeups.get(gotd["game_key"]) if gotd else None, caption, yesterday)
     site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd),
                site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
-               stamp=stamp, studio_html=studio)
+               stamp=stamp, studio_html=studio,
+               live_html=site.live_page([r for r in rows if r["date"] == today_str], teams, stamp, today_str, label))
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     log("done")
 

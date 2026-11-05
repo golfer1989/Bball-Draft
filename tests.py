@@ -1,5 +1,6 @@
 """Run with:  python -m pytest -q tests.py
 Sample API payloads follow the official cbbd client's field names (TeamSeasonStats, GameInfo)."""
+import json
 from datetime import date
 
 import pytest
@@ -188,7 +189,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(build, "RAW", tmp_path / "raw")
     for fn in (ledger.load, ledger.save):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
-    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", "", ""))
+    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", "", "", ""))
     monkeypatch.setattr(site, "DOCS", tmp_path / "docs")
     import bets, video
     for fn in (bets.load_book, bets.save_book):
@@ -530,3 +531,14 @@ def test_favorites_markup():
     done = dict(_r(), date="2026-11-02", away_pts="60", home_pts="70", pick_correct="1", total_error="1.0")
     res = site.results_page([done], "now", {})
     assert 'data-res="W"' in res and 'data-f="fav"' in res
+
+
+def test_live_page_data():
+    teams = {"1": {"espn": "10"}, "2": {"espn": "20"}}
+    r = _r(date="2026-11-04", game_key="k", differential="0.05", total="150.0")
+    html = site.live_page([r, _r(away_id="7", home_id="8")], teams, "now", "2026-11-04", "x")
+    data = json.loads(html.split('id="live-data">')[1].split("</script>")[0])
+    assert data["date"] == "2026-11-04" and len(data["games"]) == 1              # team without an ESPN id is skipped
+    g = data["games"][0]
+    assert g["m"] == 8.5 and g["hl"] == -4.5 and g["ou"] == 145.5 and g["lineTxt"] == "Home St \u22124.5"
+    assert "Live calls" in html and 'href="live.html" class="on"' in html

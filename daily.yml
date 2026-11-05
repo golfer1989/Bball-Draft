@@ -1,0 +1,94 @@
+name: Daily picks
+
+on:
+  schedule:
+    # GitHub runs scheduled jobs on a best-effort basis and drops most of the ones that land
+    # on busy minutes (:00/:15/:30/:45), so every entry below uses off-peak minutes and each
+    # job has several chances. A run that isn't needed stops at the guard step in seconds.
+    #
+    # Overnight build (eight chances, 3:23-6:53 AM Central): grades yesterday, locks today's
+    # picks + lines. Any later firing also does it if none of these ran.
+    - cron: "23,53 9,10,11,12 * * *"
+    # Daytime, four times an hour: rebuilds ~5-20 min before 9 AM (fresh morning lines) and
+    # before each tip-time block (11 AM, 2 PM, 5 PM, 8 PM Central); other firings stop at the guard.
+    - cron: "8,23,38,53 14-23 * * *"
+    - cron: "8,23,38,53 0-3 * * *"
+  workflow_dispatch:
+    inputs:
+      auto:
+        description: "true when started by the Cloudflare timer (acts like a scheduled run)"
+        default: "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Time to build?
+        id: guard
+        env:
+          EVENT: ${{ github.event_name == 'workflow_dispatch' && inputs.auto == 'true' && 'schedule' || github.event_name }}
+        run: |
+          today=$(TZ=America/New_York date +%F)
+          hhmm=$(TZ=America/Chicago date +%H%M)
+          nowm=$(( 10#${hhmm:0:2} * 60 + 10#${hhmm:2:2} ))
+          last=$(cat data/last_build.txt 2>/dev/null || echo none)
+          run=false; why=""; mark=""
+          if [ "$EVENT" != "schedule" ]; then
+            run=true; why="manual run"
+          elif [ "$last" != "$today" ] && [ $nowm -ge 120 ]; then
+            run=true; why="overnight build"       # not before 2 AM Central: late West Coast games must be final
+          else
+            for seg in 0900 1100 1400 1700 2000; do
+              hr=$(( 10#$seg / 100 )); start=$(( hr * 60 ))
+              if [ $nowm -ge $((start - 20)) ] && [ $nowm -lt $((start + 90)) ] \
+                 && ! grep -qx "$today $seg" data/refresh_marks.txt 2>/dev/null; then
+                run=true; why="refresh before the $((hr > 12 ? hr - 12 : hr)) o'clock block"; mark="$today $seg"; break
+              fi
+            done
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "why=$why" >> "$GITHUB_OUTPUT"
+          echo "mark=$mark" >> "$GITHUB_OUTPUT"
+          echo "Central time $hhmm, last build $last -> run=$run $why"
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        if: steps.guard.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Build picks + site
+        if: steps.guard.outputs.run == 'true'
+        run: python build.py ${{ startsWith(steps.guard.outputs.why, 'refresh') && '--refresh' || '' }}
+        env:
+          CBBD_API_KEY: ${{ secrets.CBBD_API_KEY }}
+
+      - name: Commit
+        if: steps.guard.outputs.run == 'true'
+        env:
+          MARK: ${{ steps.guard.outputs.mark }}
+          WHY: ${{ steps.guard.outputs.why }}
+        run: |
+          if [ -n "$MARK" ]; then echo "$MARK" >> data/refresh_marks.txt; fi
+          git config user.name "cbb-bot"
+          git config user.email "cbb-bot@users.noreply.github.com"
+          for f in data games index.html live.html bets.html results.html about.html privacy.html studio-*.html og.png daily.mp4 robots.txt sitemap.xml .nojekyll; do
+            [ -e "$f" ] && git add "$f"
+          done
+          git diff --cached --quiet || git commit -m "Build $(TZ=America/New_York date +%F) ($WHY)"
+          git pull --rebase --quiet || true
+          git push

@@ -4,8 +4,8 @@ Instagram Reels and YouTube Shorts, rebuilt by every overnight build as daily.mp
 Scenes: brand + date -> the two teams slide in -> the projected score counts up -> the model's
 reasons appear one by one -> "tipoffedge.com" end card. Frames are drawn with Pillow and piped
 into ffmpeg (installed on the GitHub runner). The soundtrack is an original beat synthesised
-here with numpy, so the clip is never silent and never contains anyone else's music; swap in a
-trending sound inside the app when posting, which is also what gets the clip shown."""
+with numpy if you ever want one (beat()), but the clip ships silent so the trending sound you add
+in the app plays on its own instead of fighting a baked-in track."""
 import shutil
 import subprocess
 import tempfile
@@ -183,12 +183,13 @@ def daily_video(path, date_label, game, wu, teams, pred, seconds=12.0):
     teams = teams or {}
     logos = [_logo((teams.get(str(game[k])) or {}).get("logo"), 260) for k in ("away_id", "home_id")]
     tmp = Path(tempfile.mkdtemp())
-    wav = beat(seconds, tmp / "beat.wav")
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
+    # silent on purpose: the sound gets added in TikTok / Instagram, and a baked-in track would
+    # play underneath it. beat() is kept for anyone who wants a soundtrack version.
     cmd = [exe, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-vcodec", "png", "-i", "-",
-           "-i", str(wav), "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
-           "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", str(out)]
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p", "-an",
+           "-movflags", "+faststart", str(out)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     try:
         for i in range(int(seconds * FPS)):

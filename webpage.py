@@ -230,7 +230,7 @@ footer .links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px}footer a{c
  .bet{grid-template-columns:26px 42px 1fr auto;gap:10px;padding:12px 14px}
  .bet .disc{flex-basis:42px;width:42px;height:42px}.bet .disc img{width:30px;height:30px}
  .bet .kind,.pc .mc{display:none}.bet .rk{font-size:24px}.bl b{font-size:16px}.pc b{font-size:22px}.pc{min-width:70px}
- .top .wrap{gap:10px}.brand{font-size:21px}.brand i{width:18px;height:18px}nav{gap:2px}nav a{padding:7px 10px;font-size:14px}
+ .top .wrap{gap:8px}.brand{font-size:20px}.brand i{width:18px;height:18px}nav{gap:0}nav a{padding:7px 8px;font-size:13px}
 }
 @media (prefers-reduced-motion:no-preference){.g{animation:in .35s ease-out both}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
 """
@@ -576,7 +576,7 @@ def ad_slot(slot="auto"):
 
 def page(title, active, body, stamp, description="", root="", head_extra="", og_image=""):
     """root = relative path back to the site root ("../../" for games/<date>/x.html)."""
-    tabs = [("index.html", "Today"), ("bets.html", "Best Bets"), ("results.html", "Results")]
+    tabs = [("index.html", "Today"), ("live.html", "Live"), ("bets.html", "Best Bets"), ("results.html", "Results")]
     nav = "".join(f'<a href="{root}{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in tabs)
     og_image = og_image or f"{config.SITE_URL}/og.png?v={_v(stamp)}"
     ads = (f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={escape(config.ADSENSE_CLIENT)}"'
@@ -1024,8 +1024,118 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
     return page(f"{config.SITE_NAME} - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)
 
 
-def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_html=""):
+LIVE_CSS = """
+.lv-hero p{max-width:760px}
+.lb{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:12px;display:grid;
+ grid-template-columns:1fr auto;gap:8px 18px;align-items:center;border-left:4px solid var(--line)}
+.lb.hot{border-left-color:var(--amber)}.lb.strongbet{border-left-color:#ff5f6d}
+.lb .teams{font:700 17px Barlow,sans-serif}.lb .teams small{display:block;color:var(--mute);font-weight:600;font-size:13px;margin-top:2px}
+.lb .lsc{font:900 34px/1 'Big Shoulders Display',sans-serif;text-align:right}.lb .lsc small{display:block;font:600 12px Barlow,sans-serif;color:var(--mute);margin-top:2px}
+.lb .call{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lb .tag{font:800 12px Barlow,sans-serif;letter-spacing:.8px;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:#1c1c22;color:var(--mute)}
+.lb .tag.bet{background:var(--amber);color:#1a1000}.lb .tag.ultra{background:linear-gradient(90deg,#ff5f6d,#f2a541);color:#16070a}
+.lb .why2{grid-column:1/-1;color:#c9c9c4;font-size:14px;line-height:1.45}.lb .why2 b{color:var(--ink)}
+.lb .meta2{grid-column:1/-1;color:var(--mute);font-size:12px}
+.lvstate{color:var(--mute);font-size:13px;margin:0 0 14px}
+"""
+
+LIVE_JS = r"""<script>
+(()=>{
+const G=JSON.parse(document.getElementById('live-data').textContent);
+const box=document.getElementById('live-list');const state=document.getElementById('live-state');
+const API='https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=500&dates=';
+const SP=4, SPS=8, TO=6, TOS=11;   // points of edge for a lean / a strong call (spread, total)
+function elapsed(st){ // minutes played, from ESPN period + clock
+ const p=st.period||0; const m=/(\d+):(\d+)/.exec(st.displayClock||''); const left=m?(+m[1]+(+m[2])/60):0;
+ if(p<=0)return 0; if(p===1)return 20-left; if(p===2)return 40-left; return 40+(p-2)*5-left;}
+function fmt(x){return (x>0?'+':'\u2212')+Math.abs(x).toFixed(1).replace(/\.0$/,'')}
+function render(list){
+ if(!list.length){box.innerHTML='<div class="empty"><b>No games in progress</b>Live calls appear here once games tip off. The page refreshes itself every minute.</div>';return}
+ box.innerHTML=list.map(x=>{
+  const g=x.g;const cls=x.strength==='strong'?'lb strongbet':x.strength==='lean'?'lb hot':'lb';
+  const tags=x.calls.map(c=>`<span class="tag ${c.strong?'ultra':'bet'}">${c.text}</span>`).join('')||'<span class="tag">No edge right now</span>';
+  return `<div class="${cls}"><div class="teams">${g.away} @ ${g.home}<small>${x.clock}</small></div>
+   <div class="lsc">${x.sa} - ${x.sh}<small>opened ${g.lineTxt}${g.ou?' \u00b7 O/U '+g.ou:''}</small></div>
+   <div class="call">${tags}</div><div class="why2">${x.why}</div>
+   <div class="meta2">Model now: ${g.home} ${fmt(x.projM)} \u00b7 projected total ${x.projT.toFixed(0)} \u00b7 ${x.min.toFixed(0)} of 40 min played</div></div>`}).join('');
+}
+async function poll(){
+ try{
+  const d=G.date.replace(/-/g,'');const j=await fetch(API+d,{cache:'no-store'}).then(r=>r.json());
+  const map={};for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};c.competitors.forEach(p=>sc[p.team.id]=+p.score||0);
+   const st=c.status||e.status;map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:st.type.state,detail:st.type.shortDetail||'',period:st.period,displayClock:st.displayClock}}
+  const out=[];let live=0;
+  for(const g of G.games){const m=map[[g.ea,g.eh].sort().join('-')];if(!m||m.state!=='in')continue;live++;
+   const sa=m.sc[g.ea]||0,sh=m.sc[g.eh]||0,min=Math.min(40,Math.max(0.5,elapsed(m)));const left=Math.max(0,40-min);
+   // live projection: what has happened + what the model expected for the rest of the game
+   const projM=(sh-sa)+g.m*(left/40);          // home margin at the final
+   const projT=(sa+sh)+g.t*(left/40);
+   const calls=[];const whys=[];
+   if(g.hl!==null){ // g.hl = opening home line (negative = home favored)
+     const edge=projM-(-g.hl);                  // + means home is doing better than the opening number
+     const favHome=g.hl<0;const fav=favHome?g.home:g.away,dog=favHome?g.away:g.home;const favAhead=favHome?(sh-sa):(sa-sh);
+     const favEdge=favHome?edge:-edge;         // edge from the opening favorite's side
+     const winsFav=favHome?projM>0:projM<0;
+     if(favEdge>=SP){calls.push({text:`${fav} live (${winsFav?'ML or spread':'spread only'})`,strong:favEdge>=SPS});
+       whys.push(`<b>${fav}</b> opened ${fmt(-Math.abs(g.hl))} and ${favAhead<0?'is trailing':'is only up '+favAhead}, but the model still projects a win by ${Math.abs(projM).toFixed(0)}. A live line on ${fav} should be much better than the opener.`)}
+     else if(favEdge<=-SP){calls.push({text:`${dog} live (${winsFav?'spread only':'ML or spread'})`,strong:favEdge<=-SPS});
+       whys.push(`The opener had <b>${fav}</b> ${fmt(-Math.abs(g.hl))}; with ${left.toFixed(0)} minutes left the model projects ${projM>0?g.home:g.away} by ${Math.abs(projM).toFixed(0)}. ${dog} on the live line is the play.`)}
+   }
+   if(g.ou){const te=projT-g.ou;
+     if(te>=TO){calls.push({text:`Over ${g.ou} live`,strong:te>=TOS});whys.push(`Pace: ${sa+sh} points in ${min.toFixed(0)} minutes; projected total <b>${projT.toFixed(0)}</b> vs the opening ${g.ou}. If the live total still sits near the opener, the Over has value.`)}
+     else if(te<=-TO){calls.push({text:`Under ${g.ou} live`,strong:te<=-TOS});whys.push(`Pace: ${sa+sh} points in ${min.toFixed(0)} minutes; projected total <b>${projT.toFixed(0)}</b> vs the opening ${g.ou}. If the live total still sits near the opener, the Under has value.`)}}
+   const strength=calls.some(c=>c.strong)?'strong':calls.length?'lean':'';
+   out.push({g,sa,sh,min,projM,projT,clock:m.detail,calls,why:whys.join(' ')||`Score is tracking the opening numbers. Nothing to take here yet.`,strength,score:Math.max(...calls.map(c=>c.strong?2:1),0)});
+  }
+  out.sort((a,b)=>b.score-a.score||Math.abs(b.projM)-Math.abs(a.projM));
+  state.textContent=live?`${live} game${live===1?'':'s'} in progress \u00b7 scores from ESPN, refreshed every minute`:'No games in progress right now.';
+  render(out);
+ }catch(e){state.textContent='Could not reach the live score feed. Will retry.'}
+}
+poll();setInterval(poll,60000);
+})();
+</script>"""
+
+
+def live_page(rows, teams, stamp, date_iso, date_label):
+    """Live calls: opening line vs what the model projects from the live score and clock."""
+    teams = teams or {}
+    games = []
+    for r in rows:
+        a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
+        if not (a["espn"] and h["espn"]):
+            continue
+        try:
+            m = float(r["differential"]) * config.POINTS_PER_RATING * (1 if r["pick"] == r["home"] else -1)
+            t = float(r["total"])
+        except (TypeError, ValueError):
+            continue
+        hl = None
+        if r.get("line_spread"):
+            sp = float(r["line_spread"])
+            hl = 0.0 if sp == 0 or not r.get("line_fav") else (-sp if r["line_fav"] == r["home"] else sp)
+        line_txt = ("pick\u2019em" if hl == 0 else f'{_short(teams, r["home_id"] if hl < 0 else r["away_id"], r["line_fav"])} \u2212{abs(hl):g}') if hl is not None else "no line"
+        games.append({"away": r["away"], "home": r["home"], "ea": a["espn"], "eh": h["espn"], "m": round(m, 1), "t": round(t, 1),
+                      "hl": hl, "ou": float(r["line_total"]) if r.get("line_total") else None, "lineTxt": line_txt})
+    data = json.dumps({"date": date_iso, "games": games})
+    body = (f'<section class="hero lv-hero"><div><h1>Live calls</h1><p>{escape(date_label)}. For games in progress only: the opening '
+            'line against what the model projects from the live score and the clock. When a favorite is trailing but the model '
+            'still projects a win, or the pace is far off the total, the live line in your book is usually the better number. '
+            'Check the live price before you bet; this page cannot see live odds.</p></div></section>'
+            '<p class="lvstate" id="live-state">Loading live scores\u2026</p><div id="live-list"></div>'
+            '<p class="note">How it works: projected final = what has already happened + the model\u2019s pre-game expectation for '
+            f'the minutes left. A call needs {4}+ points of edge on the spread or {6}+ on the total; the red tag means double that. '
+            'Model estimates, not guarantees.</p>'
+            f'<script type="application/json" id="live-data">{data}</script>{LIVE_JS}')
+    return page(f"{config.SITE_NAME} - Live", "live.html", body, stamp,
+                "Live college basketball betting calls: opening lines against the model's in-game projection.",
+                head_extra=f"<style>{LIVE_CSS}</style>")
+
+
+def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_html="", live_html=""):
     docs.mkdir(parents=True, exist_ok=True)
+    if live_html:
+        (docs / "live.html").write_text(live_html, encoding="utf-8")
     if studio_html:
         (docs / config.STUDIO_PAGE).write_text(studio_html, encoding="utf-8")
     (docs / "about.html").write_text(about_page(stamp), encoding="utf-8")
@@ -1037,7 +1147,7 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_ht
     (docs / ".nojekyll").write_text("", encoding="utf-8")
     (docs / "robots.txt").write_text(f"User-agent: *\nDisallow: /{config.STUDIO_PAGE}\nDisallow: /daily.mp4\nAllow: /\n"
                                      f"Sitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
-    pages = ["index.html", "bets.html", "results.html", "about.html", "privacy.html"]
+    pages = ["index.html", "live.html", "bets.html", "results.html", "about.html", "privacy.html"]
     pages += sorted(str(p.relative_to(docs)).replace("\\", "/") for p in (docs / "games").glob("*/*.html"))
     (docs / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
