@@ -8,7 +8,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import bets, config, fetch, ledger, model, webpage as site, writeup
+import bets, config, fetch, ledger, model, share, webpage as site, writeup
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -229,7 +229,14 @@ def main():
     yday = (today - timedelta(days=1)).isoformat()
     yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))
-    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday),
+    gotd = share.game_of_day(todays, writeups)
+    season_rec = (sum(1 for r in rows if r["pick_correct"] == "1"), sum(1 for r in rows if r["pick_correct"] == "0"))
+    try:
+        share.share_image(site.DOCS / "og.png", label, gotd, writeups.get(gotd["game_key"]) if gotd else None, teams,
+                          site.predicted_score(gotd) if gotd else None, season_rec if config.SHOW_RESULTS_STATS else None)
+    except Exception as e:                              # noqa: BLE001 - the share image is cosmetic
+        log(f"  ! share image: {e}")
+    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd),
                site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
                stamp=stamp)
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")

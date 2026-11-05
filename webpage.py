@@ -40,6 +40,26 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .hero{padding:34px 0 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .hero h1{margin:0;font:800 clamp(40px,7vw,72px)/.9 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
 .hero p{margin:8px 0 0;color:var(--mute)}
+.gotd{margin:6px 0 10px;border:1px solid var(--line);border-radius:18px;padding:18px 22px 16px;position:relative;overflow:hidden;
+ background:radial-gradient(900px 300px at 15% -40%,color-mix(in srgb,var(--pc) 28%,transparent),transparent 60%),var(--panel)}
+.gotd:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--pc)}
+.gh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px}
+.kicker{font:800 13px Barlow,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:var(--amber)}
+.gtip{color:var(--mute);font-size:13px;font-weight:600}
+.gbody{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px}
+.gt{display:flex;align-items:center;gap:16px}.gt.h{flex-direction:row-reverse;text-align:right}
+.gt .disc{flex-basis:84px;width:84px;height:84px}.gt .disc img{width:62px;height:62px}.gt .disc em{font-size:26px}
+.gn small{display:block;color:var(--mute);font:700 13px Barlow,sans-serif}.gn b{display:block;font:800 30px/1 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
+.gn span{color:var(--mute);font-size:14px}.gt.lose .gn b{color:#b9b9b4}
+.gmid{text-align:center;min-width:300px}.gscore{display:flex;justify-content:center;align-items:baseline;gap:12px;font:900 64px/1 'Big Shoulders Display',sans-serif}
+.gscore .l{color:var(--dim)}.gscore .dash{width:14px;height:4px;background:#2a2a32;border-radius:2px;align-self:center}
+.gpick{margin:8px 0 10px;color:var(--mute);font-size:14px;display:flex;gap:8px;justify-content:center;align-items:center}.gpick b{color:var(--ink)}
+.gmid .line{justify-content:center}
+.greasons{margin:14px 0 0;padding:12px 0 0 18px;border-top:1px solid #1a1a20;color:#c9c9c4;font-size:14px;line-height:1.5;columns:2;column-gap:36px}
+.greasons li{break-inside:avoid;margin:2px 0}
+@media (max-width:760px){.gbody{grid-template-columns:1fr 1fr;grid-template-areas:"a h" "m m";gap:10px}.gt.a{grid-area:a}.gt.h{grid-area:h}.gmid{grid-area:m;min-width:0}
+ .gt{flex-direction:column;text-align:center;gap:8px}.gt.h{flex-direction:column}.gn b{font-size:22px}.gt .disc{flex-basis:64px;width:64px;height:64px}.gt .disc img{width:46px;height:46px}
+ .gscore{font-size:52px}.greasons{columns:1}}
 .confsel{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:var(--mute);font-size:13px;font-weight:600}
 .confsel select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 34px 7px 14px;font:600 14px Barlow,sans-serif;
  appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238d8f97' stroke-width='2'/%3E%3C/svg%3E");
@@ -481,6 +501,17 @@ def _rk(t):
     return f'<i class="rk" title="Model rank of {t.get("rank")} Division I teams">#{t["rank"]}</i>' if t.get("rank") else ""
 
 
+FAVICON = ("data:image/svg+xml," + "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='35%25'%3E"
+           "%3Cstop offset='0' stop-color='%23ffb259'/%3E%3Cstop offset='.6' stop-color='%23e0701d'/%3E%3Cstop offset='1' stop-color='%239c4310'/%3E%3C/radialGradient%3E%3C/defs%3E"
+           "%3Ccircle cx='16' cy='16' r='15' fill='url(%23g)' stroke='%23000' stroke-width='1.5'/%3E"
+           "%3Cpath d='M16 1v30M1 16h30' stroke='%23000' stroke-width='1.5' fill='none'/%3E%3C/svg%3E")
+
+
+def _v(stamp):
+    """Cache-buster for the share image: changes every build."""
+    return "".join(ch for ch in (stamp or "") if ch.isalnum())[:14]
+
+
 def ad_slot(slot="auto"):
     """A responsive display ad unit, or nothing until config.ADSENSE_CLIENT is set."""
     if not config.ADSENSE_CLIENT:
@@ -500,7 +531,14 @@ def page(title, active, body, stamp, description=""):
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
             f'content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">'
             f'<title>{escape(title)}</title><meta name="description" content="{escape(desc)}">'
-            f'<link rel="canonical" href="{config.SITE_URL}/{active}">{FONTS}{ads}<style>{CSS}</style></head><body>'
+            f'<link rel="canonical" href="{config.SITE_URL}/{active}">'
+            f'<meta property="og:type" content="website"><meta property="og:site_name" content="{escape(config.SITE_NAME)}">'
+            f'<meta property="og:title" content="{escape(title)}"><meta property="og:description" content="{escape(desc)}">'
+            f'<meta property="og:url" content="{config.SITE_URL}/{active}"><meta property="og:image" content="{config.SITE_URL}/og.png?v={_v(stamp)}">'
+            f'<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+            f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{escape(title)}">'
+            f'<meta name="twitter:description" content="{escape(desc)}"><meta name="twitter:image" content="{config.SITE_URL}/og.png?v={_v(stamp)}">'
+            f'<link rel="icon" href="{FAVICON}">{FONTS}{ads}<style>{CSS}</style></head><body>'
             f'<header class="top"><div class="wrap"><a class="brand" href="index.html"><i></i>{escape(config.SITE_NAME)}</a>'
             f'<nav>{nav}</nav></div></header><main class="wrap">{body}{ad_slot()}</main>'
             f'<footer class="wrap"><div>Updated {escape(stamp)}</div>'
@@ -568,6 +606,30 @@ def privacy_page(stamp):
     return page(f"{config.SITE_NAME} - Privacy", "privacy.html", body, stamp, f"Privacy policy for {config.SITE_NAME}.")
 
 
+def gotd_card(r, teams, wu, pa, ph):
+    """The marquee matchup at the top of the Today page."""
+    a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
+    ra, rh = (wu or {}).get("away_rank"), (wu or {}).get("home_rank")
+    home_pick = r["pick"] == r["home"]
+    t = tip_ct(r["when"])
+    tip = t.strftime("%-I:%M %p") + " CT" if t else "TBD"
+    pills = _line_pills(r, teams)
+    reasons = "".join(f"<li>{escape(x)}</li>" for x in (wu or {}).get("lines", [])[:5])
+
+    def side(team, rk, cls, lose):
+        return (f'<div class="gt {cls}{" lose" if lose else ""}">{_disc(team)}<div class="gn">'
+                f'{f"<small>#{rk}</small>" if rk else ""}<b>{escape(team["name"])}</b><span>{escape(team["mascot"])}</span></div></div>')
+    flag = ('<span class="flag">Strong pick</span>' if r.get("strong_pick") else "")
+    return (f'<section class="gotd" style="--pc:{(h if home_pick else a)["vivid"]}">'
+            f'<div class="gh"><span class="kicker">Game of the day</span><span class="gtip">{escape(tip)}'
+            f'{" &middot; Neutral site" if r.get("neutral") == "1" else ""}</span></div>'
+            f'<div class="gbody">{side(a, ra, "a", home_pick)}'
+            f'<div class="gmid"><div class="gscore"><span class="{"l" if home_pick else "w"}">{pa}</span><span class="dash"></span>'
+            f'<span class="{"w" if home_pick else "l"}">{ph}</span></div><div class="gpick">{flag}Model pick: <b>{escape(r["pick"])}</b></div>{pills}</div>'
+            f'{side(h, rh, "h", not home_pick)}</div>'
+            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}</section>')
+
+
 LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
           '<div><b>Predicted score</b>The model\u2019s projected final. The bigger number is the pick.</div>'
           '<div><b>Edge bar</b>How far apart the two teams rate. A full bar is a lopsided matchup.</div>'
@@ -583,9 +645,14 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
           '</div></details>')
 
 
-def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None):
+def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None,
+               gotd=None):
     teams = teams or {}
     writeups = writeups or {}
+    gotd_html = ""
+    if gotd:
+        pa, ph = predicted_score(gotd)
+        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph)
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
@@ -636,7 +703,7 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
                       '<div class="empty" data-empty="live" hidden><b>Nothing live right now</b>Live games show up here with the score and clock.</div>'
                       '<div class="empty" data-empty="mix" hidden><b>Nothing here</b>No games match both filters in this time block.</div>'
                       '<div class="empty" data-empty="conf" hidden><b>No games</b>Nothing from that conference in this view. Try All day.</div>')
-        body = (hero + slot_chips + chips + LEGEND + f'<div class="games" data-date="{escape(date_iso)}">'
+        body = (hero + gotd_html + slot_chips + chips + LEGEND + f'<div class="games" data-date="{escape(date_iso)}">'
                 + "".join(_row(r, teams, wu=writeups.get(r.get("game_key"))) for r in rows) + "</div>")
     return page(f"{config.SITE_NAME} - Today", "index.html", body, stamp)
 
@@ -825,3 +892,8 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp=""):
     if bets_html:
         (docs / "bets.html").write_text(bets_html, encoding="utf-8")
     (docs / ".nojekyll").write_text("", encoding="utf-8")
+    (docs / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
+    pages = ["index.html", "bets.html", "results.html", "about.html", "privacy.html"]
+    (docs / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        + "".join(f"<url><loc>{config.SITE_URL}/{p}</loc></url>" for p in pages) + "</urlset>\n", encoding="utf-8")

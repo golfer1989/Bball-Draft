@@ -479,3 +479,20 @@ def test_writeups_and_conference_filter():
     assert 'data-conf="ACC|Patriot"' in html and 'data-top25="1"' in html and ">#1<" in html
     assert '<option value="ACC">ACC (1)</option>' in html and "Top 25 (1)" in html
     assert "Why Duke?" in html and "spread value is on Duke" in html
+
+
+def test_game_of_day_and_share_image(tmp_path):
+    import share
+    rows = [dict(_r(), game_key="a", differential="0.1500"), dict(_r(), game_key="b", differential="0.0100"),
+            dict(_r(), game_key="c", differential="0.0100")]
+    wus = {"a": {"away_rank": 1, "home_rank": 2}, "b": {"away_rank": 1, "home_rank": 2}, "c": {"away_rank": 40, "home_rank": 3}}
+    assert share.game_of_day(rows, wus)["game_key"] == "b"          # best teams, then the closer game
+    assert share.game_of_day(rows, {}) is None
+    wu = {"away_rank": 5, "home_rank": 12, "headline": "Home U by 7", "lines": ["one", "two"]}
+    p = share.share_image(tmp_path / "og.png", "Wednesday, Nov 4", rows[1], wu, {}, (70, 77), (17, 2))
+    from PIL import Image
+    assert Image.open(p).size == (1200, 630)
+    share.share_image(tmp_path / "og2.png", "Wednesday, Nov 4")        # off day
+    html = site.today_page(rows, "x", "now", "note", {}, "2026-11-04", writeups={"b": wu}, gotd=rows[1])
+    assert "Game of the day" in html and "#5" in html and "Model pick: <b>Home St</b>" in html and "<li>one</li>" in html
+    assert 'property="og:image"' in html and 'rel="icon"' in html
