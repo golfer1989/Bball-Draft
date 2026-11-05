@@ -1,7 +1,7 @@
 date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,locked_at,result
 2026-11-04,1,Spread,away,Maryland Eastern Shore +34.5,-110,0.616,0.092,34.5,159,109,Maryland Eastern Shore,High Point,"Nov 4, 2026 7:00 PM ET","Nov 04, 2026 05:25 PM CT",W
-2026-11-04,2,Spread,home,Saint Mary's −12.5,-110,0.595,0.071,-12.5,202,253,North Dakota State,Saint Mary's,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 05:25 PM CT",
+2026-11-04,2,Spread,home,Saint Mary's −12.5,-110,0.595,0.071,-12.5,202,253,North Dakota State,Saint Mary's,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 05:25 PM CT",W
 2026-11-04,3,Total,under,Under 156.5,-110,0.575,0.052,156.5,84,34,Fairleigh Dickinson,Butler,"Nov 4, 2026 7:00 PM ET","Nov 04, 2026 05:25 PM CT",L
-2026-11-04,4,Total,under,Under 162.5,-110,0.565,0.041,162.5,38,352,Cal State Northridge,Wichita State,"Nov 4, 2026 7:30 PM ET","Nov 04, 2026 05:25 PM CT",
-2026-11-04,5,Spread,home,California −16.5,-110,0.561,0.038,-16.5,239,40,Radford,California,"Nov 4, 2026 9:00 PM ET","Nov 04, 2026 05:25 PM CT",
-2026-11-04,6,Total,under,Under 162.5,-110,0.557,0.033,162.5,172,261,Milwaukee,Santa Clara,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 05:25 PM CT",
+2026-11-04,4,Total,under,Under 162.5,-110,0.565,0.041,162.5,38,352,Cal State Northridge,Wichita State,"Nov 4, 2026 7:30 PM ET","Nov 04, 2026 05:25 PM CT",W
+2026-11-04,5,Spread,home,California −16.5,-110,0.561,0.038,-16.5,239,40,Radford,California,"Nov 4, 2026 9:00 PM ET","Nov 04, 2026 05:25 PM CT",L
+2026-11-04,6,Total,under,Under 162.5,-110,0.557,0.033,162.5,172,261,Milwaukee,Santa Clara,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 05:25 PM CT",L
