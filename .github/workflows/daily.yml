@@ -82,7 +82,7 @@ jobs:
           if [ -n "$MARK" ]; then echo "$MARK" >> data/refresh_marks.txt; fi
           git config user.name "cbb-bot"
           git config user.email "cbb-bot@users.noreply.github.com"
-          for f in data games index.html bets.html results.html about.html privacy.html og.png daily.mp4 robots.txt sitemap.xml .nojekyll; do
+          for f in data games index.html bets.html results.html about.html privacy.html studio-*.html og.png daily.mp4 robots.txt sitemap.xml .nojekyll; do
             [ -e "$f" ] && git add "$f"
           done
           git diff --cached --quiet || git commit -m "Build $(TZ=America/New_York date +%F) ($WHY)"
