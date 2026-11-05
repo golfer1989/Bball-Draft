@@ -521,3 +521,12 @@ def test_game_page_and_caption():
     assert "daily.mp4" not in page and "Copy caption" not in page and "Full breakdown" in page   # public page: no clip box
     studio = site.studio_page("now", "x", r, {}, wu, cap, (17, 2))
     assert 'href="daily.mp4"' in studio and "Copy caption" in studio and "noindex" in studio and "17-2" in studio
+
+
+def test_favorites_markup():
+    html = site.today_page([_r(date="2026-11-04", game_key="k")], "x", "now", "note", {}, "2026-11-04")
+    assert 'data-teams="1|2"' in html and html.count('class="fav" data-tid=') == 2
+    assert 'data-f="fav"' in html and "te_favs" in html and 'data-empty="fav"' in html
+    done = dict(_r(), date="2026-11-02", away_pts="60", home_pts="70", pick_correct="1", total_error="1.0")
+    res = site.results_page([done], "now", {})
+    assert 'data-res="W"' in res and 'data-f="fav"' in res

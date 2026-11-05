@@ -76,6 +76,9 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .confsel select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 34px 7px 14px;font:600 14px Barlow,sans-serif;
  appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238d8f97' stroke-width='2'/%3E%3C/svg%3E");
  background-repeat:no-repeat;background-position:right 13px center}
+.fav{background:none;border:0;color:var(--dim);font-size:17px;line-height:1;padding:0 4px;margin-left:4px;cursor:pointer;vertical-align:1px}
+.fav:hover,.fav.on{color:var(--amber)}.g.is-fav{order:-1;border-color:rgba(242,165,65,.35)}
+.favchip.has{color:var(--amber)}.favchip .n{min-width:1.3em}
 .rk{font:700 12px Barlow,sans-serif;font-style:normal;color:var(--mute);margin-left:6px;vertical-align:2px}
 .why{grid-column:1/-1;margin:2px 0 -4px;border-top:1px solid #1a1a20;padding-top:8px}
 .why summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;color:var(--mute);font-size:13px}
@@ -236,6 +239,21 @@ JS = """<script>
 (()=>{
 const games=[...document.querySelectorAll('.g')];
 const box=document.querySelector('[data-date]');
+// ---- My teams: favorites kept in this browser, no account ----
+const KEY='te_favs';let favs=new Set();
+try{favs=new Set(JSON.parse(localStorage.getItem(KEY)||'[]'))}catch(e){}
+function saveFavs(){try{localStorage.setItem(KEY,JSON.stringify([...favs]))}catch(e){}}
+function paintFavs(){
+ document.querySelectorAll('.fav').forEach(b=>{const on=favs.has(b.dataset.tid);b.textContent=on?'\u2605':'\u2606';b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+ let n=0,w=0,l=0;
+ games.forEach(g=>{const mine=(g.dataset.teams||'').split('|').some(t=>favs.has(t));g.classList.toggle('fav',mine);g.classList.toggle('is-fav',mine);
+  if(mine){n++;if(g.dataset.res==='W')w++;if(g.dataset.res==='L')l++}});
+ const c=document.querySelector('.favchip .n');if(c)c.textContent=(w+l)?`${w}-${l}`:n;
+ const fc=document.querySelector('.favchip');if(fc)fc.classList.toggle('has',favs.size>0);
+}
+document.addEventListener('click',e=>{const b=e.target.closest('.fav');if(!b)return;e.preventDefault();e.stopPropagation();
+ favs.has(b.dataset.tid)?favs.delete(b.dataset.tid):favs.add(b.dataset.tid);saveFavs();paintFavs();apply()});
+paintFavs();
 let F='all',S='all',C='';
 function conf(g){return !C||(C==='top25'?g.dataset.top25==='1':(g.dataset.conf||'').split('|').includes(C))}
 function apply(){
@@ -511,19 +529,25 @@ def _row(r, teams, final=False, wu=None, link=True):
                   f'<span class="dash"></span><span class="{sh}">{ph}</span></div></div>'
                   f'</div>{_line_pills(r, teams)}</div>')
         lose_a, lose_h = home_pick, not home_pick
-    live_attrs = "" if final else (
+    live_attrs = (f' data-res="{"W" if r.get("pick_correct") == "1" else "L"}"' if final else (
         f' data-slot="{slot_of(r["when"])}" data-ea="{escape(a["espn"])}" data-eh="{escape(h["espn"])}"'
-        f' data-pick="{"h" if home_pick else "a"}"')
+        f' data-pick="{"h" if home_pick else "a"}"'))
+    live_attrs += f' data-teams="{escape(str(r["away_id"]))}|{escape(str(r["home_id"]))}"'
     confs = {c for c in (a["conf"], h["conf"]) if c}
     top25 = any(0 < (t.get("rank") or 0) <= 25 for t in (a, h))
     live_attrs += f' data-conf="{escape("|".join(sorted(confs)))}"' + (' data-top25="1"' if top25 else "")
     return (f'<article class="g{" strong" if strong else ""}{" ou" if ou_play(r) else ""}'
             f'{" upset" if up else ""}{" ultra" if up == "ultra" else ""}" style="--pc:{pc}"{live_attrs}>'
             f'<div class="time">{_tip(r["when"])}{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div>'
-            f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}{_rk(a)}</b><span>{escape(a["mascot"])}</span></div></div>'
+            f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}{_rk(a)}{_star(r["away_id"], a["name"])}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
-            f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{escape(h["name"])}{_rk(h)}</b><span>{escape(h["mascot"])}</span></div></div>'
+            f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{escape(h["name"])}{_rk(h)}{_star(r["home_id"], h["name"])}</b><span>{escape(h["mascot"])}</span></div></div>'
             f'<div class="side">{side}</div>{_why(wu, r["pick"], href) if wu else (f"<a class=gl href={href}>Breakdown &rarr;</a>" if final and href else "")}</article>')
+
+
+def _star(tid, name):
+    return (f'<button class="fav" data-tid="{escape(str(tid))}" aria-pressed="false" '
+            f'title="Add {escape(name)} to My teams" aria-label="Favorite {escape(name)}">\u2606</button>')
 
 
 def _rk(t):
@@ -785,11 +809,14 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
         body = hero + '<div class="empty"><b>No games today</b>Picks post here each morning on game days.</div>'
     else:
         chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
+                 '<button class="chip favchip" data-f="fav">\u2605 My teams<span class="n">0</span></button>'
                  '<button class="chip" data-f="strong">Strong picks only</button>'
                  '<button class="chip" data-f="ou">O/U plays</button>'
                  '<button class="chip" data-f="upset">Upset picks</button></div>'
                  '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>None of these games has a big enough edge.</div>'
                  '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>The model agrees with every betting favorite today.</div>'
+                 '<div class="empty" data-empty="fav" hidden><b>No games for your teams</b>Tap the \u2606 next to any team to add it to My teams. '
+                 'Favorites are remembered on this device.</div>'
                  f'<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No projected total is {config.OU_EDGE_POINTS}+ points off the line.</div>')
         present = {}
         for r in rows:
@@ -860,11 +887,13 @@ def results_page(rows, stamp, teams=None):
     for r in graded:
         by_date.setdefault(r["date"], []).append(r)
     chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
+             '<button class="chip favchip" data-f="fav">\u2605 My teams<span class="n">0</span></button>'
              '<button class="chip" data-f="strong">Strong picks only</button>'
              '<button class="chip" data-f="ou">O/U plays</button>'
              '<button class="chip" data-f="upset">Upset picks</button></div>'
              '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>No graded strong picks yet.</div>'
              '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>No graded upset picks yet.</div>'
+             '<div class="empty" data-empty="fav" hidden><b>No results for your teams yet</b>Tap the \u2606 next to any team to add it to My teams.</div>'
              '<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No graded over/under plays yet.</div>')
     parts = []
     from datetime import date as _d
