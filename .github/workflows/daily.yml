@@ -13,7 +13,11 @@ on:
     # before each tip-time block (11 AM, 2 PM, 5 PM, 8 PM Central); other firings stop at the guard.
     - cron: "8,23,38,53 14-23 * * *"
     - cron: "8,23,38,53 0-3 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      auto:
+        description: "true when started by the Cloudflare timer (acts like a scheduled run)"
+        default: "false"
 
 permissions:
   contents: write
@@ -32,7 +36,7 @@ jobs:
       - name: Time to build?
         id: guard
         env:
-          EVENT: ${{ github.event_name }}
+          EVENT: ${{ github.event_name == 'workflow_dispatch' && inputs.auto == 'true' && 'schedule' || github.event_name }}
         run: |
           today=$(TZ=America/New_York date +%F)
           hhmm=$(TZ=America/Chicago date +%H%M)
