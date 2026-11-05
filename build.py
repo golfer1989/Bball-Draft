@@ -262,9 +262,10 @@ def main():
     if gotd and (site.DOCS / "daily.mp4").exists():
         caption = video.caption(gotd, writeups.get(gotd["game_key"]), site.predicted_score(gotd))
         (DATA / "caption.txt").write_text(caption + "\n", encoding="utf-8")
-    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, caption),
+    studio = site.studio_page(stamp, label, gotd, teams, writeups.get(gotd["game_key"]) if gotd else None, caption, yesterday)
+    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd),
                site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
-               stamp=stamp)
+               stamp=stamp, studio_html=studio)
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     log("done")
 

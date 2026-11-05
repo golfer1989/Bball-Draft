@@ -188,7 +188,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(build, "RAW", tmp_path / "raw")
     for fn in (ledger.load, ledger.save):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
-    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", ""))
+    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", "", ""))
     monkeypatch.setattr(site, "DOCS", tmp_path / "docs")
     import bets, video
     for fn in (bets.load_book, bets.save_book):
@@ -518,4 +518,6 @@ def test_game_page_and_caption():
     cap = video.caption(r, wu, (66, 69))
     assert cap.startswith("Away U vs Home St") and "66-69" in cap and "#collegebasketball" in cap
     page = site.today_page([r], "x", "now", "note", {}, "2026-11-04", writeups={"k": wu}, gotd=r, caption=cap)
-    assert 'href="daily.mp4"' in page and "Copy caption" in page and "Full breakdown" in page
+    assert "daily.mp4" not in page and "Copy caption" not in page and "Full breakdown" in page   # public page: no clip box
+    studio = site.studio_page("now", "x", r, {}, wu, cap, (17, 2))
+    assert 'href="daily.mp4"' in studio and "Copy caption" in studio and "noindex" in studio and "17-2" in studio

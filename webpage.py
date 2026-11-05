@@ -62,6 +62,7 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
  .gt{flex-direction:column;text-align:center;gap:8px}.gt.h{flex-direction:column}.gn b{font-size:22px}.gt .disc{flex-basis:64px;width:64px;height:64px}.gt .disc img{width:46px;height:46px}
  .gscore{font-size:52px}.greasons{columns:1}}
 .clip{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #1a1a20}
+.clip textarea{width:100%;margin-top:10px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:14px/1.4 Barlow,sans-serif}
 .clip b{display:block;font-size:14px}.clip span{color:var(--mute);font-size:13px}.cb{display:flex;gap:8px}
 .btn{display:inline-block;background:var(--amber);color:#1a1000;font:700 14px Barlow,sans-serif;padding:9px 16px;border-radius:999px;text-decoration:none;border:0;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}.btn.ghost.done{border-color:var(--win);color:var(--win)}
@@ -248,8 +249,12 @@ function apply(){
 function pick(sel,attr,set){document.querySelectorAll(sel).forEach(c=>c.addEventListener('click',()=>{
  document.querySelectorAll(sel).forEach(x=>x.classList.toggle('on',x===c));set(c.dataset[attr]);apply()}))}
 pick('.chip[data-f]','f',v=>F=v);pick('.chip[data-s]','s',v=>S=v);
-document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',async()=>{const t=b.closest('.clip').querySelector('textarea').value;
- try{await navigator.clipboard.writeText(t);b.textContent='Copied';b.classList.add('done')}catch(e){prompt('Copy this caption:',t)}}));
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',()=>{
+ const ta=b.closest('.clip').querySelector('textarea');const ok=()=>{b.textContent='Copied';b.classList.add('done')};
+ const legacy=()=>{ta.hidden=false;ta.readOnly=true;ta.focus();ta.setSelectionRange(0,ta.value.length);
+  let d=false;try{d=document.execCommand('copy')}catch(e){}
+  if(d){ta.hidden=true;ok()}else{b.textContent='Select and copy the text below';ta.style.height='9em'}};
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(ta.value).then(ok,legacy)}else legacy()}));
 const sel=document.getElementById('conf');if(sel)sel.addEventListener('change',()=>{C=sel.value;
  if(C){S='all';document.querySelectorAll('.chip[data-s]').forEach(x=>x.classList.toggle('on',x.dataset.s==='all'))}apply()});
 const etDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
@@ -622,6 +627,28 @@ def game_page(r, teams, wu, stamp, line_note=""):
     return page(title, "results.html" if final else "index.html", body, stamp, desc, root="../../", head_extra=head)
 
 
+def studio_page(stamp, date_label, gotd=None, teams=None, wu=None, caption="", yesterday=None):
+    """Private posting page: the day's clip, caption and share image in one place."""
+    teams = teams or {}
+    if gotd:
+        pa, ph = predicted_score(gotd)
+        card = gotd_card(gotd, teams, wu, pa, ph)
+    else:
+        card = '<div class="empty"><b>No games today</b>Nothing to post; the next clip renders overnight.</div>'
+    rec = (f'<p class="note">Yesterday the picks went <b>{yesterday[0]}-{yesterday[1]}</b>; worth putting in the caption.</p>'
+           if yesterday and sum(yesterday) else "")
+    body = (f'<section class="hero"><div><h1>Posting studio</h1><p>{escape(date_label)}. This page is private: not linked, '
+            'not indexed. Download, add a trending sound in the app, paste the caption, post.</p></div></section>'
+            + card + clip_box(caption) + rec +
+            '<div class="clip"><div><b>Share image</b><span>The link preview picture for X, Reddit and Discord posts.</span></div>'
+            '<div class="cb"><a class="btn ghost" href="og.png" download="tipoffedge-today.png">Download image</a></div></div>'
+            '<p class="note">Routine: post the clip at the same time each day, an hour or two before the first tip-off. '
+            'Reply to comments in the first hour. Same clip to TikTok, Instagram Reels and YouTube Shorts.</p>')
+    html = page(f"{config.SITE_NAME} - Studio", config.STUDIO_PAGE, body, stamp, "Private posting page.",
+                head_extra='<meta name="robots" content="noindex,nofollow">')
+    return html
+
+
 def about_page(stamp):
     body = (f'<section class="hero"><div><h1>About the model</h1><p>What {escape(config.SITE_NAME)} is and how the numbers are made.</p></div></section>'
             '<div class="prose">'
@@ -712,7 +739,7 @@ def gotd_card(r, teams, wu, pa, ph, caption=""):
             f'<div class="gmid"><div class="gscore"><span class="{"l" if home_pick else "w"}">{pa}</span><span class="dash"></span>'
             f'<span class="{"w" if home_pick else "l"}">{ph}</span></div><div class="gpick">{flag}Model pick: <b>{escape(r["pick"])}</b></div>{pills}</div>'
             f'{side(h, rh, "h", not home_pick)}</div>'
-            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}{clip_box(caption)}</section>')
+            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}</section>')
 
 
 LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
@@ -968,8 +995,10 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
     return page(f"{config.SITE_NAME} - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)
 
 
-def write(index_html, results_html, bets_html="", docs=DOCS, stamp=""):
+def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_html=""):
     docs.mkdir(parents=True, exist_ok=True)
+    if studio_html:
+        (docs / config.STUDIO_PAGE).write_text(studio_html, encoding="utf-8")
     (docs / "about.html").write_text(about_page(stamp), encoding="utf-8")
     (docs / "privacy.html").write_text(privacy_page(stamp), encoding="utf-8")
     (docs / "index.html").write_text(index_html, encoding="utf-8")
@@ -977,7 +1006,8 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp=""):
     if bets_html:
         (docs / "bets.html").write_text(bets_html, encoding="utf-8")
     (docs / ".nojekyll").write_text("", encoding="utf-8")
-    (docs / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
+    (docs / "robots.txt").write_text(f"User-agent: *\nDisallow: /{config.STUDIO_PAGE}\nDisallow: /daily.mp4\nAllow: /\n"
+                                     f"Sitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
     pages = ["index.html", "bets.html", "results.html", "about.html", "privacy.html"]
     pages += sorted(str(p.relative_to(docs)).replace("\\", "/") for p in (docs / "games").glob("*/*.html"))
     (docs / "sitemap.xml").write_text(

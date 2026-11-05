@@ -63,3 +63,7 @@ SITE_URL = "https://tipoffedge.com"
 # Google AdSense publisher id, e.g. "ca-pub-1234567890123456". Empty = no ad code on the pages.
 # Fill it in after AdSense approves the site; the ad slots are already laid out.
 ADSENSE_CLIENT = "ca-pub-3574726017237257"
+
+# Your private posting page (download the daily clip, copy the caption). Not linked from the
+# site, not in the sitemap, marked no-index. Change the name to anything you like.
+STUDIO_PAGE = "studio-95ea9e.html"
