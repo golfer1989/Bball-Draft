@@ -2,3 +2,4 @@ requests>=2.31
 lxml>=5.0
 pillow>=10.1
 numpy>=1.26
+imageio-ffmpeg>=0.5

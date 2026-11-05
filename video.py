@@ -163,9 +163,22 @@ def beat(seconds, path, bpm=BPM, sr=44100):
     return path
 
 
+def ffmpeg_exe():
+    """ffmpeg from PATH, else the copy bundled in the imageio-ffmpeg package (requirements.txt)."""
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:                                     # noqa: BLE001
+        return None
+
+
 def daily_video(path, date_label, game, wu, teams, pred, seconds=12.0):
     """Render daily.mp4. Returns the path, or None when ffmpeg is missing or there is no game."""
-    if not game or not shutil.which("ffmpeg"):
+    exe = ffmpeg_exe()
+    if not game or not exe:
         return None
     teams = teams or {}
     logos = [_logo((teams.get(str(game[k])) or {}).get("logo"), 260) for k in ("away_id", "home_id")]
@@ -173,7 +186,7 @@ def daily_video(path, date_label, game, wu, teams, pred, seconds=12.0):
     wav = beat(seconds, tmp / "beat.wav")
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-vcodec", "png", "-i", "-",
+    cmd = [exe, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-vcodec", "png", "-i", "-",
            "-i", str(wav), "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", str(out)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
