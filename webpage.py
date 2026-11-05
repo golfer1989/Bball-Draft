@@ -79,6 +79,14 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .fav{background:none;border:0;color:var(--dim);font-size:17px;line-height:1;padding:0 4px;margin-left:4px;cursor:pointer;vertical-align:1px}
 .fav:hover,.fav.on{color:var(--amber)}.g.is-fav{order:-1;border-color:rgba(242,165,65,.35)}
 .favchip.has{color:var(--amber)}.favchip .n{min-width:1.3em}
+.betpill{background:rgba(69,212,138,.12);border-color:rgba(69,212,138,.45);color:var(--ink)}.betpill i{color:var(--win)}
+.ln.betpill b{background:rgba(69,212,138,.2);color:var(--win)}
+.betpill.strong{box-shadow:0 0 14px -4px rgba(69,212,138,.9)}
+.gbet{display:flex;align-items:baseline;justify-content:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px;padding:10px 14px;border-radius:12px;
+ background:rgba(69,212,138,.1);border:1px solid rgba(69,212,138,.4)}
+.gbet span{font:800 11px Barlow,sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:var(--win)}
+.gbet b{font:800 22px/1 'Big Shoulders Display',sans-serif}.gbet small{color:var(--mute);font-size:12px;flex-basis:100%;text-align:center}
+.gbet.none{background:#111115;border-color:var(--line)}.gbet.none span{color:var(--mute)}.gbet.none b{color:var(--mute);font-size:18px}
 .rk{font:700 12px Barlow,sans-serif;font-style:normal;color:var(--mute);margin-left:6px;vertical-align:2px}
 .why{grid-column:1/-1;margin:2px 0 -4px;border-top:1px solid #1a1a20;padding-top:8px}
 .why summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;color:var(--mute);font-size:13px}
@@ -442,8 +450,23 @@ def ou_result(r):
     return "1" if (actual > line) == (play == "Over") else "0"
 
 
-def _line_pills(r, teams, final=False):
-    """Market line under the predicted score: favorite and spread, then the over/under."""
+def bet_pill(bet, teams):
+    """The one bet the model likes in this game (from bets.py), as a pill. '' when nothing qualifies."""
+    if not bet:
+        return ""
+    import bets as B
+    label = bet["label"]
+    if bet["kind"] != "Total" and len(label) > 22:                 # shorten long school names
+        tid = bet["home_id"] if bet["side"] == "home" else bet["away_id"]
+        team = bet["home"] if bet["side"] == "home" else bet["away"]
+        label = label.replace(team, _short(teams, tid, team), 1)
+    return (f'<span class="ln betpill{" strong" if bet["chance"] >= 0.62 else ""}" title="{bet["chance"] * 100:.0f}% model chance, '
+            f'{bet["edge"] * 100:+.0f} points of edge over the price"><i>Bet</i>{escape(label)}<b>{B.fmt_odds(bet["odds"])}</b></span>')
+
+
+def _line_pills(r, teams, final=False, bet=None):
+    """Market line under the predicted score: favorite and spread, then the over/under, then the
+    bet the model likes (if any)."""
     pills = []
     if r.get("line_spread"):
         sp = float(r["line_spread"])
@@ -465,6 +488,8 @@ def _line_pills(r, teams, final=False):
                          f'<i>O/U</i>{float(r["line_total"]):g}<b>{tag}</b></span>')
         else:
             pills.append(f'<span class="ln"><i>O/U</i>{float(r["line_total"]):g}</span>')
+    if bet:
+        pills.append(bet_pill(bet, teams))
     return f'<div class="line">{"".join(pills)}</div>' if pills else ""
 
 
@@ -487,7 +512,7 @@ def _why(wu, pick, link=""):
             f'<ul>{items}{more}</ul></details>')
 
 
-def _row(r, teams, final=False, wu=None, link=True):
+def _row(r, teams, final=False, wu=None, link=True, bet=None):
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
     href = game_path(r) if link and r.get("date") else ""
     if wu:
@@ -527,7 +552,7 @@ def _row(r, teams, final=False, wu=None, link=True):
                   f'<div class="lstat"><span class="livetag">LIVE</span><span class="clock"></span></div></div>'
                   f'<div class="pred"><div class="score" aria-label="Predicted score {pa} to {ph}"><span class="{sa}">{pa}</span>'
                   f'<span class="dash"></span><span class="{sh}">{ph}</span></div></div>'
-                  f'</div>{_line_pills(r, teams)}</div>')
+                  f'</div>{_line_pills(r, teams, bet=bet)}</div>')
         lose_a, lose_h = home_pick, not home_pick
     live_attrs = (f' data-res="{"W" if r.get("pick_correct") == "1" else "L"}"' if final else (
         f' data-slot="{slot_of(r["when"])}" data-ea="{escape(a["espn"])}" data-eh="{escape(h["espn"])}"'
@@ -742,14 +767,21 @@ def clip_box(caption):
             f'<button class="btn ghost" data-copy>Copy caption</button></div><textarea hidden>{escape(caption)}</textarea></div>')
 
 
-def gotd_card(r, teams, wu, pa, ph, caption=""):
+def gotd_card(r, teams, wu, pa, ph, caption="", bet=None):
     """The marquee matchup at the top of the Today page."""
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
     ra, rh = (wu or {}).get("away_rank"), (wu or {}).get("home_rank")
     home_pick = r["pick"] == r["home"]
     t = tip_ct(r["when"])
     tip = t.strftime("%-I:%M %p") + " CT" if t else "TBD"
-    pills = _line_pills(r, teams)
+    pills = _line_pills(r, teams)                      # the bet gets its own box below, not a pill
+    import bets as B
+    if bet:
+        thebet = (f'<div class="gbet"><span>The bet</span><b>{escape(bet["label"])} {B.fmt_odds(bet["odds"])}</b>'
+                  f'<small>{bet["chance"] * 100:.0f}% model chance</small></div>')
+    else:
+        thebet = ('<div class="gbet none"><span>The bet</span><b>Nothing here</b>'
+                  f'<small>{escape(r["pick"])} is the projected winner, but the line already prices it in</small></div>')
     reasons = "".join(f"<li>{escape(x)}</li>" for x in (wu or {}).get("lines", [])[:5])
 
     def side(team, rk, cls, lose):
@@ -761,7 +793,7 @@ def gotd_card(r, teams, wu, pa, ph, caption=""):
             f'{" &middot; Neutral site" if r.get("neutral") == "1" else ""}</span></div>'
             f'<div class="gbody">{side(a, ra, "a", home_pick)}'
             f'<div class="gmid"><div class="gscore"><span class="{"l" if home_pick else "w"}">{pa}</span><span class="dash"></span>'
-            f'<span class="{"w" if home_pick else "l"}">{ph}</span></div><div class="gpick">{flag}Model pick: <b>{escape(r["pick"])}</b></div>{pills}</div>'
+            f'<span class="{"w" if home_pick else "l"}">{ph}</span></div><div class="gpick">{flag}Projected winner: <b>{escape(r["pick"])}</b></div>{thebet}{pills}</div>'
             f'{side(h, rh, "h", not home_pick)}</div>'
             f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}</section>')
 
@@ -775,6 +807,9 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
           '<div><b>Line</b>The sportsbook favorite and spread, and the over/under. An orange O/U pill with '
           '<b style="display:inline;color:var(--amber)">Over</b> or <b style="display:inline;color:var(--amber)">Under</b> marks a game where '
           f'the model\u2019s total is {config.OU_EDGE_POINTS}+ points off the line.</div>'
+          '<div><b><span class="ln betpill"><i>Bet</i>Wake Forest +17.5<b>\u2212110</b></span></b>The one bet the model likes in that game: '
+          'the side, spread or total where its chance beats the price. The projected winner is not always the bet; a favorite can be the '
+          'pick to win and still be a bad number. Games with no Bet pill have no edge.</div>'
           '<div><b>#12</b>Where a team ranks in the model among all Division I teams.</div>'
           '<div><b>Why ...?</b>Tap it under any game for the reasons behind the pick, in plain English.</div>'
           '<div><b>1H</b>First-half pick, from each team\u2019s first-half scoring in its last three games.</div>'
@@ -782,13 +817,14 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
 
 
 def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None,
-               gotd=None, caption=""):
+               gotd=None, caption="", bets_by_game=None):
     teams = teams or {}
     writeups = writeups or {}
+    bets_by_game = bets_by_game or {}
     gotd_html = ""
     if gotd:
         pa, ph = predicted_score(gotd)
-        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph, caption)
+        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph, caption, bets_by_game.get(gotd.get("game_key")))
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
@@ -843,7 +879,7 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
                       '<div class="empty" data-empty="mix" hidden><b>Nothing here</b>No games match both filters in this time block.</div>'
                       '<div class="empty" data-empty="conf" hidden><b>No games</b>Nothing from that conference in this view. Try All day.</div>')
         body = (hero + gotd_html + slot_chips + chips + LEGEND + f'<div class="games" data-date="{escape(date_iso)}">'
-                + "".join(_row(r, teams, wu=writeups.get(r.get("game_key"))) for r in rows) + "</div>")
+                + "".join(_row(r, teams, wu=writeups.get(r.get("game_key")), bet=bets_by_game.get(r.get("game_key"))) for r in rows) + "</div>")
     return page(f"{config.SITE_NAME} - Today", "index.html", body, stamp)
 
 

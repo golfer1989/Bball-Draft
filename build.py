@@ -263,7 +263,13 @@ def main():
         caption = video.caption(gotd, writeups.get(gotd["game_key"]), site.predicted_score(gotd))
         (DATA / "caption.txt").write_text(caption + "\n", encoding="utf-8")
     studio = site.studio_page(stamp, label, gotd, teams, writeups.get(gotd["game_key"]) if gotd else None, caption, yesterday)
-    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd),
+    # the one bet the model likes in each open game (same rules as Best Bets), for the Bet pills
+    bets_by_game = {}
+    for r in open_rows:
+        ok = [b for b in bets.game_bets(r, bets._lookup(all_lines, r), best["cal"]) if bets.qualifies(b)]
+        if ok:
+            bets_by_game[r["game_key"]] = max(ok, key=lambda b: b["edge"])
+    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, "", bets_by_game),
                site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
                stamp=stamp, studio_html=studio,
                live_html=site.live_page([r for r in rows if r["date"] == today_str], teams, stamp, today_str, label))

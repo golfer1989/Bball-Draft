@@ -501,7 +501,7 @@ def test_game_of_day_and_share_image(tmp_path):
     assert Image.open(p).size == (1200, 630)
     share.share_image(tmp_path / "og2.png", "Wednesday, Nov 4")        # off day
     html = site.today_page(rows, "x", "now", "note", {}, "2026-11-04", writeups={"b": wu}, gotd=rows[1])
-    assert "Game of the day" in html and "#5" in html and "Model pick: <b>Home St</b>" in html and "<li>one</li>" in html
+    assert "Game of the day" in html and "#5" in html and "Projected winner: <b>Home St</b>" in html and "<li>one</li>" in html
     assert 'property="og:image"' in html and 'rel="icon"' in html
 
 
@@ -542,3 +542,13 @@ def test_live_page_data():
     g = data["games"][0]
     assert g["m"] == 8.5 and g["hl"] == -4.5 and g["ou"] == 145.5 and g["lineTxt"] == "Home St \u22124.5"
     assert "Live calls" in html and 'href="live.html" class="on"' in html
+
+
+def test_bet_pills_on_today_page():
+    bet = {"kind": "Spread", "side": "away", "label": "Away U +4.5", "odds": -110, "chance": 0.63, "edge": 0.1, "num": 4.5,
+           "away_id": "1", "home_id": "2", "away": "Away U", "home": "Home St", "when": "x"}
+    r = _r(date="2026-11-04", game_key="k")
+    html = site.today_page([r], "x", "now", "note", {}, "2026-11-04", gotd=r, bets_by_game={"k": bet})
+    assert html.count("Away U +4.5") >= 1 and "The bet" in html and 'betpill strong' in html
+    none = site.today_page([r], "x", "now", "note", {}, "2026-11-04", gotd=r)
+    assert "Nothing here" in none and "line already prices it in" in none
