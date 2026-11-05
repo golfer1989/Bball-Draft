@@ -8,7 +8,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import bets, config, fetch, ledger, model, webpage as site
+import bets, config, fetch, ledger, model, webpage as site, writeup
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -222,8 +222,16 @@ def main():
     if n_bets_graded:
         log(f"  graded {n_bets_graded} single bets")
     bets.save_book(book)
-    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today),
-               site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str))
+    rk = writeup.ranks(rat)
+    writeups = {r["game_key"]: writeup.game_writeup(r, rat, rk, all_lines.get((int(r["away_id"]), int(r["home_id"]))),
+                                                    best["cal"]["scale"])
+                for r in todays}
+    yday = (today - timedelta(days=1)).isoformat()
+    yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
+                 sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))
+    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday),
+               site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
+               stamp=stamp)
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     log("done")
 

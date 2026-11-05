@@ -56,3 +56,10 @@ HOME_COURT_POINTS = 2.7
 # Strength of schedule: rating += SOS_WEIGHT x (average results-based strength of the
 # opponents played, in points / POINTS_PER_RATING). 1.0 = full adjustment, 0 = off.
 SOS_WEIGHT = 1.0
+
+# ---------------- website ----------------
+SITE_NAME = "Tipoff Edge"
+SITE_URL = "https://tipoffedge.com"
+# Google AdSense publisher id, e.g. "ca-pub-1234567890123456". Empty = no ad code on the pages.
+# Fill it in after AdSense approves the site; the ad slots are already laid out.
+ADSENSE_CLIENT = "ca-pub-3574726017237257"

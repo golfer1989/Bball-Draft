@@ -66,7 +66,7 @@ def test_parse_teams_prefers_dark_logo():
                             "logos": ["https://x/500/150.png", "https://x/500-dark/150.png"]},
                            {"id": 2, "mascot": None, "primaryColor": None, "logos": None}])
     assert t["150"] == {"mascot": "Blue Devils", "color": "001A57", "logo": "https://x/500-dark/150.png", "abbr": "DUKE",
-                        "espn": ""}
+                        "espn": "", "conf": ""}
     assert t["2"]["logo"] == "" and t["2"]["mascot"] == ""
 
 
@@ -188,7 +188,7 @@ def test_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(build, "RAW", tmp_path / "raw")
     for fn in (ledger.load, ledger.save):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
-    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs"))
+    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", ""))
     import bets
     for fn in (bets.load_book, bets.save_book):
         monkeypatch.setattr(fn, "__defaults__", (tmp_path / "bets.csv",))
@@ -308,10 +308,12 @@ def test_upset_and_ultra():
 def test_today_page_tags_and_counts():
     rows = [_r(), _r(pick="Away U", total="160"), _r(pick="Away U", strong_pick="Away U", total="120")]
     html = site.today_page(rows, "x", "now", "note", {})
-    assert html.count("Upset pick</span>") == 1 and html.count("Ultra upset</span>") == 1
-    assert ">Over<" in html and ">Under<" in html
+    assert "How to read this page" in html
     assert 'data-f="ou"' in html and 'data-f="upset"' in html
     assert '<b>2</b><span>O/U plays' in html and '<b>2</b><span>upset picks' in html
+    games = html.split('class="games"')[1]                    # past the legend
+    assert games.count("Upset pick</span>") == 1 and games.count("Ultra upset</span>") == 1
+    assert ">Over<" in games and ">Under<" in games
 
 
 # ---------------- time blocks + live score hooks ----------------
@@ -442,3 +444,38 @@ def test_bet_rules_skip_junk_favorites_and_relock():
     assert bets.lock_day(book, "2026-11-04", [good], "later") == 1 and [b["label"] for b in book] == ["FDU +26.5"]
     book[0]["result"] = "W"
     assert bets.lock_day(book, "2026-11-04", [junk], "later") == 0           # graded: never replaced
+
+
+def test_site_pages_brand_and_ads(monkeypatch):
+    import webpage
+    monkeypatch.setattr(config, "ADSENSE_CLIENT", "")
+    html = webpage.about_page("now")
+    assert config.SITE_NAME in html and "1-800-GAMBLER" in html and "adsbygoogle" not in html
+    assert 'href="privacy.html"' in html and "Bball Draft" not in html
+    monkeypatch.setattr(config, "ADSENSE_CLIENT", "ca-pub-123")
+    html = webpage.privacy_page("now")
+    assert html.count("adsbygoogle") >= 2 and "ca-pub-123" in html
+
+
+def test_writeups_and_conference_filter():
+    import writeup
+    rat = {1: {"rating": 1.10, "offense": 0.56, "defense": 0.54, "sos": 0.01, "ppg": 80, "blend": 1.0},
+           2: {"rating": 1.00, "offense": 0.50, "defense": 0.50, "sos": -0.01, "ppg": 70, "blend": 0.5},
+           3: {"rating": 1.05, "offense": 0.52, "defense": 0.53, "sos": 0.0, "ppg": 75, "blend": 1.0}}
+    rk = writeup.ranks(rat)
+    assert rk[1]["rank"] == 1 and rk[2]["rank"] == 3 and rk[1]["off"] == 1 and rk[3]["def"] == 2
+    row = {"away_id": "2", "home_id": "1", "away": "Army", "home": "Duke", "pick": "Duke",
+           "differential": f"{0.10 + 2.7 / 170:.4f}", "total": "150.0", "neutral": "", "game_key": "k"}
+    wu = writeup.game_writeup(row, rat, rk, {"fav": "Duke", "spread": 12.5, "total": 140})
+    assert wu["headline"].startswith("Duke comfortably") and wu["away_rank"] == 3 and wu["home_rank"] == 1
+    text = " ".join(wu["lines"])
+    assert "Duke rates 1st of 3 teams" in text and "offense" in text and "Home court adds" in text
+    assert "spread value is on Duke" in text and "the Over is the play" in text and "last season" in text
+    assert "spread value is on Army +12.5" in " ".join(writeup.game_writeup(row, rat, rk, {"fav": "Duke", "spread": 12.5, "total": 140}, scale=0.3)["lines"])
+    assert writeup.game_writeup(dict(row, home_id="9"), rat, rk) is None
+    teams = {"1": {"conf": "ACC", "abbr": "DUKE"}, "2": {"conf": "Patriot"}}
+    html = site.today_page([dict(_r(), game_key="k", away_id="2", home_id="1", away="Army", home="Duke", pick="Duke")],
+                           "x", "now", "note", teams, writeups={"k": wu})
+    assert 'data-conf="ACC|Patriot"' in html and 'data-top25="1"' in html and ">#1<" in html
+    assert '<option value="ACC">ACC (1)</option>' in html and "Top 25 (1)" in html
+    assert "Why Duke?" in html and "spread value is on Duke" in html

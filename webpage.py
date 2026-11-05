@@ -40,6 +40,21 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .hero{padding:34px 0 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .hero h1{margin:0;font:800 clamp(40px,7vw,72px)/.9 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
 .hero p{margin:8px 0 0;color:var(--mute)}
+.confsel{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:var(--mute);font-size:13px;font-weight:600}
+.confsel select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 34px 7px 14px;font:600 14px Barlow,sans-serif;
+ appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238d8f97' stroke-width='2'/%3E%3C/svg%3E");
+ background-repeat:no-repeat;background-position:right 13px center}
+.rk{font:700 12px Barlow,sans-serif;font-style:normal;color:var(--mute);margin-left:6px;vertical-align:2px}
+.why{grid-column:1/-1;margin:2px 0 -4px;border-top:1px solid #1a1a20;padding-top:8px}
+.why summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;color:var(--mute);font-size:13px}
+.why summary::-webkit-details-marker{display:none}
+.why summary span{font-weight:700;color:var(--amber);display:inline-flex;align-items:center;gap:7px}
+.why summary span:before{content:"";width:0;height:0;border:5px solid transparent;border-left:7px solid var(--amber);border-right:0;transition:transform .15s}
+.why[open] summary span:before{transform:rotate(90deg)}.why summary em{font-style:normal;color:var(--ink);font-weight:600}
+.why ul{margin:10px 0 6px;padding-left:18px;color:#c9c9c4;font-size:14px;line-height:1.5;max-width:760px}.why li{margin:3px 0}
+.legend{margin:4px 0 14px;color:var(--mute);font-size:13px}.legend summary{cursor:pointer;font-weight:600}
+.lg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px 24px;margin-top:12px;color:#c9c9c4;font-size:13px;line-height:1.45}
+.lg b{display:block;color:var(--ink);margin-bottom:2px}.lg .flag{vertical-align:1px}.lg .ln{vertical-align:middle}
 .stale{margin:18px 0 -10px;padding:12px 16px;border:1px solid #4a3618;border-radius:12px;background:rgba(242,165,65,.08);color:var(--mute);font-size:14px}
 .stale b{color:var(--amber)}
 .donelink{color:var(--amber);text-decoration:none;font-weight:600;white-space:nowrap}.donelink:hover{text-decoration:underline}
@@ -123,6 +138,10 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:56px 20px;text-align:center;color:var(--mute)}
 .empty b{display:block;color:var(--ink);font:800 28px/1.1 'Big Shoulders Display',sans-serif;margin-bottom:6px}
 footer{color:var(--dim);font-size:12px;padding:0 0 30px}
+footer .links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px}footer a{color:var(--mute)}
+.ad{margin:28px 0 8px;min-height:90px}
+.prose{max-width:720px;line-height:1.6;color:#c9c9c4}.prose h2{font:800 24px/1 'Big Shoulders Display',sans-serif;color:var(--ink);margin:30px 0 8px}
+.prose p{margin:0 0 14px}.prose a{color:var(--amber)}
 @media (max-width:860px){
  .g{grid-template-columns:1fr auto 1fr;grid-template-areas:"time time time" "a s h" "line line line" "side side side";row-gap:10px;padding:14px}
  .mid{display:contents}.mid .score,.mid>div:first-child{grid-area:s}.line{grid-area:line}
@@ -185,18 +204,21 @@ JS = """<script>
 (()=>{
 const games=[...document.querySelectorAll('.g')];
 const box=document.querySelector('[data-date]');
-let F='all',S='all';
+let F='all',S='all',C='';
+function conf(g){return !C||(C==='top25'?g.dataset.top25==='1':(g.dataset.conf||'').split('|').includes(C))}
 function apply(){
  games.forEach(g=>{const t=F==='all'||g.classList.contains(F);
-  const s=S==='all'||(S==='live'?g.classList.contains('is-live'):g.dataset.slot===S);g.hidden=!(t&&s)});
+  const s=S==='all'||(S==='live'?g.classList.contains('is-live'):g.dataset.slot===S);g.hidden=!(t&&s&&conf(g))});
  document.querySelectorAll('.day').forEach(d=>{const n=d.nextElementSibling;const none=n&&[...n.children].every(g=>g.hidden);d.hidden=none;if(n)n.hidden=none});
  const any=games.some(g=>!g.hidden);
  document.querySelectorAll('[data-empty]').forEach(m=>{const k=m.dataset.empty;
-  m.hidden=any||!((k===F&&S==='all')||(k==='slot'&&S!=='all'&&S!=='live'&&F==='all')||(k==='live'&&S==='live')||(k==='mix'&&F!=='all'&&S!=='all'))});
+  m.hidden=any||!((k==='conf'&&C)||(!C&&((k===F&&S==='all')||(k==='slot'&&S!=='all'&&S!=='live'&&F==='all')||(k==='live'&&S==='live')||(k==='mix'&&F!=='all'&&S!=='all'))))});
 }
 function pick(sel,attr,set){document.querySelectorAll(sel).forEach(c=>c.addEventListener('click',()=>{
  document.querySelectorAll(sel).forEach(x=>x.classList.toggle('on',x===c));set(c.dataset[attr]);apply()}))}
 pick('.chip[data-f]','f',v=>F=v);pick('.chip[data-s]','s',v=>S=v);
+const sel=document.getElementById('conf');if(sel)sel.addEventListener('change',()=>{C=sel.value;
+ if(C){S='all';document.querySelectorAll('.chip[data-s]').forEach(x=>x.classList.toggle('on',x.dataset.s==='all'))}apply()});
 const etDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
 const isToday=box&&box.dataset.date===etDay();
 if(box&&box.dataset.date&&box.dataset.date<etDay()){ // last build was an earlier day
@@ -270,7 +292,7 @@ def _vivid(h):
 def _team(teams, tid, name):
     t = teams.get(str(tid)) or teams.get(tid) or {}
     return {"name": name, "mascot": t.get("mascot") or "", "logo": t.get("logo") or "",
-            "abbr": (t.get("abbr") or name[:3]).upper()[:4], "color": _hex(t.get("color")),
+            "abbr": (t.get("abbr") or name[:3]).upper()[:4], "color": _hex(t.get("color")), "conf": t.get("conf") or "",
             "vivid": _vivid(t.get("color")), "espn": str(t.get("espn") or "")}
 
 
@@ -390,8 +412,19 @@ def _line_pills(r, teams, final=False):
     return f'<div class="line">{"".join(pills)}</div>' if pills else ""
 
 
-def _row(r, teams, final=False):
+def _why(wu, pick):
+    """Collapsible write-up under a game row."""
+    if not wu:
+        return ""
+    items = "".join(f"<li>{escape(t)}</li>" for t in wu["lines"])
+    return (f'<details class="why"><summary><span>Why {escape(pick)}?</span><em>{escape(wu["headline"])}</em></summary>'
+            f'<ul>{items}</ul></details>')
+
+
+def _row(r, teams, final=False, wu=None):
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
+    if wu:
+        a["rank"], h["rank"] = wu["away_rank"], wu["home_rank"]
     pa, ph = predicted_score(r)
     home_pick = r["pick"] == r["home"]
     pc = h["vivid"] if home_pick else a["vivid"]
@@ -432,28 +465,127 @@ def _row(r, teams, final=False):
     live_attrs = "" if final else (
         f' data-slot="{slot_of(r["when"])}" data-ea="{escape(a["espn"])}" data-eh="{escape(h["espn"])}"'
         f' data-pick="{"h" if home_pick else "a"}"')
+    confs = {c for c in (a["conf"], h["conf"]) if c}
+    top25 = any(0 < (t.get("rank") or 0) <= 25 for t in (a, h))
+    live_attrs += f' data-conf="{escape("|".join(sorted(confs)))}"' + (' data-top25="1"' if top25 else "")
     return (f'<article class="g{" strong" if strong else ""}{" ou" if ou_play(r) else ""}'
             f'{" upset" if up else ""}{" ultra" if up == "ultra" else ""}" style="--pc:{pc}"{live_attrs}>'
             f'<div class="time">{_tip(r["when"])}{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div>'
-            f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}</b><span>{escape(a["mascot"])}</span></div></div>'
+            f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{escape(a["name"])}{_rk(a)}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
-            f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{escape(h["name"])}</b><span>{escape(h["mascot"])}</span></div></div>'
-            f'<div class="side">{side}</div></article>')
+            f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{escape(h["name"])}{_rk(h)}</b><span>{escape(h["mascot"])}</span></div></div>'
+            f'<div class="side">{side}</div>{_why(wu, r["pick"])}</article>')
 
 
-def page(title, active, body, stamp):
+def _rk(t):
+    return f'<i class="rk" title="Model rank of {t.get("rank")} Division I teams">#{t["rank"]}</i>' if t.get("rank") else ""
+
+
+def ad_slot(slot="auto"):
+    """A responsive display ad unit, or nothing until config.ADSENSE_CLIENT is set."""
+    if not config.ADSENSE_CLIENT:
+        return ""
+    return (f'<div class="ad"><ins class="adsbygoogle" style="display:block" data-ad-client="{escape(config.ADSENSE_CLIENT)}"'
+            f' data-ad-format="{escape(slot)}" data-full-width-responsive="true"></ins>'
+            '<script>(adsbygoogle=window.adsbygoogle||[]).push({});</script></div>')
+
+
+def page(title, active, body, stamp, description=""):
     tabs = [("index.html", "Today"), ("bets.html", "Best Bets"), ("results.html", "Results")]
     nav = "".join(f'<a href="{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in tabs)
+    ads = (f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={escape(config.ADSENSE_CLIENT)}"'
+           ' crossorigin="anonymous"></script>') if config.ADSENSE_CLIENT else ""
+    desc = description or ("College basketball predictions from a statistical model: picks, projected scores, "
+                           "betting-line edges and a public, locked-before-tipoff record.")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
             f'content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">'
-            f'<title>{escape(title)}</title>{FONTS}<style>{CSS}</style></head><body>'
-            f'<header class="top"><div class="wrap"><a class="brand" href="index.html"><i></i>Bball Draft</a>'
-            f'<nav>{nav}</nav></div></header><main class="wrap">{body}</main>'
-            f'<footer class="wrap">Updated {escape(stamp)}</footer>{JS}</body></html>')
+            f'<title>{escape(title)}</title><meta name="description" content="{escape(desc)}">'
+            f'<link rel="canonical" href="{config.SITE_URL}/{active}">{FONTS}{ads}<style>{CSS}</style></head><body>'
+            f'<header class="top"><div class="wrap"><a class="brand" href="index.html"><i></i>{escape(config.SITE_NAME)}</a>'
+            f'<nav>{nav}</nav></div></header><main class="wrap">{body}{ad_slot()}</main>'
+            f'<footer class="wrap"><div>Updated {escape(stamp)}</div>'
+            f'<div class="links"><a href="about.html">About the model</a><a href="privacy.html">Privacy</a>'
+            f'<span>For information and entertainment only, not betting advice. 21+. '
+            f'Gambling problem? Call 1-800-GAMBLER.</span></div></footer>{JS}</body></html>')
 
 
-def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0):
+def about_page(stamp):
+    body = (f'<section class="hero"><div><h1>About the model</h1><p>What {escape(config.SITE_NAME)} is and how the numbers are made.</p></div></section>'
+            '<div class="prose">'
+            f'<p>{escape(config.SITE_NAME)} publishes college basketball predictions from a statistical model, every game day, '
+            'all season. It started as a spreadsheet and now runs automatically.</p>'
+            '<h2>How a prediction is made</h2>'
+            '<p>Each Division I team gets an <b>offense</b> and a <b>defense</b> rating built from the four factors of '
+            'basketball: shooting, turnovers, offensive rebounding and free throws, for the team and for what its opponents '
+            'manage against it. The rating is then adjusted for <b>strength of schedule</b>, measured from actual game '
+            'results so a team that has played tough opponents gets credit for it, and the home team gets a <b>home-court</b> '
+            'edge (none at neutral sites). Early in the season last year\u2019s numbers fade out as each team plays games.</p>'
+            '<p>The gap between the two ratings becomes a projected margin and a projected score. A <b>strong pick</b> is a game '
+            'where that gap is large. An <b>upset pick</b> is one where the model disagrees with the betting favorite. An '
+            '<b>O/U play</b> is a game where the model\u2019s projected total is well off the posted over/under.</p>'
+            '<h2>Best Bets</h2>'
+            '<p>The Best Bets page compares the model to the current betting lines and lists the single bets and parlays where '
+            'the model\u2019s chance of winning beats the price. The top single bets lock in each morning and are graded from '
+            'the final score, so the record is what the page actually showed, not a highlight reel.</p>'
+            '<h2>The record is public</h2>'
+            '<p>Every pick is written down before tip-off and never changed. The Results page shows each graded game with the '
+            'projected and actual scores. No pick is ever removed.</p>'
+            '<h2>Data</h2>'
+            '<p>Team statistics, schedules, scores and betting lines come from CollegeBasketballData. Live scores on the Today '
+            'page come from ESPN. Team logos belong to the schools.</p>'
+            '<h2>Please read this part</h2>'
+            '<p>Everything here is for information and entertainment. It is not betting advice, and a model that is right '
+            'two-thirds of the time is wrong one game in three. Never bet money you can\u2019t afford to lose. You must be of '
+            'legal age to gamble where you live. If gambling is a problem for you or someone you know, call or text '
+            '1-800-GAMBLER (US).</p>'
+            '</div>')
+    return page(f"{config.SITE_NAME} - About", "about.html", body, stamp,
+                f"How the {config.SITE_NAME} college basketball model makes its predictions, and how its record is kept.")
+
+
+def privacy_page(stamp):
+    body = ('<section class="hero"><div><h1>Privacy</h1><p>Short version: this site keeps no accounts and collects nothing itself.</p></div></section>'
+            '<div class="prose">'
+            f'<p>{escape(config.SITE_NAME)} is a set of static pages. There is no sign-up, no login and no form, and the site '
+            'does not collect names, email addresses or any other personal information.</p>'
+            '<h2>Advertising</h2>'
+            '<p>The site may show ads served by Google AdSense. Google and its partners use cookies and similar technologies to '
+            'show ads and measure them, which may include ads based on your visits to this and other websites. You can opt out '
+            'of personalized advertising at <a href="https://www.google.com/settings/ads">Google\u2019s ad settings</a>, and '
+            'read how Google uses data from sites that use its services at '
+            '<a href="https://policies.google.com/technologies/partner-sites">policies.google.com/technologies/partner-sites</a>.</p>'
+            '<h2>Live scores and fonts</h2>'
+            '<p>On game days the Today page asks ESPN for live scores from your browser, and the pages load fonts from Google '
+            'Fonts. Those services see your IP address in the ordinary way any web request does.</p>'
+            '<h2>Hosting</h2>'
+            '<p>The pages are hosted on GitHub Pages, which keeps standard server logs. See '
+            '<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub\u2019s privacy statement</a>.</p>'
+            '<h2>Your browser\u2019s storage</h2>'
+            '<p>The site stores nothing in your browser beyond what the ad and font services above set.</p>'
+            '<h2>Contact</h2>'
+            f'<p>Questions about this page can be sent through the site\u2019s GitHub repository.</p>'
+            '</div>')
+    return page(f"{config.SITE_NAME} - Privacy", "privacy.html", body, stamp, f"Privacy policy for {config.SITE_NAME}.")
+
+
+LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
+          '<div><b>Predicted score</b>The model\u2019s projected final. The bigger number is the pick.</div>'
+          '<div><b>Edge bar</b>How far apart the two teams rate. A full bar is a lopsided matchup.</div>'
+          '<div><b><span class="flag">Strong pick</span></b>The rating gap is big enough that the model has historically been right about 80% of the time.</div>'
+          '<div><b><span class="flag up">Upset pick</span></b>The model picks the team the betting market has as the underdog. '
+          '<span class="flag ultra">Ultra upset</span> is an upset pick that is also a strong pick.</div>'
+          '<div><b>Line</b>The sportsbook favorite and spread, and the over/under. An orange O/U pill with '
+          '<b style="display:inline;color:var(--amber)">Over</b> or <b style="display:inline;color:var(--amber)">Under</b> marks a game where '
+          f'the model\u2019s total is {config.OU_EDGE_POINTS}+ points off the line.</div>'
+          '<div><b>#12</b>Where a team ranks in the model among all Division I teams.</div>'
+          '<div><b>Why ...?</b>Tap it under any game for the reasons behind the pick, in plain English.</div>'
+          '<div><b>1H</b>First-half pick, from each team\u2019s first-half scoring in its last three games.</div>'
+          '</div></details>')
+
+
+def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None):
     teams = teams or {}
+    writeups = writeups or {}
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
@@ -463,7 +595,10 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
             f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
             f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
             f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
-            f'<div class="stat up"><b>{n_up}</b><span>upset picks</span></div></div></section>')
+            f'<div class="stat up"><b>{n_up}</b><span>upset picks</span></div>'
+            + (f'<div class="stat {"win" if yesterday[0] >= yesterday[1] else "loss"}"><b>{yesterday[0]}-{yesterday[1]}</b><span>yesterday</span></div>'
+               if yesterday and config.SHOW_RESULTS_STATS and sum(yesterday) else "")
+            + '</div></section>')
     if not rows and n_final:
         body = hero + ('<div class="empty"><b>All of today\'s games are final</b>'
                        'See how the picks did on the <a class="donelink" href="results.html">Results</a> page.</div>')
@@ -477,18 +612,33 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
                  '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>None of these games has a big enough edge.</div>'
                  '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>The model agrees with every betting favorite today.</div>'
                  f'<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No projected total is {config.OU_EDGE_POINTS}+ points off the line.</div>')
+        present = {}
+        for r in rows:
+            for tid in (r["away_id"], r["home_id"]):
+                c = (teams.get(str(tid)) or {}).get("conf")
+                if c:
+                    present[c] = present.get(c, 0) + 1
+        majors = ["ACC", "Big 12", "Big East", "Big Ten", "SEC"]
+        order = [c for c in majors if c in present] + sorted(c for c in present if c not in majors)
+        n_top = sum(1 for r in rows if any(0 < ((writeups.get(r.get("game_key")) or {}).get(k) or 0) <= 25
+                                           for k in ("away_rank", "home_rank")))
+        conf_sel = ('<label class="confsel"><span>Show</span><select id="conf"><option value="">All conferences</option>'
+                    + (f'<option value="top25">Top 25 ({n_top})</option>' if n_top else "")
+                    + "".join(f'<option value="{escape(c)}">{escape(c)} ({present[c]})</option>' for c in order)
+                    + '</select></label>')
         counts = {k: sum(1 for r in rows if slot_of(r["when"]) == k) for k, *_ in SLOTS}
-        slot_chips = ('<div class="bar slots"><button class="chip on" data-s="all">All day<span class="n">'
+        slot_chips = (conf_sel + '<div class="bar slots"><button class="chip on" data-s="all">All day<span class="n">'
                       f'{len(rows)}</span></button>'
                       + "".join(f'<button class="chip" data-s="{k}" data-hi="{hi}">{lab}<span class="n">{counts[k]}</span></button>'
                                 for k, lab, lo, hi in SLOTS if counts[k])
                       + '<button class="chip livechip" data-s="live">Live now<span class="n">0</span></button></div>'
                       '<div class="empty" data-empty="slot" hidden><b>No games in this window</b>Pick another time block.</div>'
                       '<div class="empty" data-empty="live" hidden><b>Nothing live right now</b>Live games show up here with the score and clock.</div>'
-                      '<div class="empty" data-empty="mix" hidden><b>Nothing here</b>No games match both filters in this time block.</div>')
-        body = (hero + slot_chips + chips + f'<div class="games" data-date="{escape(date_iso)}">'
-                + "".join(_row(r, teams) for r in rows) + "</div>")
-    return page("Bball Draft - Today", "index.html", body, stamp)
+                      '<div class="empty" data-empty="mix" hidden><b>Nothing here</b>No games match both filters in this time block.</div>'
+                      '<div class="empty" data-empty="conf" hidden><b>No games</b>Nothing from that conference in this view. Try All day.</div>')
+        body = (hero + slot_chips + chips + LEGEND + f'<div class="games" data-date="{escape(date_iso)}">'
+                + "".join(_row(r, teams, wu=writeups.get(r.get("game_key"))) for r in rows) + "</div>")
+    return page(f"{config.SITE_NAME} - Today", "index.html", body, stamp)
 
 
 def _record(rows, col):
@@ -525,7 +675,7 @@ def results_page(rows, stamp, teams=None):
     if not config.SHOW_RESULTS_STATS:          # record totals switched off in config.py for now
         hero = re.sub(r'<div class="stats">.*</div></section>$', '</section>', hero)
     if not graded:
-        return page("Bball Draft - Results", "results.html",
+        return page(f"{config.SITE_NAME} - Results", "results.html",
                     hero + '<div class="empty"><b>No graded games yet</b>Results appear the morning after each game day.</div>', stamp)
     by_date = {}
     for r in graded:
@@ -546,7 +696,7 @@ def results_page(rows, stamp, teams=None):
         label = _d.fromisoformat(d).strftime("%A, %b %-d")
         parts.append(f'<div class="day"><h2>{label}</h2><span>{dw}-{dl}</span></div>'
                      f'<div class="games">{"".join(_row(r, teams, final=True) for r in day)}</div>')
-    return page("Bball Draft - Results", "results.html", hero + chips + "".join(parts), stamp)
+    return page(f"{config.SITE_NAME} - Results", "results.html", hero + chips + "".join(parts), stamp)
 
 
 def _bet_disc(b, teams, mini=False):
@@ -663,11 +813,13 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
             f'{B.MIN_CHANCE * 100:.0f}% model chance and has to beat its price by {B.MIN_EDGE * 100:.0f}+ points; each game\u2019s best one makes the list, ranked by edge '
             f'(model chance minus the chance the odds imply). Spread and total bets assume the usual {B.fmt_odds(B.STD_ODDS)} odds, '
             'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>')
-    return page("Bball Draft - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)
+    return page(f"{config.SITE_NAME} - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)
 
 
-def write(index_html, results_html, bets_html="", docs=DOCS):
+def write(index_html, results_html, bets_html="", docs=DOCS, stamp=""):
     docs.mkdir(parents=True, exist_ok=True)
+    (docs / "about.html").write_text(about_page(stamp), encoding="utf-8")
+    (docs / "privacy.html").write_text(privacy_page(stamp), encoding="utf-8")
     (docs / "index.html").write_text(index_html, encoding="utf-8")
     (docs / "results.html").write_text(results_html, encoding="utf-8")
     if bets_html:
