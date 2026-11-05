@@ -5,3 +5,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-04,4,Total,under,Under 162.5,-110,0.565,0.041,162.5,38,352,Cal State Northridge,Wichita State,"Nov 4, 2026 7:30 PM ET","Nov 04, 2026 05:25 PM CT",W
 2026-11-04,5,Spread,home,California −16.5,-110,0.561,0.038,-16.5,239,40,Radford,California,"Nov 4, 2026 9:00 PM ET","Nov 04, 2026 05:25 PM CT",L
 2026-11-04,6,Total,under,Under 162.5,-110,0.557,0.033,162.5,172,261,Milwaukee,Santa Clara,"Nov 4, 2026 10:00 PM ET","Nov 04, 2026 05:25 PM CT",L
+2026-11-05,1,Spread,home,Sacred Heart −5.5,-110,0.649,0.125,-5.5,154,250,Maine,Sacred Heart,"Nov 5, 2026 7:00 PM ET","Nov 05, 2026 07:52 AM CT",
+2026-11-05,2,Spread,away,West Georgia +18.5,-110,0.645,0.121,18.5,346,151,West Georgia,Loyola Chicago,"Nov 5, 2026 8:00 PM ET","Nov 05, 2026 07:52 AM CT",
+2026-11-05,3,Total,under,Under 169.5,-110,0.641,0.117,169.5,227,118,Pennsylvania,Illinois,"Nov 5, 2026 8:30 PM ET","Nov 05, 2026 07:52 AM CT",
+2026-11-05,4,Spread,home,Tulsa −14.5,-110,0.640,0.116,-14.5,208,304,Northern Illinois,Tulsa,"Nov 5, 2026 8:00 PM ET","Nov 05, 2026 07:52 AM CT",
+2026-11-05,5,Spread,home,Navy −7.5,-110,0.633,0.109,-7.5,67,187,Delaware State,Navy,"Nov 5, 2026 7:00 PM ET","Nov 05, 2026 07:52 AM CT",
+2026-11-05,6,Spread,away,Green Bay +24.5,-110,0.632,0.108,24.5,105,51,Green Bay,Cincinnati,"Nov 5, 2026 7:00 PM ET","Nov 05, 2026 07:52 AM CT",
