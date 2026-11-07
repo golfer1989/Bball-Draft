@@ -95,7 +95,8 @@ def frame(t, game, wu, teams, pred, date_label, logos):
         d.text((W // 2, 1270), f"Model pick: {game['pick']}", font=_font(56), fill=tuple(int(x * p) for x in AMBER), anchor="mm")
     # scene 4: reasons, one every 1.6 s
     y = 1400
-    for i, line in enumerate((wu or {}).get("lines", [])[:4]):
+    safe = [x for x in (wu or {}).get("lines", []) if not any(w in x.lower() for w in ("book", "spread", "over/under", "the play", " line"))]
+    for i, line in enumerate(safe[:4]):
         a = ease((t - 3.8 - i * 1.6) / 0.5)
         if a <= 0:
             continue
@@ -206,7 +207,9 @@ def caption(game, wu, pred):
     """Ready-to-paste caption with hashtags for the post."""
     pa, ph = pred or ("", "")
     head = (wu or {}).get("headline", "")
+    # TikTok and Instagram remove content that markets gambling, so the caption and clip stick to
+    # predictions (winner, projected score, why) and never mention bets, odds or lines.
     return (f"{game['away']} vs {game['home']} — model pick: {game['pick']}. Projected {pa}-{ph}. {head}.\n"
-            "Every pick locked before tip-off, graded after. Full breakdown at tipoffedge.com\n"
-            "#collegebasketball #cbb #ncaab #collegehoops #sportsbetting #bettingpicks #freepicks #marchmadness")
+            "Every prediction posted before tip-off, graded after. Full breakdown at tipoffedge.com\n"
+            "#collegebasketball #cbb #ncaab #collegehoops #marchmadness #basketball")
 
