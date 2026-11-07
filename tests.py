@@ -368,13 +368,13 @@ def test_best_bets_math_and_page():
         return {"away_id": str(2 * i), "away": f"Away{i}", "home_id": str(2 * i + 1), "home": f"Home{i}",
                 "pick": f"Home{i}" if pick_home else f"Away{i}", "differential": str(diff), "total": str(total),
                 "when": "Nov 2, 2026 8:00 PM ET"}
-    rows = [row(i, True, 0.06 + 0.01 * i, 140) for i in range(1, 10)]
+    rows = [row(i, True, 0.04 + 0.004 * i, 140) for i in range(1, 10)]
     lm = {(2 * i, 2 * i + 1): {"fav": f"Home{i}", "spread": 3.5, "total": 140.5, "aml": 150, "hml": -180}
           for i in range(1, 10)}
     # game 1: model says home by ~11.9 vs a 3.5 line -> home spread (or ML) qualifies
     b = bets.game_bets(rows[0], lm[(2, 3)])
     sp = [x for x in b if x["kind"] == "Spread" and x["side"] == "home"][0]
-    est = 3.5 + bets.MODEL_WEIGHT * (170 * 0.07 - 3.5)          # line nudged toward the model
+    est = 3.5 + bets.MODEL_WEIGHT * (170 * 0.044 - 3.5)         # line nudged toward the model
     assert sp["label"] == "Home1 \u22123.5" and sp["chance"] == pytest.approx(bets.chance(est - 3.5, bets.MARGIN_SD))
     under = [x for x in b if x["label"] == "Under 140.5"][0]
     assert under["chance"] == pytest.approx(1 - bets.chance(bets.MODEL_WEIGHT * -0.5, bets.TOTAL_SD))
@@ -552,3 +552,13 @@ def test_bet_pills_on_today_page():
     assert html.count("Away U +4.5") >= 1 and "The bet" in html and 'betpill strong' in html
     none = site.today_page([r], "x", "now", "note", {}, "2026-11-04", gotd=r)
     assert "Nothing here" in none and "line already prices it in" in none
+
+
+def test_bet_guards_big_spreads_and_bad_data():
+    import bets
+    assert not bets.qualifies({"kind": "Spread", "odds": -110, "chance": 0.7, "edge": 0.17, "num": 18.5})
+    assert not bets.qualifies({"kind": "Spread", "odds": -110, "chance": 0.7, "edge": 0.17, "num": "-10"})
+    assert bets.qualifies({"kind": "Spread", "odds": -110, "chance": 0.6, "edge": 0.07, "num": 6.5})
+    r = {"away_id": "1", "home_id": "2", "away": "New U", "home": "FIU", "pick": "New U", "differential": "0.2771",
+         "total": "160", "when": "x"}
+    assert bets.game_bets(r, {"fav": "FIU", "spread": 14.5, "total": 158.5}, {"scale": 1.5, "total_shift": 0}) == []

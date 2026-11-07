@@ -27,6 +27,10 @@ STD_ODDS = -110
 MIN_CHANCE = 0.55        # model chance a bet needs
 MIN_EDGE = 0.03          # ...and it must beat the price by at least 3 points of win chance
 MAX_FAV_ML = -250        # moneylines shorter than this are skipped (take the spread instead)
+MAX_SPREAD = 10.0        # no spread bets on lines this big or bigger: early season the model underrates
+                         # blowouts (underdogs it liked on 10+ point lines covered 65 of 155, 42%)
+MAX_DISAGREE = 20.0      # if the calibrated model and the line differ by more than this many points the
+                         # data is suspect (new D-I teams, wrong stats), so the game gets no bets
 PARLAY_SIZES = (3, 6, 8)
 SINGLES = 6
 
@@ -116,6 +120,8 @@ def game_bets(r, ln, cal=None):
     away, home = r["away"], r["home"]
     m_cal = m_model * cal["scale"]
     v = line_home_margin(ln)
+    if v is not None and abs(m_cal - v) > MAX_DISAGREE:
+        return []
     m_home = m_cal if v is None else v + MODEL_WEIGHT * (m_cal - v)       # estimated home margin
     total = _num(r.get("total"))
     if total is not None:
@@ -225,6 +231,8 @@ def record(book, date=None):
 def qualifies(b):
     """b may be a live bet dict or a bets.csv row."""
     chance, edge, odds = float(b["chance"]), float(b["edge"]), int(b["odds"])
+    if b["kind"] == "Spread" and b.get("num") not in (None, "") and abs(float(b["num"])) >= MAX_SPREAD:
+        return False
     return chance >= MIN_CHANCE and edge >= MIN_EDGE and (b["kind"] != "ML" or odds >= MAX_FAV_ML)
 
 
