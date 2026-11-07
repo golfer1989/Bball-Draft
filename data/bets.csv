@@ -17,9 +17,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-06,4,Spread,away,Northern Kentucky +26.5,-110,0.687,0.163,26.5,210,293,Northern Kentucky,Texas A&M,"Nov 6, 2026 8:00 PM ET","Nov 06, 2026 03:23 AM CT",L
 2026-11-06,5,Spread,away,Troy +22.5,-110,0.683,0.159,22.5,302,90,Troy,Florida State,"Nov 6, 2026 7:00 PM ET","Nov 06, 2026 03:23 AM CT",L
 2026-11-06,6,ML,away,Southern Illinois ML,-142,0.742,0.155,,273,130,Southern Illinois,Kansas City,"Nov 6, 2026 8:30 PM ET","Nov 06, 2026 03:23 AM CT",L
-2026-11-07,1,Spread,away,Morehead State +37.5,-110,0.685,0.161,37.5,181,150,Morehead State,Louisville,"Nov 7, 2026 12:00 PM ET","Nov 06, 2026 11:50 PM CT",
-2026-11-07,2,ML,home,Georgetown ML,130,0.561,0.127,,160,97,Maryland,Georgetown,"Nov 7, 2026 7:30 PM ET","Nov 06, 2026 11:50 PM CT",
-2026-11-07,3,Spread,away,Portland State +10.5,-110,0.642,0.118,10.5,231,262,Portland State,Seattle U,"Nov 7, 2026 10:00 PM ET","Nov 06, 2026 11:50 PM CT",
-2026-11-07,4,Total,under,Under 159.5,-110,0.630,0.106,159.5,139,1,Lamar,Abilene Christian,"Nov 7, 2026 2:00 PM ET","Nov 06, 2026 11:50 PM CT",
-2026-11-07,5,Spread,away,Northwestern State +22.5,-110,0.608,0.084,22.5,211,184,Northwestern State,Murray State,"Nov 7, 2026 8:00 PM ET","Nov 06, 2026 11:50 PM CT",
-2026-11-07,6,Spread,away,North Carolina A&T +12.5,-110,0.604,0.080,12.5,198,215,North Carolina A&T,Ohio,"Nov 7, 2026 1:00 PM ET","Nov 06, 2026 11:50 PM CT",
+2026-11-07,1,Total,under,Under 163.5,-110,0.662,0.138,163.5,139,1,Lamar,Abilene Christian,"Nov 7, 2026 2:00 PM ET","Nov 07, 2026 12:57 AM CT",
+2026-11-07,2,ML,home,Georgetown ML,130,0.562,0.127,,160,97,Maryland,Georgetown,"Nov 7, 2026 7:30 PM ET","Nov 07, 2026 12:57 AM CT",
+2026-11-07,3,Spread,away,Morgan State +3.5,-110,0.598,0.074,3.5,182,194,Morgan State,Niagara,"Nov 7, 2026 6:30 PM ET","Nov 07, 2026 12:57 AM CT",
+2026-11-07,4,Spread,home,UC Irvine −8.5,-110,0.590,0.066,-8.5,260,308,San José State,UC Irvine,"Nov 7, 2026 10:00 PM ET","Nov 07, 2026 12:57 AM CT",
+2026-11-07,5,Spread,away,Fresno State +9.5,-110,0.589,0.065,9.5,92,310,Fresno State,UC San Diego,"Nov 7, 2026 10:00 PM ET","Nov 07, 2026 12:57 AM CT",
+2026-11-07,6,Spread,home,UT Rio Grande Valley −8.5,-110,0.574,0.050,-8.5,232,326,Prairie View A&M,UT Rio Grande Valley,"Nov 7, 2026 5:30 PM ET","Nov 07, 2026 12:57 AM CT",
