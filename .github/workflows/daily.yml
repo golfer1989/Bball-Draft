@@ -45,7 +45,7 @@ jobs:
           run=false; why=""; mark=""
           if [ "$EVENT" != "schedule" ]; then
             run=true; why="manual run"
-          elif [ "$last" != "$today" ] && [ $nowm -ge 120 ]; then
+          elif [ "$last" != "$today" ] && [ $nowm -ge 120 ] && [ $nowm -lt 720 ]; then
             run=true; why="overnight build"       # not before 2 AM Central: late West Coast games must be final
           else
             for seg in 0900 1100 1400 1700 2000; do
