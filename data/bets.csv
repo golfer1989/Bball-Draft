@@ -23,9 +23,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-07,4,Spread,home,UC Irvine −8.5,-110,0.590,0.066,-8.5,260,308,San José State,UC Irvine,"Nov 7, 2026 10:00 PM ET","Nov 07, 2026 12:57 AM CT",W
 2026-11-07,5,Spread,away,Fresno State +9.5,-110,0.589,0.065,9.5,92,310,Fresno State,UC San Diego,"Nov 7, 2026 10:00 PM ET","Nov 07, 2026 12:57 AM CT",L
 2026-11-07,6,Spread,home,UT Rio Grande Valley −8.5,-110,0.574,0.050,-8.5,232,326,Prairie View A&M,UT Rio Grande Valley,"Nov 7, 2026 5:30 PM ET","Nov 07, 2026 12:57 AM CT",L
-2026-11-08,1,Total,under,Under 154.5,-110,0.630,0.107,154.5,234,264,Princeton,Siena,"Nov 8, 2026 1:00 PM ET","Nov 08, 2026 08:45 AM CT",
-2026-11-08,2,Spread,away,Idaho State +6.5,-110,0.617,0.093,6.5,116,2,Idaho State,Air Force,"Nov 8, 2026 3:00 PM ET","Nov 08, 2026 08:45 AM CT",
-2026-11-08,3,Spread,away,Brown +5.5,-110,0.608,0.084,5.5,30,141,Brown,Lehigh,"Nov 8, 2026 2:00 PM ET","Nov 08, 2026 08:45 AM CT",
+2026-11-08,1,Total,under,Under 154.5,-110,0.630,0.107,154.5,234,264,Princeton,Siena,"Nov 8, 2026 1:00 PM ET","Nov 08, 2026 08:45 AM CT",W
+2026-11-08,2,Spread,away,Idaho State +6.5,-110,0.617,0.093,6.5,116,2,Idaho State,Air Force,"Nov 8, 2026 3:00 PM ET","Nov 08, 2026 08:45 AM CT",L
+2026-11-08,3,Spread,away,Brown +5.5,-110,0.608,0.084,5.5,30,141,Brown,Lehigh,"Nov 8, 2026 2:00 PM ET","Nov 08, 2026 08:45 AM CT",W
 2026-11-08,4,Spread,away,Saint Mary's +1.5,-110,0.607,0.084,1.5,253,189,Saint Mary's,Nevada,"Nov 8, 2026 4:30 PM ET","Nov 08, 2026 08:45 AM CT",
 2026-11-08,5,Total,under,Under 164.5,-110,0.590,0.066,164.5,350,291,Western Kentucky,Tennessee Tech,"Nov 8, 2026 3:00 PM ET","Nov 08, 2026 08:45 AM CT",
-2026-11-08,6,Spread,away,Sacred Heart +2.5,-110,0.590,0.066,2.5,250,190,Sacred Heart,New Hampshire,"Nov 8, 2026 1:00 PM ET","Nov 08, 2026 08:45 AM CT",
+2026-11-08,6,Spread,away,Sacred Heart +2.5,-110,0.590,0.066,2.5,250,190,Sacred Heart,New Hampshire,"Nov 8, 2026 1:00 PM ET","Nov 08, 2026 08:45 AM CT",W
