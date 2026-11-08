@@ -302,29 +302,29 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-08|105|280,2026-11-08,"Nov 8, 2026 2:00 PM ET",105,Green Bay,280,St. Thomas-Minnesota,1.0077,1.0000,St. Thomas-Minnesota,0.0081,,151.2,Green Bay,8.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,St. Thomas-Minnesota,8.5,149.5,Draft Kings
 2026-11-08|113|40,2026-11-08,"Nov 8, 2026 8:30 PM ET",113,Houston,40,California,1.1045,1.0395,Houston,0.0650,Houston,146.9,California,12.5,2026-27,2026-11-08T04:23-05:00,,,,,,,1,Houston,19.5,145.5,Draft Kings
 2026-11-08|116|2,2026-11-08,"Nov 8, 2026 3:00 PM ET",116,Idaho State,2,Air Force,0.9820,0.9528,Idaho State,0.0133,,147.6,Air Force,16.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,Air Force,5.5,160.5,Draft Kings
-2026-11-08|120|327,2026-11-08,"Nov 8, 2026 7:00 PM ET",120,Incarnate Word,327,UTEP,0.9829,0.9838,UTEP,0.0168,,144.7,UTEP,18.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|120|327,2026-11-08,"Nov 8, 2026 7:00 PM ET",120,Incarnate Word,327,UTEP,0.9829,0.9838,UTEP,0.0168,,144.7,UTEP,18.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,UTEP,12.5,143.5,Draft Kings
 2026-11-08|123|279,2026-11-08,"Nov 8, 2026 12:00 PM ET",123,Iona,279,St. John's,0.9731,1.0740,St. John's,0.1168,St. John's,147.0,St. John's,15.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,St. John's,29.5,151.5,Draft Kings
 2026-11-08|12|339,2026-11-08,"Nov 8, 2026 1:00 PM ET",12,Arkansas,339,Virginia,1.0801,1.0680,Arkansas,0.0121,,160.6,Arkansas,2.5,2026-27,2026-11-08T04:23-05:00,,,,,,,1,Virginia,2.5,162.5,Draft Kings
-2026-11-08|155|154,2026-11-08,"Nov 8, 2026 1:00 PM ET",155,Manhattan,154,Maine,0.9532,0.9321,Manhattan,0.0053,,141.9,Manhattan,1.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
-2026-11-08|156|318,2026-11-08,"Nov 8, 2026 1:00 PM ET",156,Marist,318,UMass Lowell,1.0095,0.9840,Marist,0.0096,,143.3,UMass Lowell,16.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
-2026-11-08|166|306,2026-11-08,"Nov 8, 2026 2:00 PM ET",166,Merrimack,306,UAlbany,0.9705,0.9773,UAlbany,0.0227,,139.1,UAlbany,13.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
-2026-11-08|196|353,2026-11-08,"Nov 8, 2026 6:00 PM ET",196,Norfolk State,353,William & Mary,0.9874,1.0153,William & Mary,0.0438,,151.4,William & Mary,2.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|155|154,2026-11-08,"Nov 8, 2026 1:00 PM ET",155,Manhattan,154,Maine,0.9532,0.9321,Manhattan,0.0053,,141.9,Manhattan,1.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Maine,2.5,140.5,Draft Kings
+2026-11-08|156|318,2026-11-08,"Nov 8, 2026 1:00 PM ET",156,Marist,318,UMass Lowell,1.0095,0.9840,Marist,0.0096,,143.3,UMass Lowell,16.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,UMass Lowell,1.5,146.5,Draft Kings
+2026-11-08|166|306,2026-11-08,"Nov 8, 2026 2:00 PM ET",166,Merrimack,306,UAlbany,0.9705,0.9773,UAlbany,0.0227,,139.1,UAlbany,13.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,Merrimack,1.5,133.5,Draft Kings
+2026-11-08|196|353,2026-11-08,"Nov 8, 2026 6:00 PM ET",196,Norfolk State,353,William & Mary,0.9874,1.0153,William & Mary,0.0438,,151.4,William & Mary,2.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,William & Mary,9.5,156.5,Draft Kings
 2026-11-08|202|36,2026-11-08,"Nov 8, 2026 6:00 PM ET",202,North Dakota State,36,Cal State Bakersfield,1.0098,0.9782,North Dakota State,0.0157,,153.1,Cal State Bakersfield,4.3,2026-27,2026-11-08T04:23-05:00,,,,,,,,North Dakota State,2.5,157.5,Draft Kings
 2026-11-08|226|229,2026-11-08,"Nov 8, 2026 8:00 PM ET",226,Penn State,229,Pittsburgh,1.0158,1.0231,Pittsburgh,0.0073,,148.8,Penn State,9.5,2026-27,2026-11-08T04:23-05:00,,,,,,,1,Pittsburgh,2.5,154.5,Draft Kings
 2026-11-08|234|264,2026-11-08,"Nov 8, 2026 1:00 PM ET",234,Princeton,264,Siena,0.9970,1.0010,Siena,0.0198,,137.9,Siena,10.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,Siena,1.5,154.5,Draft Kings
-2026-11-08|238|337,2026-11-08,"Nov 8, 2026 2:00 PM ET",238,Quinnipiac,337,Vermont,0.9837,0.9891,Vermont,0.0213,,143.5,Vermont,5.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|238|337,2026-11-08,"Nov 8, 2026 2:00 PM ET",238,Quinnipiac,337,Vermont,0.9837,0.9891,Vermont,0.0213,,143.5,Vermont,5.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Vermont,7.5,140.5,Draft Kings
 2026-11-08|242|289,2026-11-08,"Nov 8, 2026 5:00 PM ET",242,Richmond,289,Temple,1.0155,1.0066,Richmond,0.0089,,147.9,Richmond,21.0,2026-27,2026-11-08T04:23-05:00,,,,,,,1,Richmond,1.5,151.5,Draft Kings
-2026-11-08|243|24,2026-11-08,"Nov 8, 2026 4:00 PM ET",243,Rider,24,Binghamton,0.9536,0.9446,Binghamton,0.0068,,140.3,Binghamton,5.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
-2026-11-08|250|190,2026-11-08,"Nov 8, 2026 1:00 PM ET",250,Sacred Heart,190,New Hampshire,0.9884,0.9510,Sacred Heart,0.0215,,146.4,Sacred Heart,19.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|243|24,2026-11-08,"Nov 8, 2026 4:00 PM ET",243,Rider,24,Binghamton,0.9536,0.9446,Binghamton,0.0068,,140.3,Binghamton,5.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Binghamton,7.5,138.5,Draft Kings
+2026-11-08|250|190,2026-11-08,"Nov 8, 2026 1:00 PM ET",250,Sacred Heart,190,New Hampshire,0.9884,0.9510,Sacred Heart,0.0215,,146.4,Sacred Heart,19.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,New Hampshire,2.5,147.5,Draft Kings
 2026-11-08|253|189,2026-11-08,"Nov 8, 2026 4:30 PM ET",253,Saint Mary's,189,Nevada,1.0787,1.0460,Saint Mary's,0.0327,,145.9,Nevada,2.0,2026-27,2026-11-08T04:23-05:00,,,,,,,1,Nevada,1.5,146.5,Draft Kings
-2026-11-08|254|186,2026-11-08,"Nov 8, 2026 4:00 PM ET",254,Saint Peter's,186,NJIT,0.9825,0.9449,Saint Peter's,0.0217,,138.0,Saint Peter's,1.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|254|186,2026-11-08,"Nov 8, 2026 4:00 PM ET",254,Saint Peter's,186,NJIT,0.9825,0.9449,Saint Peter's,0.0217,,138.0,Saint Peter's,1.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,Saint Peter's,1.5,131.5,Draft Kings
 2026-11-08|272|266,2026-11-08,"Nov 8, 2026 1:00 PM ET",272,Southeast Missouri State,266,South Carolina,0.9965,1.0249,South Carolina,0.0443,,148.6,South Carolina,1.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,South Carolina,17.5,145.5,Draft Kings
-2026-11-08|274|70,2026-11-08,"Nov 8, 2026 3:00 PM ET",274,Southern,70,Drake,0.9793,1.0185,Drake,0.0551,,153.7,Drake,17.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
-2026-11-08|30|141,2026-11-08,"Nov 8, 2026 2:00 PM ET",30,Brown,141,Lehigh,0.9914,0.9611,Brown,0.0144,,142.8,Lehigh,3.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|274|70,2026-11-08,"Nov 8, 2026 3:00 PM ET",274,Southern,70,Drake,0.9793,1.0185,Drake,0.0551,,153.7,Drake,17.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Drake,12.5,150.5,Draft Kings
+2026-11-08|30|141,2026-11-08,"Nov 8, 2026 2:00 PM ET",30,Brown,141,Lehigh,0.9914,0.9611,Brown,0.0144,,142.8,Lehigh,3.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Lehigh,5.5,140.5,Draft Kings
 2026-11-08|323|352,2026-11-08,"Nov 8, 2026 11:00 PM ET",323,USC,352,Wichita State,1.0389,1.0379,USC,0.0010,,152.6,Wichita State,1.0,2026-27,2026-11-08T04:23-05:00,,,,,,,1,USC,6.5,156.5,Draft Kings
 2026-11-08|324|108,2026-11-08,"Nov 8, 2026 11:00 PM ET",324,UT Arlington,108,Hawai'i,1.0266,1.0356,Hawai'i,0.0248,,144.7,Hawai'i,10.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Hawai'i,10.5,150.5,Draft Kings
 2026-11-08|34|25,2026-11-08,"Nov 8, 2026 2:00 PM ET",34,Butler,25,Boise State,1.0416,1.0625,Boise State,0.0367,,155.3,Boise State,16.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Boise State,2.5,156.5,Draft Kings
 2026-11-08|350|291,2026-11-08,"Nov 8, 2026 3:00 PM ET",350,Western Kentucky,291,Tennessee Tech,1.0256,0.9889,Western Kentucky,0.0208,,152.7,Tennessee Tech,14.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Western Kentucky,3.5,162.5,Draft Kings
 2026-11-08|41|351,2026-11-08,"Nov 8, 2026 2:00 PM ET",41,Campbell,351,Western Michigan,0.9997,1.0055,Western Michigan,0.0216,,154.1,Western Michigan,15.5,2026-27,2026-11-08T04:23-05:00,,,,,,,,Western Michigan,5.5,148.5,Draft Kings
-2026-11-08|44|62,2026-11-08,"Nov 8, 2026 2:00 PM ET",44,Central Connecticut,62,Dartmouth,0.9671,0.9901,Dartmouth,0.0389,,147.8,Dartmouth,19.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
-2026-11-08|83|31,2026-11-08,"Nov 8, 2026 1:00 PM ET",83,Fairfield,31,Bryant,0.9877,0.9531,Fairfield,0.0188,,141.6,Bryant,8.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,,,,
+2026-11-08|44|62,2026-11-08,"Nov 8, 2026 2:00 PM ET",44,Central Connecticut,62,Dartmouth,0.9671,0.9901,Dartmouth,0.0389,,147.8,Dartmouth,19.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Dartmouth,5.5,141.5,Draft Kings
+2026-11-08|83|31,2026-11-08,"Nov 8, 2026 1:00 PM ET",83,Fairfield,31,Bryant,0.9877,0.9531,Fairfield,0.0188,,141.6,Bryant,8.0,2026-27,2026-11-08T04:23-05:00,,,,,,,,Fairfield,1.5,145.5,Draft Kings
