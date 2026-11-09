@@ -29,3 +29,8 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-08,4,Spread,away,Saint Mary's +1.5,-110,0.607,0.084,1.5,253,189,Saint Mary's,Nevada,"Nov 8, 2026 4:30 PM ET","Nov 08, 2026 08:45 AM CT",W
 2026-11-08,5,Total,under,Under 164.5,-110,0.590,0.066,164.5,350,291,Western Kentucky,Tennessee Tech,"Nov 8, 2026 3:00 PM ET","Nov 08, 2026 08:45 AM CT",L
 2026-11-08,6,Spread,away,Sacred Heart +2.5,-110,0.590,0.066,2.5,250,190,Sacred Heart,New Hampshire,"Nov 8, 2026 1:00 PM ET","Nov 08, 2026 08:45 AM CT",W
+2026-11-09,1,Spread,home,Jacksonville −5.5,-110,0.663,0.139,-5.5,130,127,Kansas City,Jacksonville,"Nov 9, 2026 7:00 PM ET","Nov 09, 2026 03:23 AM CT",
+2026-11-09,2,Spread,home,Seton Hall −5.5,-110,0.651,0.127,-5.5,48,263,Charlotte,Seton Hall,"Nov 9, 2026 9:00 PM ET","Nov 09, 2026 03:23 AM CT",
+2026-11-09,3,Spread,home,Towson −4.5,-110,0.596,0.072,-4.5,146,301,Long Island University,Towson,"Nov 9, 2026 7:00 PM ET","Nov 09, 2026 03:23 AM CT",
+2026-11-09,4,Total,under,Under 161.5,-110,0.575,0.051,161.5,80,224,Eastern Washington,Oregon State,"Nov 9, 2026 9:30 PM ET","Nov 09, 2026 03:23 AM CT",
+2026-11-09,5,Total,under,Under 157.5,-110,0.559,0.035,157.5,114,227,Howard,Pennsylvania,"Nov 9, 2026 6:30 PM ET","Nov 09, 2026 03:23 AM CT",
