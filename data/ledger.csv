@@ -366,7 +366,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-10|105|209,2026-11-10,"Nov 10, 2026 8:00 PM ET",105,Green Bay,209,Northern Iowa,1.0090,1.0348,Northern Iowa,0.0416,,142.4,Northern Iowa,1.3,2026-27,2026-11-10T00:02-05:00,,,,,,,,Northern Iowa,3.5,151.5,Draft Kings
 2026-11-10|107|205,2026-11-10,"Nov 10, 2026 7:00 PM ET",107,Harvard,205,Northeastern,1.0192,0.9661,Harvard,0.0372,,146.1,Harvard,3.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Harvard,3.5,146.5,Draft Kings
 2026-11-10|110|10,2026-11-10,"Nov 10, 2026 9:00 PM ET",110,Hofstra,10,Arizona State,1.0389,1.0393,Arizona State,0.0162,,147.6,Arizona State,7.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Arizona State,17.5,134.5,Draft Kings
-2026-11-10|112|269,2026-11-10,"Nov 10, 2026 8:00 PM ET",112,Houston Christian,269,South Dakota,0.9844,0.9811,South Dakota,0.0126,,150.9,Houston Christian,3.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,,,,
+2026-11-10|112|269,2026-11-10,"Nov 10, 2026 8:00 PM ET",112,Houston Christian,269,South Dakota,0.9844,0.9811,South Dakota,0.0126,,150.9,Houston Christian,3.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,South Dakota,2.5,156.5,Draft Kings
 2026-11-10|118|298,2026-11-10,"Nov 10, 2026 8:00 PM ET",118,Illinois,298,Texas Tech,1.1047,1.0712,Illinois,0.0176,,152.4,Illinois,22.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Illinois,2.5,166.5,Draft Kings
 2026-11-10|123|91,2026-11-10,"Nov 10, 2026 7:00 PM ET",123,Iona,91,Fordham,0.9655,1.0268,Fordham,0.0772,Fordham,141.0,Fordham,2.8,2026-27,2026-11-10T00:02-05:00,,,,,,,,Fordham,11.5,139.5,Draft Kings
 2026-11-10|135|131,2026-11-10,"Nov 10, 2026 9:30 PM ET",135,Kentucky,131,Kansas,1.0695,1.0894,Kansas,0.0199,,149.7,Kentucky,4.0,2026-27,2026-11-10T00:02-05:00,,,,,,,1,Kansas,4.5,155.5,Draft Kings
@@ -387,7 +387,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-10|22|143,2026-11-10,"Nov 10, 2026 8:00 PM ET",22,Belmont,143,Lipscomb,1.0382,0.9943,Belmont,0.0280,,154.2,Lipscomb,9.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Belmont,4.5,158.5,Draft Kings
 2026-11-10|232|248,2026-11-10,"Nov 10, 2026 8:00 PM ET",232,Prairie View A&M,248,SMU,0.9820,1.0683,SMU,0.1021,SMU,158.5,SMU,0.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,SMU,24.5,160.5,Draft Kings
 2026-11-10|233|185,2026-11-10,"Nov 10, 2026 7:00 PM ET",233,Presbyterian,185,NC State,0.9946,1.0601,NC State,0.0814,NC State,152.3,NC State,2.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,NC State,19.5,148.5,Draft Kings
-2026-11-10|246|220,2026-11-10,"Nov 10, 2026 8:30 PM ET",246,SE Louisiana,220,Ole Miss,0.9627,1.0499,Ole Miss,0.1031,Ole Miss,144.9,Ole Miss,14.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,,,,
+2026-11-10|246|220,2026-11-10,"Nov 10, 2026 8:30 PM ET",246,SE Louisiana,220,Ole Miss,0.9627,1.0499,Ole Miss,0.1031,Ole Miss,144.9,Ole Miss,14.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Ole Miss,25.5,148.5,Draft Kings
 2026-11-10|258|56,2026-11-10,"Nov 10, 2026 9:00 PM ET",258,San Diego,56,Colorado,0.9991,1.0398,Colorado,0.0566,,156.1,San Diego,11.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Colorado,13.5,151.5,Draft Kings
 2026-11-10|264|64,2026-11-10,"Nov 10, 2026 7:00 PM ET",264,Siena,64,Dayton,1.0009,1.0328,Dayton,0.0477,,141.1,Siena,2.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Dayton,12.5,158.5,Draft Kings
 2026-11-10|265|312,2026-11-10,"Nov 10, 2026 7:00 PM ET",265,South Alabama,312,UCF,1.0026,1.0494,UCF,0.0627,UCF,153.5,UCF,8.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,UCF,14.5,151.5,Draft Kings
@@ -397,7 +397,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-10|316|287,2026-11-10,"Nov 10, 2026 9:00 PM ET",316,UL Monroe,287,TCU,0.9529,1.0590,TCU,0.1221,TCU,153.9,TCU,10.7,2026-27,2026-11-10T00:02-05:00,,,,,,,,TCU,35.5,161.5,Draft Kings
 2026-11-10|31|235,2026-11-10,"Nov 10, 2026 7:00 PM ET",31,Bryant,235,Providence,0.9526,1.0436,Providence,0.1068,Providence,151.2,Bryant,2.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Providence,28.5,147.5,Draft Kings
 2026-11-10|325|13,2026-11-10,"Nov 10, 2026 8:00 PM ET",325,UT Martin,13,Arkansas State,0.9989,1.0083,Arkansas State,0.0253,,148.8,UT Martin,0.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Arkansas State,6.5,152.5,Draft Kings
-2026-11-10|32|339,2026-11-10,"Nov 10, 2026 9:00 PM ET",32,Bucknell,339,Virginia,0.9535,1.0669,Virginia,0.1293,Virginia,147.8,Virginia,17.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,,,,
+2026-11-10|32|339,2026-11-10,"Nov 10, 2026 9:00 PM ET",32,Bucknell,339,Virginia,0.9535,1.0669,Virginia,0.1293,Virginia,147.8,Virginia,17.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Virginia,38.5,150.5,Draft Kings
 2026-11-10|330|329,2026-11-10,"Nov 10, 2026 9:00 PM ET",330,Utah Tech,329,Utah State,1.0062,1.0691,Utah State,0.0788,Utah State,152.4,Utah Tech,4.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Utah State,26.5,154.5,Draft Kings
 2026-11-10|340|124,2026-11-10,"Nov 10, 2026 7:00 PM ET",340,Virginia Tech,124,Iowa,1.0437,1.0696,Iowa,0.0260,,146.8,Virginia Tech,6.5,2026-27,2026-11-10T00:02-05:00,,,,,,,1,Iowa,5.5,142.5,Draft Kings
 2026-11-10|344|73,2026-11-10,"Nov 10, 2026 7:00 PM ET",344,Washington State,73,Duquesne,1.0089,1.0245,Duquesne,0.0314,,152.3,Duquesne,7.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Duquesne,4.5,148.5,Draft Kings
@@ -407,7 +407,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-10|358|200,2026-11-10,"Nov 10, 2026 7:00 PM ET",358,Wyoming,200,North Carolina,1.0438,1.0616,North Carolina,0.0337,,151.3,North Carolina,2.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,North Carolina,14.5,155.5,Draft Kings
 2026-11-10|360|20,2026-11-10,"Nov 10, 2026 8:00 PM ET",360,Yale,20,Baylor,1.0395,1.0626,Baylor,0.0389,,154.9,Baylor,13.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Baylor,21.5,157.5,Draft Kings
 2026-11-10|361|45,2026-11-10,"Nov 10, 2026 7:00 PM ET",361,Youngstown State,45,Central Michigan,0.9858,0.9978,Central Michigan,0.0279,,150.8,Central Michigan,5.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Central Michigan,3.5,152.5,Draft Kings
-2026-11-10|362|18,2026-11-10,"Nov 10, 2026 9:00 PM ET",362,Queens University,18,BYU,0.9797,1.0745,BYU,0.1107,BYU,166.2,Queens University,0.3,2026-27,2026-11-10T00:02-05:00,,,,,,,,,,,
+2026-11-10|362|18,2026-11-10,"Nov 10, 2026 9:00 PM ET",362,Queens University,18,BYU,0.9797,1.0745,BYU,0.1107,BYU,166.2,Queens University,0.3,2026-27,2026-11-10T00:02-05:00,,,,,,,,BYU,28.5,182.5,Draft Kings
 2026-11-10|47|342,2026-11-10,"Nov 10, 2026 7:00 PM ET",47,Charleston Southern,342,Wake Forest,0.9853,1.0383,Wake Forest,0.0688,Wake Forest,158.0,Wake Forest,1.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Wake Forest,18.5,154.5,Draft Kings
 2026-11-10|61|132,2026-11-10,"Nov 10, 2026 9:00 PM ET",61,Creighton,132,Kansas State,1.0315,1.0221,Kansas State,0.0064,,154.9,Creighton,1.0,2026-27,2026-11-10T00:02-05:00,,,,,,,,Creighton,3.5,157.5,Draft Kings
 2026-11-10|67|97,2026-11-10,"Nov 10, 2026 6:30 PM ET",67,Delaware State,97,Georgetown,0.9431,1.0372,Georgetown,0.1101,Georgetown,139.2,Georgetown,6.5,2026-27,2026-11-10T00:02-05:00,,,,,,,,Georgetown,27.5,142.5,Draft Kings
