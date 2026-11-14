@@ -581,7 +581,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-14|2|225,2026-11-14,"Nov 14, 2026 4:00 PM ET",2,Air Force,225,Pacific,0.9635,1.0522,Pacific,0.1046,Pacific,144.1,Air Force,8.0,2026-27,2026-11-14T04:24-05:00,,,,,,,,Pacific,12.5,163.5,Draft Kings
 2026-11-14|300|69,2026-11-14,"Nov 14, 2026 4:00 PM ET",300,Toledo,69,Detroit Mercy,1.0198,0.9955,Toledo,0.0085,,154.4,Toledo,8.2,2026-27,2026-11-14T04:24-05:00,,,,,,,,Toledo,11.5,153.5,Draft Kings
 2026-11-14|301|182,2026-11-14,"Nov 14, 2026 1:00 PM ET",301,Towson,182,Morgan State,1.0177,0.9733,Towson,0.0444,,144.2,Morgan State,10.3,2026-27,2026-11-14T04:24-05:00,,,,,,,1,,,,
-2026-11-14|303|3,2026-11-14,"Nov 14, 2026 12:00 PM ET",303,Tulane,3,Akron,0.9886,1.0475,Akron,0.0748,Akron,156.3,Akron,16.7,2026-27,2026-11-14T04:24-05:00,,,,,,,,Akron,12.5,155.5,Draft Kings
+2026-11-14|303|3,2026-11-14,"Nov 14, 2026 12:00 PM ET",303,Tulane,3,Akron,0.9886,1.0475,Akron,0.0748,Akron,156.3,Akron,16.7,2026-27,2026-11-14T04:24-05:00,63,65,1,1,-28.3,1,,Akron,12.5,155.5,Draft Kings
 2026-11-14|305|128,2026-11-14,"Nov 14, 2026 7:00 PM ET",305,UAB,128,Jacksonville State,1.0196,1.0024,UAB,0.0013,,148.7,Jacksonville State,0.3,2026-27,2026-11-14T04:24-05:00,,,,,,,,UAB,3.5,149.5,Draft Kings
 2026-11-14|307|249,2026-11-14,"Nov 14, 2026 8:00 PM ET",307,UC Davis,249,Sacramento State,0.9938,0.9905,Sacramento State,0.0125,,155.4,Sacramento State,3.0,2026-27,2026-11-14T04:24-05:00,,,,,,,,Sacramento State,3.5,160.5,Draft Kings
 2026-11-14|309|92,2026-11-14,"Nov 14, 2026 6:00 PM ET",309,UC Riverside,92,Fresno State,0.9944,1.0107,Fresno State,0.0321,,149.4,Fresno State,2.0,2026-27,2026-11-14T04:24-05:00,,,,,,,,Fresno State,4.5,149.5,Draft Kings
