@@ -64,9 +64,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-14,4,Spread,away,Louisiana Tech +2.5,-110,0.657,0.133,2.5,149,195,Louisiana Tech,Nicholls,"Nov 14, 2026 8:00 PM ET","Nov 14, 2026 03:24 AM CT",L
 2026-11-14,5,Spread,home,Northern Colorado +4.5,-110,0.634,0.110,4.5,270,207,South Dakota State,Northern Colorado,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",L
 2026-11-14,6,Total,over,Over 137.5,-110,0.626,0.102,137.5,147,219,Longwood,Old Dominion,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",W
-2026-11-15,1,Spread,away,Missouri +1.5,-110,0.629,0.105,1.5,177,157,Missouri,Marquette,"Nov 15, 2026 2:30 PM ET","Nov 15, 2026 03:23 AM CT",
-2026-11-15,2,Spread,home,Eastern Illinois +3.5,-110,0.621,0.097,3.5,237,77,Purdue Fort Wayne,Eastern Illinois,"Nov 15, 2026 3:00 PM ET","Nov 15, 2026 03:23 AM CT",
+2026-11-15,1,Spread,away,Missouri +1.5,-110,0.629,0.105,1.5,177,157,Missouri,Marquette,"Nov 15, 2026 2:30 PM ET","Nov 15, 2026 03:23 AM CT",W
+2026-11-15,2,Spread,home,Eastern Illinois +3.5,-110,0.621,0.097,3.5,237,77,Purdue Fort Wayne,Eastern Illinois,"Nov 15, 2026 3:00 PM ET","Nov 15, 2026 03:23 AM CT",L
 2026-11-15,3,Spread,away,Washington +3.5,-110,0.605,0.081,3.5,343,331,Washington,Utah,"Nov 15, 2026 2:00 PM ET","Nov 15, 2026 03:23 AM CT",
-2026-11-15,4,Total,under,Under 161.5,-110,0.605,0.081,161.5,267,46,South Carolina State,Charleston,"Nov 15, 2026 2:00 PM ET","Nov 15, 2026 03:23 AM CT",
-2026-11-15,5,Total,over,Over 143.5,-110,0.600,0.076,143.5,53,4,Cleveland State,Alabama A&M,"Nov 15, 2026 3:00 PM ET","Nov 15, 2026 03:23 AM CT",
+2026-11-15,4,Total,under,Under 161.5,-110,0.605,0.081,161.5,267,46,South Carolina State,Charleston,"Nov 15, 2026 2:00 PM ET","Nov 15, 2026 03:23 AM CT",W
+2026-11-15,5,Total,over,Over 143.5,-110,0.600,0.076,143.5,53,4,Cleveland State,Alabama A&M,"Nov 15, 2026 3:00 PM ET","Nov 15, 2026 03:23 AM CT",W
 2026-11-15,6,ML,away,Texas State ML,-195,0.735,0.074,,297,328,Texas State,UTSA,"Nov 15, 2026 8:00 PM ET","Nov 15, 2026 03:23 AM CT",
