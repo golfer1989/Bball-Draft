@@ -62,5 +62,5 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-14,2,Spread,home,Winthrop −7.5,-110,0.661,0.138,-7.5,126,354,Jackson State,Winthrop,"Nov 14, 2026 2:30 PM ET","Nov 14, 2026 03:24 AM CT",L
 2026-11-14,3,Total,under,Under 163.5,-110,0.659,0.135,163.5,2,225,Air Force,Pacific,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",
 2026-11-14,4,Spread,away,Louisiana Tech +2.5,-110,0.657,0.133,2.5,149,195,Louisiana Tech,Nicholls,"Nov 14, 2026 8:00 PM ET","Nov 14, 2026 03:24 AM CT",
-2026-11-14,5,Spread,home,Northern Colorado +4.5,-110,0.634,0.110,4.5,270,207,South Dakota State,Northern Colorado,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",
-2026-11-14,6,Total,over,Over 137.5,-110,0.626,0.102,137.5,147,219,Longwood,Old Dominion,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",
+2026-11-14,5,Spread,home,Northern Colorado +4.5,-110,0.634,0.110,4.5,270,207,South Dakota State,Northern Colorado,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",L
+2026-11-14,6,Total,over,Over 137.5,-110,0.626,0.102,137.5,147,219,Longwood,Old Dominion,"Nov 14, 2026 4:00 PM ET","Nov 14, 2026 03:24 AM CT",W
