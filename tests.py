@@ -655,6 +655,26 @@ def test_analytics_hook(monkeypatch):
     monkeypatch.setattr(config, "CF_ANALYTICS_TOKEN", " 0123456789abcdef0123456789abcdef ", raising=False)
     html = site.about_page("now")
     assert html.count("static.cloudflareinsights.com/beacon.min.js") == 1
-    assert """data-cf-beacon='{"token": "0123456789abcdef0123456789abcdef"}'""" in html
-    assert html.index("cloudflareinsights") > html.index("</footer>")            # last thing before </body>
+    snippet = ("<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' "
+               """data-cf-beacon='{"token": "0123456789abcdef0123456789abcdef"}'></script><!-- End Cloudflare Web Analytics -->""")
+    assert snippet + "</body></html>" in html                                    # Cloudflare's own snippet, last thing on the page
     assert "Visit counts" in site.privacy_page("now") and "My teams" in site.privacy_page("now")
+    assert "cloudflareinsights" not in site.studio_page("now", "x")              # the private page is not counted
+
+
+def test_older_game_pages_get_the_counter(tmp_path, monkeypatch):
+    old = tmp_path / "games" / "2026-11-03" / "a-vs-b.html"
+    old.parent.mkdir(parents=True)
+    old.write_text("<html><body><p>game</p></body></html>", encoding="utf-8")
+    monkeypatch.setattr(config, "CF_ANALYTICS_TOKEN", "", raising=False)
+    assert site.add_beacon(tmp_path) == 0 and "beacon" not in old.read_text()   # tracking off: untouched
+    monkeypatch.setattr(config, "CF_ANALYTICS_TOKEN", "aaaa1111", raising=False)
+    assert site.add_beacon(tmp_path) == 1 and site.add_beacon(tmp_path) == 0     # added once
+    html = old.read_text()
+    assert html.count("beacon.min.js") == 1 and html.endswith("<!-- End Cloudflare Web Analytics --></body></html>")
+    assert '"token": "aaaa1111"' in html
+    monkeypatch.setattr(config, "CF_ANALYTICS_TOKEN", "bbbb2222", raising=False)  # a new token replaces the old counter
+    assert site.add_beacon(tmp_path) == 1
+    html = old.read_text()
+    assert html.count("beacon.min.js") == 1 and '"token": "bbbb2222"' in html and "aaaa1111" not in html
+    assert html.count("<!-- Cloudflare Web Analytics -->") == 1

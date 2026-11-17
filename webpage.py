@@ -612,8 +612,37 @@ def analytics():
     token = re.sub(r"[^0-9A-Za-z]", "", getattr(config, "CF_ANALYTICS_TOKEN", "") or "")
     if not token:
         return ""
-    return ('<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
-            f"data-cf-beacon='{{\"token\": \"{token}\"}}'></script>")
+    # character for character the snippet Cloudflare hands out (Manage site > JS snippet)
+    return ("<!-- Cloudflare Web Analytics --><script type='module' "
+            "src='https://static.cloudflareinsights.com/beacon.min.js' "
+            f"data-cf-beacon='{{\"token\": \"{token}\"}}'></script><!-- End Cloudflare Web Analytics -->")
+
+
+BEACON_RE = re.compile(r"(?:<!-- Cloudflare Web Analytics -->)?<script[^>]*static\.cloudflareinsights\.com/beacon\.min\.js"
+                       r"[^>]*></script>(?:<!-- End Cloudflare Web Analytics -->)?")
+
+
+def add_beacon(docs=None):
+    """Put the visit counter on game pages written before tracking was switched on. Pages older
+    than three days are never rebuilt, and they are the ones search engines send people to, so
+    without this those visits would go uncounted. A page that already has a counter gets the
+    current one (so a new token replaces the old). Returns the number of pages changed."""
+    tag = analytics()
+    if not tag:
+        return 0
+    n = 0
+    for p in ((docs or DOCS) / "games").glob("*/*.html"):
+        html = p.read_text(encoding="utf-8")
+        if BEACON_RE.search(html):
+            new = BEACON_RE.sub(lambda m: tag, html, count=1)
+        elif "</body>" in html:
+            new = html.replace("</body>", tag + "</body>", 1)
+        else:
+            continue
+        if new != html:
+            p.write_text(new, encoding="utf-8")
+            n += 1
+    return n
 
 
 def page(title, active, body, stamp, description="", root="", head_extra="", og_image="", canonical=None):
@@ -645,7 +674,9 @@ def page(title, active, body, stamp, description="", root="", head_extra="", og_
             f'<footer class="wrap"><div>Updated {escape(stamp)}</div>'
             f'<div class="links"><a href="{root}about.html">About the model</a><a href="{root}privacy.html">Privacy</a>'
             f'<span>For information and entertainment only, not betting advice. 21+. '
-            f'Gambling problem? Call 1-800-GAMBLER.</span></div></footer>{JS}{analytics()}</body></html>')
+            f'Gambling problem? Call 1-800-GAMBLER.</span></div></footer>{JS}'
+            # visits are counted on every public page; the private studio page stays out of the numbers
+            f'{"" if active == config.STUDIO_PAGE else analytics()}</body></html>')
 
 
 def game_page(r, teams, wu, stamp, line_note=""):

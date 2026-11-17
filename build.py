@@ -248,6 +248,12 @@ def main():
     if not fixed_mark.exists() and hasattr(site, "fix_canonicals"):
         log(f"  repaired the search address on {site.fix_canonicals(site.DOCS)} older game pages")
         fixed_mark.write_text(today_str + "\n", encoding="utf-8")
+    # once per tracking token: older game pages (never rebuilt) get the visit counter too
+    token = getattr(config, "CF_ANALYTICS_TOKEN", "")
+    beacon_mark = DATA / "beacon_added.txt"
+    if token and hasattr(site, "add_beacon") and not (beacon_mark.exists() and beacon_mark.read_text(encoding="utf-8").strip() == token):
+        log(f"  added the visit counter to {site.add_beacon(site.DOCS)} older game pages")
+        beacon_mark.write_text(token + "\n", encoding="utf-8")
     yday = (today - timedelta(days=1)).isoformat()
     yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))

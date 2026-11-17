@@ -85,7 +85,7 @@ ADSENSE_CLIENT = "ca-pub-3574726017237257"
 # Visitor counts: Cloudflare Web Analytics (free, no cookies). Paste the token from the
 # Cloudflare dashboard (Web Analytics > your site > Manage site) between the quotes.
 # Empty = no tracking code on the pages.
-CF_ANALYTICS_TOKEN = ""
+CF_ANALYTICS_TOKEN = "4eb81b5e8fd14715934e936b8fccbc87"
 
 # Your private posting page (download the daily clip, copy the caption). Not linked from the
 # site, not in the sitemap, marked no-index. Change the name to anything you like.
