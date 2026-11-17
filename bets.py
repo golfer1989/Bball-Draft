@@ -1,8 +1,9 @@
 """Best Bets: single bets and 3/6/8-leg parlays from the model's projections vs the current lines.
 
-The model is great at ranking teams but its margins run smaller than real margins (about half the
-size of the betting spreads in mismatches), so its raw numbers can't be compared to a spread
-directly: a 30-point underdog would look like a lock. Before scoring bets, each day:
+The model's margins don't always come out the same size as the betting spreads (before the Nov 17,
+2026 schedule-strength change they ran about two-thirds the size in mismatches, so a 30-point
+underdog looked like a lock), which means its raw numbers can't be compared to a spread directly.
+Before scoring bets, each day:
   1. the model's margins are rescaled to the size of that day's spreads (one factor for the whole
      slate, fit across every game with a line), and its totals are shifted by the slate's
      average gap to the posted totals;
@@ -33,6 +34,8 @@ MAX_DISAGREE = 20.0      # if the calibrated model and the line differ by more t
                          # data is suspect (new D-I teams, wrong stats), so the game gets no bets
 PARLAY_SIZES = (3, 6, 8)
 SINGLES = 6
+SMALL_SLATE_SCALE = 1.0  # margin factor on days with fewer than 15 lined games (see calibrate)
+MIN_SCALE = 0.7          # lowest factor a slate may fit
 
 
 def chance(x, sd):
@@ -98,7 +101,10 @@ def calibrate(rows, line_map):
             n += 1
         if _num(r.get("total")) is not None and ln.get("total") is not None:
             gaps.append(ln["total"] - float(r["total"]))
-    scale = min(max(mm / lm, 1.0), 3.0) if n >= 15 and lm > 0 else 1.6     # 1.6 when the slate is too small
+    # Since the Nov 17, 2026 schedule-strength change the model's margins are about the size of the
+    # spreads (a replay of Nov 2-16 gave day-by-day factors of 0.90-1.23, median 1.04), so a slate too
+    # small to fit one uses SMALL_SLATE_SCALE and the fitted factor may now dip below 1.
+    scale = min(max(mm / lm, MIN_SCALE), 3.0) if n >= 15 and lm > 0 else SMALL_SLATE_SCALE
     shift = sum(gaps) / len(gaps) if len(gaps) >= 15 else 0.0
     return {"scale": scale, "total_shift": shift}
 

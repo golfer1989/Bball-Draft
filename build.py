@@ -55,15 +55,16 @@ def load_stats(season):
     return (label or str(season)) + (" (cached)" if stale else ""), team, opp
 
 
-def season_ratings(season, today):
-    """Schedule-adjusted ratings from one season's stats and results, or None."""
+def season_ratings(season, today, sos_weight=None):
+    """Schedule-adjusted ratings from one season's stats and results, or None.
+    sos_weight = how hard the rating leans on strength of schedule (default config.SOS_WEIGHT)."""
     got = load_stats(season)
     if not got:
         return None
     label, team, opp = got
     rat = model.ratings(team, opp)
     played = season_games(season, today)
-    model.schedule_adjust(rat, played)
+    model.schedule_adjust(rat, played, sos_weight)
     gp = {tid: t["GP"] for tid, t in team.items()}
     log(f"  {label}: {len(rat)} teams, median {statistics.median(gp.values()):g} GP, "
         f"schedule from {len(played)} games")
@@ -74,7 +75,9 @@ def current_ratings(today):
     """This season's ratings blended with last season's (see config.BLEND_GAMES).
     Returns (ratings, season label for the ledger, note for the website)."""
     s0 = config.season_for(today)
-    cur, prev = season_ratings(s0, today), season_ratings(s0 - 1, today)
+    # last season's ratings carry over with a heavier schedule adjustment (config.SOS_WEIGHT_PREV)
+    prev_weight = getattr(config, "SOS_WEIGHT_PREV", None)      # None = same as this season (older config.py)
+    cur, prev = season_ratings(s0, today), season_ratings(s0 - 1, today, prev_weight)
     if cur and prev:
         label, rat, gp = cur
         med = statistics.median(gp.values()) if gp else 0
@@ -147,7 +150,7 @@ def main():
     rows = ledger.load()
 
     # two games calls (API max is 3,000 per call, oldest first): today's slate on its own,
-    # and the last 14 days for grading + 1H "last 3" history
+    # and the last 14 days for grading (finals and halftime scores)
     raw_today, _ = _cache("games_today", lambda: fetch.games(today, today))
     raw_hist, _ = _cache("games_recent", lambda: fetch.games(today - timedelta(days=14), today - timedelta(days=1)))
     all_games = fetch.parse_games((raw_hist or []) + (raw_today or []))
@@ -160,13 +163,12 @@ def main():
             n = ledger.grade(rows, d, [g for g in all_games if g["date"] == d])
             log(f"  graded {n} games for {d}")
 
-    # 2) stats, 1H, today's picks
+    # 2) stats, today's picks (the first-half pick comes from the same projection)
     rat, season, stats_note = current_ratings(today)
     log(f"  {stats_note}")
     stats_note += ", adjusted for schedule + home court"
-    fh = fetch.first_half_last3(all_games, today_str)
     todays_games = [g for g in all_games if g["date"] == today_str]
-    preds = [model.predict(g, rat, fh) for g in todays_games]
+    preds = [model.predict(g, rat, {}) for g in todays_games]
     skipped = [f'{p["away"]} @ {p["home"]}' for p in preds if p["pick"] is None]
     if skipped:
         log(f"  skipped (non-D1 / no stats): {len(skipped)} games")
@@ -241,6 +243,11 @@ def main():
         out.write_text(site.game_page(r, teams, wu, stamp), encoding="utf-8")
         n_pages += 1
     log(f"  wrote {n_pages} game pages")
+    # one-time: older game pages pointed search engines at the Today/Results tab instead of themselves
+    fixed_mark = DATA / "canonical_fixed.txt"
+    if not fixed_mark.exists() and hasattr(site, "fix_canonicals"):
+        log(f"  repaired the search address on {site.fix_canonicals(site.DOCS)} older game pages")
+        fixed_mark.write_text(today_str + "\n", encoding="utf-8")
     yday = (today - timedelta(days=1)).isoformat()
     yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))

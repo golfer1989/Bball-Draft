@@ -136,7 +136,12 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
         lines.append(f"Projected total: {total:.0f} points.")
 
     # 7. early-season caveat
-    blend = min(w.get("blend", 1.0), l.get("blend", 1.0))
+    for team, r in ((away, a), (home, h)):
+        if r.get("new_team") and r.get("blend", 1.0) < 1:
+            lines.append(f"{team} is new to Division I, so there is no last season to go on: it is rated near the "
+                         f"bottom of the division, moved up or down by what it has shown so far.")
+    olds = [r.get("blend", 1.0) for r in (w, l) if not r.get("new_team")]
+    blend = min(olds) if olds else 1.0
     if blend <= 0:
         lines.append("Early-season note: these numbers are still entirely last season\u2019s; this season\u2019s games "
                      "take over as they are played.")

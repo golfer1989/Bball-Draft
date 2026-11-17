@@ -17,10 +17,14 @@ Everything else is the spreadsheet's logic:
 Added on top of the spreadsheet (Oct 2026):
   Strength of schedule: the rating is credited (or docked) for how strong the opponents
     each team actually played were, measured from game results (schedule_adjust below).
+    Last season's ratings, which carry over into the early season, lean on it twice as hard
+    (config.SOS_WEIGHT_PREV).
   Home court: the home team gets HOME_COURT_POINTS (none at neutral sites).
   Pick = whoever the projected margin favors.
   Total = away ppg + home ppg
-  1H pick = higher TeamRankings 1st-half PPG (Last 3), margin = the gap
+  1H pick = the full-game pick, projected halftime lead = FIRST_HALF_SHARE x the margin
+    (Nov 2026: replaced "higher first-half scoring over the last 3 games", which was right
+    64% of the time against 73% for the full-game pick on the same games)
 """
 import config
 
@@ -124,52 +128,80 @@ def schedule_adjust(rat, games, weight=None):
     return rat
 
 
+def new_team_prior(prev, pct=None):
+    """Stand-in "last season" for a team that has none because it is new to Division I: the
+    numbers of the team sitting at the NEW_TEAM_PERCENTILE of last season's ratings (new programs
+    start near the bottom), with a middle-of-the-pack scoring level. None if prev is empty."""
+    pct = getattr(config, "NEW_TEAM_PERCENTILE", 10) if pct is None else pct
+    rated = sorted((r for r in prev.values() if "rating" in r), key=lambda r: r["rating"])
+    if not rated:
+        return None
+    base = rated[min(len(rated) - 1, int(pct / 100 * len(rated)))]
+    prior = {k: base[k] for k in ("rating", "raw_rating", "sos", "offense", "defense") if k in base}
+    ppg = sorted(r["ppg"] for r in prev.values() if "ppg" in r)
+    if ppg:
+        prior["ppg"] = ppg[len(ppg) // 2]
+    return prior
+
+
 def blend(prev, cur, games_played, n_full=None):
     """Early-season ratings: last season's rating (prev) fades into this season's (cur) as a
-    team plays games. weight on this season = min(1, GP / BLEND_GAMES). Teams missing from one
-    season use the other. Returns a new {team_id: rating dict}."""
+    team plays games. weight on this season = min(1, GP / BLEND_GAMES). A team that hasn't
+    played yet keeps last season's numbers. A team with no last season (new to Division I)
+    fades in from new_team_prior() instead, so a handful of games, some of them against
+    non-Division I opponents, can't make it look like a top team (West Florida, Nov 2026: picked
+    by 47, 23 and 22 points in its first three D-I games and lost all three).
+    Returns a new {team_id: rating dict}."""
     n_full = config.BLEND_GAMES if n_full is None else n_full
+    stand_in = new_team_prior(prev)
     out = {}
     for tid in set(prev) | set(cur):
         a, b = prev.get(tid), cur.get(tid)
-        if not a or not b:
-            r = dict(a or b)
-            r["blend"] = 1.0 if b else 0.0
+        if not b:
+            r = dict(a)
+            r["blend"] = 0.0
             out[tid] = r
             continue
+        new = not a
+        if new and stand_in is None:
+            r = dict(b)
+            r["blend"] = 1.0
+            out[tid] = r
+            continue
+        a = stand_in if new else a
         w = max(0.0, min(1.0, games_played.get(tid, 0) / n_full)) if n_full else 1.0
         r = dict(b)
         for k in ("rating", "raw_rating", "sos", "offense", "defense", "ppg"):
             if k in a and k in b:
                 r[k] = (1 - w) * a[k] + w * b[k]
         r["blend"] = w
+        if new:
+            r["new_team"] = True
         out[tid] = r
     return out
 
 
-def predict(game, rat, first_half):
-    """game has away_id/home_id/away/home. first_half = {realgm_id: 1H ppg}."""
+def predict(game, rat, first_half=None):
+    """game has away_id/home_id/away/home. first_half is no longer used (the 1H pick now
+    follows the full-game projection); the argument stays so older callers keep working."""
     a, h = rat.get(game["away_id"]), rat.get(game["home_id"])
     row = dict(game)
     if not a or not h:
         row.update(away_rating=None, home_rating=None, pick=None, differential=None,
-                   strong_pick="", total=None)
-    else:
-        home_edge = 0.0 if game.get("neutral") else config.HOME_COURT_POINTS
-        margin = config.POINTS_PER_RATING * (h["rating"] - a["rating"]) + home_edge   # + = home wins
-        pick = game["home"] if margin > 0 else game["away"]
-        # differential stays in rating units (like the sheet) but now includes home court:
-        # |margin| / points-per-rating
-        diff = abs(margin) / config.POINTS_PER_RATING
-        row.update(
-            away_rating=a["rating"], home_rating=h["rating"], pick=pick,
-            differential=diff, margin=margin,
-            strong_pick=pick if diff > config.STRONG_PICK_GAP else "",
-            total=a["ppg"] + h["ppg"],
-        )
-    fa, fh = first_half.get(game["away_id"]), first_half.get(game["home_id"])
-    if fa is None or fh is None:
-        row.update(fh_pick=None, fh_margin=None)
-    else:
-        row.update(fh_pick=game["away"] if fa > fh else game["home"], fh_margin=abs(fa - fh))
+                   strong_pick="", total=None, fh_pick=None, fh_margin=None)
+        return row
+    home_edge = 0.0 if game.get("neutral") else config.HOME_COURT_POINTS
+    margin = config.POINTS_PER_RATING * (h["rating"] - a["rating"]) + home_edge   # + = home wins
+    pick = game["home"] if margin > 0 else game["away"]
+    # differential stays in rating units (like the sheet) but now includes home court:
+    # |margin| / points-per-rating
+    diff = abs(margin) / config.POINTS_PER_RATING
+    row.update(
+        away_rating=a["rating"], home_rating=h["rating"], pick=pick,
+        differential=diff, margin=margin,
+        strong_pick=pick if diff > config.STRONG_PICK_GAP else "",
+        total=a["ppg"] + h["ppg"],
+        # first half: same side as the game pick, leading by its usual share of the final margin
+        fh_pick=pick, fh_margin=max(getattr(config, "FIRST_HALF_SHARE", 0.55) * abs(margin), 0.5),
+    )
     return row

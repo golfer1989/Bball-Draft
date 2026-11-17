@@ -98,11 +98,18 @@ def test_predict_rules_with_home_court():
     K, H = config.POINTS_PER_RATING, config.HOME_COURT_POINTS
     rat = {1: {"rating": 1.10, "ppg": 75.0}, 2: {"rating": 1.20, "ppg": 70.0}}
     g = {"away_id": 1, "away": "Away U", "home_id": 2, "home": "Home St", "when": "x"}
-    p = model.predict(g, rat, {1: 40.0, 2: 35.0})
+    p = model.predict(g, rat)
     assert p["margin"] == pytest.approx(K * 0.10 + H)                     # rating edge + home court
     assert p["pick"] == "Home St" and p["differential"] == pytest.approx(0.10 + H / K)
     assert p["strong_pick"] == "Home St" and p["total"] == pytest.approx(145.0)
-    assert p["fh_pick"] == "Away U" and p["fh_margin"] == pytest.approx(5.0)
+    # first half: same side as the game pick, leading by FIRST_HALF_SHARE of the projected margin
+    assert p["fh_pick"] == "Home St" and p["fh_margin"] == pytest.approx(config.FIRST_HALF_SHARE * (K * 0.10 + H))
+    assert model.predict(g, rat, {1: 40.0, 2: 35.0})["fh_pick"] == "Home St"   # old 1H scoring argument is ignored
+    # strong pick = projected margin past STRONG_PICK_GAP (about 15 points)
+    rat[2]["rating"] = 1.10 + (K * config.STRONG_PICK_GAP - H + 0.5) / K
+    assert model.predict(g, rat)["strong_pick"] == "Home St"
+    rat[2]["rating"] = 1.10 + (K * config.STRONG_PICK_GAP - H - 0.5) / K
+    assert model.predict(g, rat)["strong_pick"] == "" and model.predict(g, rat)["pick"] == "Home St"
     # equal ratings: home court decides at home, nobody gets it at a neutral site (tie -> away, like the sheet)
     rat[2]["rating"] = 1.10
     assert model.predict(g, rat, {})["pick"] == "Home St"
@@ -112,7 +119,11 @@ def test_predict_rules_with_home_court():
     assert model.predict(g, rat, {})["pick"] == "Home St"
     rat[1]["rating"] = 1.10 + (H + 1) / K
     assert model.predict(g, rat, {})["pick"] == "Away U"
-    assert model.predict({**g, "away_id": 999}, rat, {})["pick"] is None
+    none = model.predict({**g, "away_id": 999}, rat, {})
+    assert none["pick"] is None and none["fh_pick"] is None
+    # a coin-flip game still shows a first-half lean of at least half a point
+    rat[1]["rating"] = 1.10 + (H + 0.1) / K
+    assert model.predict(g, rat)["fh_margin"] == pytest.approx(0.5)
 
 
 def test_results_ratings():
@@ -208,13 +219,22 @@ def test_end_to_end(tmp_path, monkeypatch):
     assert [(r["away"], r["home"]) for r in rows] == [("Wofford", "Tennessee")]   # non-D1 skipped
     r = rows[0]
     assert r["pick"] == "Tennessee" and r["stats_season"] == "2026-27"
-    assert r["fh_pick"] == "Tennessee" and float(r["fh_margin"]) == pytest.approx(41 - 33, abs=0.05)
+    assert r["fh_pick"] == "Tennessee"                     # first half follows the game pick
+    assert float(r["fh_margin"]) == pytest.approx(
+        config.FIRST_HALF_SHARE * float(r["differential"]) * config.POINTS_PER_RATING, abs=0.06)
     html = (tmp_path / "docs" / "index.html").read_text()
     assert "Tennessee \u22129.5" in html and "152.5" in html
     assert "Best Bets" in (tmp_path / "docs" / "bets.html").read_text()
     gp = tmp_path / "docs" / "games" / "2026-11-09" / "wofford-vs-tennessee.html"
     assert gp.exists() and "Wofford vs Tennessee prediction" in gp.read_text() and "SportsEvent" in gp.read_text()
-    assert "games/2026-11-09/wofford-vs-tennessee.html" in (tmp_path / "docs" / "sitemap.xml").read_text()
+    sm = (tmp_path / "docs" / "sitemap.xml").read_text()
+    assert f"<loc>{config.SITE_URL}/games/2026-11-09/wofford-vs-tennessee.html</loc>" in sm
+    assert f"<loc>{config.SITE_URL}/</loc><lastmod>" in sm and "index.html" not in sm     # home page = the bare domain
+    # every page names itself as the address search engines should list
+    assert f'<link rel="canonical" href="{config.SITE_URL}/games/2026-11-09/wofford-vs-tennessee.html">' in gp.read_text()
+    assert f'<link rel="canonical" href="{config.SITE_URL}/">' in html
+    assert "<title>College Basketball Predictions Today, Nov 9 | " in html
+    assert "including Wofford vs Tennessee" in html and (tmp_path / "canonical_fixed.txt").exists()
     assert "6:00" in html and "Tennessee" in html          # 7:00 PM ET shown as 6:00 PM Central and "Volunteers" in html and "https://x/500/2633.png" in html
     # same evening, game over: a re-run moves it to Results (halftime score not posted yet)
     games[0].update(status="final", awayPoints=60, homePoints=75)
@@ -383,6 +403,13 @@ def test_best_bets_math_and_page():
     cal_lines = {(2 * i, 2 * i + 1): {"fav": f"Home{i}", "spread": 17.0, "total": 145} for i in range(20)}
     cal = bets.calibrate(cal_rows, cal_lines)
     assert cal["scale"] == pytest.approx(2.0) and cal["total_shift"] == pytest.approx(5.0)
+    # a slate too small to calibrate uses SMALL_SLATE_SCALE; the fit may go below 1 but not below MIN_SCALE
+    assert bets.calibrate(rows, lm)["scale"] == bets.SMALL_SLATE_SCALE == 1.0
+    big_lines = {k: dict(v, spread=6.375) for k, v in cal_lines.items()}                 # model 8.5 vs line 6.375
+    assert bets.calibrate(cal_rows, big_lines)["scale"] == pytest.approx(0.75)
+    tiny_lines = {k: dict(v, spread=1.0) for k, v in cal_lines.items()}
+    assert bets.calibrate(cal_rows, tiny_lines)["scale"] == bets.MIN_SCALE
+    rows = [row(i, True, 0.064 + 0.0064 * i, 140) for i in range(1, 10)]       # home by 12 to 21 on a 3.5 line
     best = bets.best(rows, lm)
     assert best["pool"] == 9 and len(best["singles"]) == 6
     assert len({(x["away"]) for x in best["singles"]}) == 6                     # one bet per game
@@ -408,7 +435,13 @@ def test_blend_fades_last_season_in():
     assert out["A"]["rating"] == pytest.approx(1.05) and out["A"]["ppg"] == pytest.approx(75) and out["A"]["blend"] == 0.25
     assert out["B"]["blend"] == 1.0 and out["B"]["rating"] == 1.10          # 40 games: all this season
     assert out["C"]["rating"] == 0.90 and out["C"]["blend"] == 0.0           # hasn't played yet: last season
-    assert out["D"]["rating"] == 1.05 and out["D"]["blend"] == 1.0           # new to D-I: this season only
+    # new to D-I: no last season, so it fades in from a stand-in near the bottom of last season's
+    # ratings (here C, the lowest of three) with a middle-of-the-pack scoring level
+    assert model.new_team_prior(prev) == {"rating": 0.90, "ppg": 70.0}
+    assert out["D"]["rating"] == pytest.approx(0.9 * 0.90 + 0.1 * 1.05) and out["D"]["ppg"] == pytest.approx(0.9 * 70 + 0.1 * 75)
+    assert out["D"]["blend"] == pytest.approx(0.1) and out["D"]["new_team"] is True and "new_team" not in out["A"]
+    assert model.blend(prev, cur, {"D": 25}, n_full=20)["D"]["rating"] == 1.05          # 20+ games: all its own
+    assert model.blend({}, cur, {"D": 2}, n_full=20)["D"]["rating"] == 1.05             # nothing to stand in with
 
 
 def test_best_bets_book_lock_and_grade(tmp_path):
@@ -480,6 +513,11 @@ def test_writeups_and_conference_filter():
     assert "spread value is on Duke" in text and "the Over is the play" in text and "last season" in text
     assert "spread value is on Army +12.5" in " ".join(writeup.game_writeup(row, rat, rk, {"fav": "Duke", "spread": 12.5, "total": 140}, scale=0.3)["lines"])
     assert writeup.game_writeup(dict(row, home_id="9"), rat, rk) is None
+    assert "new to Division I" not in text
+    rat[2].update(new_team=True, blend=0.25)                     # Army as a first-year D-I team
+    newbie = " ".join(writeup.game_writeup(row, rat, rk)["lines"])
+    assert "Army is new to Division I" in newbie and "last season\u2019s" not in newbie   # no "75% last season" claim for it
+    rat[2].pop("new_team"); rat[2]["blend"] = 0.5
     teams = {"1": {"conf": "ACC", "abbr": "DUKE"}, "2": {"conf": "Patriot"}}
     html = site.today_page([dict(_r(), game_key="k", away_id="2", home_id="1", away="Army", home="Duke", pick="Duke")],
                            "x", "now", "note", teams, writeups={"k": wu})
@@ -562,3 +600,61 @@ def test_bet_guards_big_spreads_and_bad_data():
     r = {"away_id": "1", "home_id": "2", "away": "New U", "home": "FIU", "pick": "New U", "differential": "0.2771",
          "total": "160", "when": "x"}
     assert bets.game_bets(r, {"fav": "FIU", "spread": 14.5, "total": 158.5}, {"scale": 1.5, "total_shift": 0}) == []
+
+
+# ---------------- Nov 17, 2026 tune-up ----------------
+def test_last_season_leans_harder_on_schedule(monkeypatch):
+    import build
+    base = lambda: {"offense": .57, "defense": .45, "rating": 1.02, "ppg": 70.0, "name": "x"}  # noqa: E731
+    games = [("W", "S", 50, 80, True), ("A", "S", 65, 70, True), ("B", "W", 70, 65, True)]
+    one, two = {k: base() for k in "ABSW"}, {k: base() for k in "ABSW"}
+    model.schedule_adjust(one, games)                                   # this season: config.SOS_WEIGHT
+    model.schedule_adjust(two, games, config.SOS_WEIGHT_PREV)           # the carried-over season
+    ratio = config.SOS_WEIGHT_PREV / config.SOS_WEIGHT
+    assert ratio == pytest.approx(2.0)
+    for t in "AB":
+        assert two[t]["sos"] == pytest.approx(one[t]["sos"])            # same schedule strength...
+        assert two[t]["rating"] - 1.02 == pytest.approx(ratio * (one[t]["rating"] - 1.02))   # ...counted twice as hard
+    # the build asks for the heavier weight for last season only
+    calls = []
+    monkeypatch.setattr(build, "season_ratings", lambda season, today, sos_weight=None: calls.append((season, sos_weight)))
+    with pytest.raises(SystemExit):
+        build.current_ratings(date(2026, 11, 18))
+    assert calls == [(2027, None), (2026, config.SOS_WEIGHT_PREV)] and config.SOS_WEIGHT_PREV == 2.0
+
+
+def test_search_addresses_and_titles(tmp_path):
+    r = dict(_r(), date="2026-11-04", game_key="k", when="Nov 4, 2026 8:00 PM ET")
+    today = site.today_page([r], "Wednesday, Nov 4", "Nov 04, 2026 03:24 AM CT", "note", {}, "2026-11-04", gotd=r)
+    assert "<title>College Basketball Predictions Today, Nov 4 | " in today
+    assert f'<link rel="canonical" href="{config.SITE_URL}/">' in today and f'property="og:url" content="{config.SITE_URL}/"' in today
+    assert "the college basketball game on Wednesday, Nov 4, including Away U vs Home St" in today
+    assert "College basketball predictions for the one game today" in today and '"@type": "WebSite"' in today
+    assert "<title>College Basketball Predictions Today | " in site.today_page([], "x", "now", "note")   # no date given
+    assert f'<link rel="canonical" href="{config.SITE_URL}/results.html">' in site.results_page([], "now")
+    import bets
+    assert "<title>College Basketball Best Bets Today, Nov 4 | " in site.bets_page(bets.best([], {}), "x", "now", {}, [], "2026-11-04")
+    # an older game page that named the Today tab as its address gets its own address back, once
+    old = tmp_path / "games" / "2026-11-03" / "a-vs-b.html"
+    old.parent.mkdir(parents=True)
+    old.write_text(f'<head><link rel="canonical" href="{config.SITE_URL}/index.html">'
+                   f'<meta property="og:url" content="{config.SITE_URL}/index.html"></head>', encoding="utf-8")
+    assert site.fix_canonicals(tmp_path) == 1 and site.fix_canonicals(tmp_path) == 0
+    own = f"{config.SITE_URL}/games/2026-11-03/a-vs-b.html"
+    assert f'rel="canonical" href="{own}"' in old.read_text() and f'og:url" content="{own}"' in old.read_text()
+    # sitemap: bare domain for the home page, dates on the daily pages and the game pages
+    site.write("i", "r", "b", docs=tmp_path, stamp="Nov 04, 2026 03:24 AM CT", live_html="l")
+    sm = (tmp_path / "sitemap.xml").read_text()
+    assert f"<loc>{config.SITE_URL}/</loc><lastmod>2026-11-04</lastmod>" in sm
+    assert f"<loc>{own}</loc><lastmod>2026-11-04</lastmod>" in sm and f"<loc>{config.SITE_URL}/about.html</loc></url>" in sm
+
+
+def test_analytics_hook(monkeypatch):
+    monkeypatch.setattr(config, "CF_ANALYTICS_TOKEN", "", raising=False)
+    assert "cloudflareinsights" not in site.about_page("now") and "Visit counts" not in site.privacy_page("now")
+    monkeypatch.setattr(config, "CF_ANALYTICS_TOKEN", " 0123456789abcdef0123456789abcdef ", raising=False)
+    html = site.about_page("now")
+    assert html.count("static.cloudflareinsights.com/beacon.min.js") == 1
+    assert """data-cf-beacon='{"token": "0123456789abcdef0123456789abcdef"}'""" in html
+    assert html.index("cloudflareinsights") > html.index("</footer>")            # last thing before </body>
+    assert "Visit counts" in site.privacy_page("now") and "My teams" in site.privacy_page("now")

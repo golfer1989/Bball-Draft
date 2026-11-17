@@ -5,7 +5,7 @@ centerpiece of every game row, team logos on a disc of each team's own color.
 """
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
@@ -599,8 +599,28 @@ def ad_slot(slot="auto"):
             '<script>(adsbygoogle=window.adsbygoogle||[]).push({});</script></div>')
 
 
-def page(title, active, body, stamp, description="", root="", head_extra="", og_image=""):
-    """root = relative path back to the site root ("../../" for games/<date>/x.html)."""
+def site_url(path=""):
+    """Public address of a page. The home page is the bare domain, not /index.html, so search
+    engines see one address for it."""
+    path = "" if path in ("", "index.html") else path
+    return f"{config.SITE_URL}/{path}"
+
+
+def analytics():
+    """Cloudflare Web Analytics beacon (cookie-free visit counts), or nothing until
+    config.CF_ANALYTICS_TOKEN is filled in."""
+    token = re.sub(r"[^0-9A-Za-z]", "", getattr(config, "CF_ANALYTICS_TOKEN", "") or "")
+    if not token:
+        return ""
+    return ('<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
+            f"data-cf-beacon='{{\"token\": \"{token}\"}}'></script>")
+
+
+def page(title, active, body, stamp, description="", root="", head_extra="", og_image="", canonical=None):
+    """active = which tab is lit. root = relative path back to the site root ("../../" for
+    games/<date>/x.html). canonical = the page's own site-relative path when it is not one of
+    the tabs (every game page has its own; without it search engines are told the page is a
+    copy of the tab it sits under and skip it)."""
     tabs = [("index.html", "Today"), ("live.html", "Live"), ("bets.html", "Best Bets"), ("results.html", "Results")]
     nav = "".join(f'<a href="{root}{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in tabs)
     og_image = og_image or f"{config.SITE_URL}/og.png?v={_v(stamp)}"
@@ -608,13 +628,14 @@ def page(title, active, body, stamp, description="", root="", head_extra="", og_
            ' crossorigin="anonymous"></script>') if config.ADSENSE_CLIENT else ""
     desc = description or ("College basketball predictions from a statistical model: picks, projected scores, "
                            "betting-line edges and a public, locked-before-tipoff record.")
+    url = escape(site_url(active if canonical is None else canonical))
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
             f'content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">'
             f'<title>{escape(title)}</title><meta name="description" content="{escape(desc)}">'
-            f'<link rel="canonical" href="{config.SITE_URL}/{active}">'
+            f'<link rel="canonical" href="{url}">'
             f'<meta property="og:type" content="website"><meta property="og:site_name" content="{escape(config.SITE_NAME)}">'
             f'<meta property="og:title" content="{escape(title)}"><meta property="og:description" content="{escape(desc)}">'
-            f'<meta property="og:url" content="{config.SITE_URL}/{active}"><meta property="og:image" content="{og_image}">'
+            f'<meta property="og:url" content="{url}"><meta property="og:image" content="{og_image}">'
             f'<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
             f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{escape(title)}">'
             f'<meta name="twitter:description" content="{escape(desc)}"><meta name="twitter:image" content="{og_image}">'
@@ -624,7 +645,7 @@ def page(title, active, body, stamp, description="", root="", head_extra="", og_
             f'<footer class="wrap"><div>Updated {escape(stamp)}</div>'
             f'<div class="links"><a href="{root}about.html">About the model</a><a href="{root}privacy.html">Privacy</a>'
             f'<span>For information and entertainment only, not betting advice. 21+. '
-            f'Gambling problem? Call 1-800-GAMBLER.</span></div></footer>{JS}</body></html>')
+            f'Gambling problem? Call 1-800-GAMBLER.</span></div></footer>{JS}{analytics()}</body></html>')
 
 
 def game_page(r, teams, wu, stamp, line_note=""):
@@ -673,7 +694,8 @@ def game_page(r, teams, wu, stamp, line_note=""):
             + (f'<p class="note">{escape(line_note)}</p>' if line_note else "")
             + '<p class="note">Every pick is locked before tip-off and graded from the final score. '
               '<a href="../../about.html">How the model works</a>.</p>')
-    return page(title, "results.html" if final else "index.html", body, stamp, desc, root="../../", head_extra=head)
+    return page(f"{title} | {config.SITE_NAME}", "results.html" if final else "index.html", body, stamp, desc,
+                root="../../", head_extra=head, canonical=game_path(r))
 
 
 def studio_page(stamp, date_label, gotd=None, teams=None, wu=None, caption="", yesterday=None):
@@ -728,12 +750,12 @@ def about_page(stamp):
             'legal age to gamble where you live. If gambling is a problem for you or someone you know, call or text '
             '1-800-GAMBLER (US).</p>'
             '</div>')
-    return page(f"{config.SITE_NAME} - About", "about.html", body, stamp,
+    return page(f"How the College Basketball Model Works | {config.SITE_NAME}", "about.html", body, stamp,
                 f"How the {config.SITE_NAME} college basketball model makes its predictions, and how its record is kept.")
 
 
 def privacy_page(stamp):
-    body = ('<section class="hero"><div><h1>Privacy</h1><p>Short version: this site keeps no accounts and collects nothing itself.</p></div></section>'
+    body = ('<section class="hero"><div><h1>Privacy</h1><p>Short version: no accounts, no sign-up, and no personal information collected.</p></div></section>'
             '<div class="prose">'
             f'<p>{escape(config.SITE_NAME)} is a set of static pages. There is no sign-up, no login and no form, and the site '
             'does not collect names, email addresses or any other personal information.</p>'
@@ -749,12 +771,17 @@ def privacy_page(stamp):
             '<h2>Hosting</h2>'
             '<p>The pages are hosted on GitHub Pages, which keeps standard server logs. See '
             '<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub\u2019s privacy statement</a>.</p>'
+            + ('<h2>Visit counts</h2>'
+               '<p>The site counts page views with Cloudflare Web Analytics, which uses no cookies and does not identify or '
+               'follow individual visitors. See <a href="https://www.cloudflare.com/web-analytics/">Cloudflare\u2019s description</a>.</p>'
+               if analytics() else "") +
             '<h2>Your browser\u2019s storage</h2>'
-            '<p>The site stores nothing in your browser beyond what the ad and font services above set.</p>'
+            '<p>If you star teams for My teams, that list is kept in your browser on your device and is never sent anywhere. '
+            'Beyond that the site stores nothing in your browser except what the ad and font services above set.</p>'
             '<h2>Contact</h2>'
             f'<p>Questions about this page can be sent through the site\u2019s GitHub repository.</p>'
             '</div>')
-    return page(f"{config.SITE_NAME} - Privacy", "privacy.html", body, stamp, f"Privacy policy for {config.SITE_NAME}.")
+    return page(f"Privacy | {config.SITE_NAME}", "privacy.html", body, stamp, f"Privacy policy for {config.SITE_NAME}.")
 
 
 def clip_box(caption):
@@ -801,7 +828,8 @@ def gotd_card(r, teams, wu, pa, ph, caption="", bet=None):
 LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
           '<div><b>Predicted score</b>The model\u2019s projected final. The bigger number is the pick.</div>'
           '<div><b>Edge bar</b>How far apart the two teams rate. A full bar is a lopsided matchup.</div>'
-          '<div><b><span class="flag">Strong pick</span></b>The rating gap is big enough that the model has historically been right about 80% of the time.</div>'
+          '<div><b><span class="flag">Strong pick</span></b>The model projects a win by about 15 points or more. '
+          'These are its most confident picks.</div>'
           '<div><b><span class="flag up">Upset pick</span></b>The model picks the team the betting market has as the underdog. '
           '<span class="flag ultra">Ultra upset</span> is an upset pick that is also a strong pick.</div>'
           '<div><b>Line</b>The sportsbook favorite and spread, and the over/under. An orange O/U pill with '
@@ -812,7 +840,7 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
           'pick to win and still be a bad number. Games with no Bet pill have no edge.</div>'
           '<div><b>#12</b>Where a team ranks in the model among all Division I teams.</div>'
           '<div><b>Why ...?</b>Tap it under any game for the reasons behind the pick, in plain English.</div>'
-          '<div><b>1H</b>First-half pick, from each team\u2019s first-half scoring in its last three games.</div>'
+          '<div><b>1H</b>First-half pick: the team the model has ahead at halftime, and by about how much.</div>'
           '</div></details>')
 
 
@@ -830,7 +858,12 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
     n_up = sum(1 for r in rows if upset(r))
     done_note = (f' <a class="donelink" href="results.html">{n_final} finished game{"s" if n_final != 1 else ""}'
                  ' now on Results &rarr;</a>') if n_final else ""
-    hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{escape(stats_note)}. Times are Central.{done_note}</p></div>'
+    n_all = len(rows) + n_final
+    # what the page is, in the words people search for (also feeds the title and description below)
+    lead = (f'College basketball predictions for {"all " + str(n_all) + " games" if n_all > 1 else "the one game"} today: '
+            'model picks, projected scores and the reasons behind them. ' if n_all else
+            'College basketball predictions from a statistical model, posted every game day. ')
+    hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{lead}{escape(stats_note)}. Times are Central.{done_note}</p></div>'
             f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
             f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
             f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
@@ -880,13 +913,33 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
                       '<div class="empty" data-empty="conf" hidden><b>No games</b>Nothing from that conference in this view. Try All day.</div>')
         body = (hero + gotd_html + slot_chips + chips + LEGEND + f'<div class="games" data-date="{escape(date_iso)}">'
                 + "".join(_row(r, teams, wu=writeups.get(r.get("game_key")), bet=bets_by_game.get(r.get("game_key"))) for r in rows) + "</div>")
-    return page(f"{config.SITE_NAME} - Today", "index.html", body, stamp)
+    short = _short_date(date_iso)
+    title = f'College Basketball Predictions Today{", " + short if short else ""} | {config.SITE_NAME}'
+    desc = ((f'Model picks and projected scores for {"all " + str(n_all) if n_all > 1 else "the"} college basketball '
+             f'game{"s" if n_all != 1 else ""} on {date_label}'
+             + (f', including {gotd["away"]} vs {gotd["home"]}' if gotd else "")
+             + '. Free, updated through the day, and every pick is graded after the final.') if n_all else "")
+    ld = {"@context": "https://schema.org", "@type": "WebSite", "name": config.SITE_NAME, "url": site_url()}
+    return page(title, "index.html", body, stamp, desc, head_extra=f'<script type="application/ld+json">{json.dumps(ld)}</script>')
+
+
+def _short_date(date_iso):
+    """'2026-11-17' -> 'Nov 17' ('' when there is no date)."""
+    try:
+        return datetime.fromisoformat(date_iso).strftime("%b %-d")
+    except (TypeError, ValueError):
+        return ""
 
 
 def _record(rows, col):
     g = [r for r in rows if r.get(col) in ("0", "1")]
     w = sum(1 for r in g if r[col] == "1")
     return w, len(g) - w
+
+
+RESULTS_TITLE = f"College Basketball Results and Model Record | {config.SITE_NAME}"
+RESULTS_DESC = ("Every college basketball prediction graded against the final score: the pick, the projected score "
+                "and what actually happened, day by day. Nothing is ever removed.")
 
 
 def results_page(rows, stamp, teams=None):
@@ -917,8 +970,9 @@ def results_page(rows, stamp, teams=None):
     if not config.SHOW_RESULTS_STATS:          # record totals switched off in config.py for now
         hero = re.sub(r'<div class="stats">.*</div></section>$', '</section>', hero)
     if not graded:
-        return page(f"{config.SITE_NAME} - Results", "results.html",
-                    hero + '<div class="empty"><b>No graded games yet</b>Results appear the morning after each game day.</div>', stamp)
+        return page(RESULTS_TITLE, "results.html",
+                    hero + '<div class="empty"><b>No graded games yet</b>Results appear the morning after each game day.</div>', stamp,
+                    RESULTS_DESC)
     by_date = {}
     for r in graded:
         by_date.setdefault(r["date"], []).append(r)
@@ -940,7 +994,7 @@ def results_page(rows, stamp, teams=None):
         label = _d.fromisoformat(d).strftime("%A, %b %-d")
         parts.append(f'<div class="day"><h2>{label}</h2><span>{dw}-{dl}</span></div>'
                      f'<div class="games">{"".join(_row(r, teams, final=True) for r in day)}</div>')
-    return page(f"{config.SITE_NAME} - Results", "results.html", hero + chips + "".join(parts), stamp)
+    return page(RESULTS_TITLE, "results.html", hero + chips + "".join(parts), stamp, RESULTS_DESC)
 
 
 def _bet_disc(b, teams, mini=False):
@@ -1057,7 +1111,11 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
             f'{B.MIN_CHANCE * 100:.0f}% model chance and has to beat its price by {B.MIN_EDGE * 100:.0f}+ points; each game\u2019s best one makes the list, ranked by edge '
             f'(model chance minus the chance the odds imply). Spread and total bets assume the usual {B.fmt_odds(B.STD_ODDS)} odds, '
             'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>')
-    return page(f"{config.SITE_NAME} - Best Bets", "bets.html", hero + single_html + parlay_html + note, stamp)
+    short = _short_date(date_iso)
+    return page(f'College Basketball Best Bets Today{", " + short if short else ""} | {config.SITE_NAME}', "bets.html",
+                hero + single_html + parlay_html + note, stamp,
+                "Today\u2019s college basketball best bets from the model: the top single bets and 3, 6 and 8-leg parlays "
+                "against the current lines, locked each morning and graded in public.")
 
 
 LIVE_CSS = """
@@ -1163,7 +1221,7 @@ def live_page(rows, teams, stamp, date_iso, date_label):
             f'the minutes left. A call needs {4}+ points of edge on the spread or {6}+ on the total; the red tag means double that. '
             'Model estimates, not guarantees.</p>'
             f'<script type="application/json" id="live-data">{data}</script>{LIVE_JS}')
-    return page(f"{config.SITE_NAME} - Live", "live.html", body, stamp,
+    return page(f"Live College Basketball Scores vs the Model | {config.SITE_NAME}", "live.html", body, stamp,
                 "Live college basketball betting calls: opening lines against the model's in-game projection.",
                 head_extra=f"<style>{LIVE_CSS}</style>")
 
@@ -1183,8 +1241,44 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_ht
     (docs / ".nojekyll").write_text("", encoding="utf-8")
     (docs / "robots.txt").write_text(f"User-agent: *\nDisallow: /{config.STUDIO_PAGE}\nDisallow: /daily.mp4\nAllow: /\n"
                                      f"Sitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
-    pages = ["index.html", "live.html", "bets.html", "results.html", "about.html", "privacy.html"]
-    pages += sorted(str(p.relative_to(docs)).replace("\\", "/") for p in (docs / "games").glob("*/*.html"))
+    # sitemap: the home page as the bare domain, the daily pages dated today, and each game page
+    # dated the day after its game (when its result went up), so search engines know what is fresh
+    today = _stamp_date(stamp)
+    urls = [(site_url(p), today) for p in ("index.html", "live.html", "bets.html", "results.html")]
+    urls += [(site_url(p), "") for p in ("about.html", "privacy.html")]
+    for p in sorted((docs / "games").glob("*/*.html")):
+        rel = str(p.relative_to(docs)).replace("\\", "/")
+        try:
+            mod = (datetime.fromisoformat(p.parent.name) + timedelta(days=1)).date().isoformat()
+        except ValueError:
+            mod = ""
+        urls.append((site_url(rel), min(mod, today) if mod and today else mod))
     (docs / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        + "".join(f"<url><loc>{config.SITE_URL}/{p}</loc></url>" for p in pages) + "</urlset>\n", encoding="utf-8")
+        + "".join(f"<url><loc>{escape(u)}</loc>{f'<lastmod>{m}</lastmod>' if m else ''}</url>" for u, m in urls)
+        + "</urlset>\n", encoding="utf-8")
+
+
+def fix_canonicals(docs=DOCS):
+    """One-time repair for game pages written before Nov 17, 2026. Those pages named the Today
+    or Results tab as their "canonical" address, which tells search engines the page is a copy
+    and not to list it. Pages older than three days are never rebuilt, so this rewrites just that
+    one tag (and the matching share address) in place. Returns the number of pages changed."""
+    n = 0
+    for p in (docs / "games").glob("*/*.html"):
+        own = escape(site_url(str(p.relative_to(docs)).replace("\\", "/")))
+        html = p.read_text(encoding="utf-8")
+        new = re.sub(r'(<link rel="canonical" href=")[^"]*(")', lambda m: m.group(1) + own + m.group(2), html, count=1)
+        new = re.sub(r'(<meta property="og:url" content=")[^"]*(")', lambda m: m.group(1) + own + m.group(2), new, count=1)
+        if new != html:
+            p.write_text(new, encoding="utf-8")
+            n += 1
+    return n
+
+
+def _stamp_date(stamp):
+    """'Nov 17, 2026 03:24 AM CT' -> '2026-11-17' ('' if the stamp is missing or in another shape)."""
+    try:
+        return datetime.strptime(" ".join((stamp or "").split()[:3]), "%b %d, %Y").date().isoformat()
+    except ValueError:
+        return ""
