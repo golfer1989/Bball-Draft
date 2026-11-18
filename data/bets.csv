@@ -75,9 +75,15 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-16,3,Total,under,Under 159.5,-110,0.564,0.041,159.5,246,293,SE Louisiana,Texas A&M,"Nov 16, 2026 8:30 PM ET","Nov 16, 2026 03:23 AM CT",L
 2026-11-16,4,Spread,home,Tulsa −7.5,-110,0.558,0.034,-7.5,350,304,Western Kentucky,Tulsa,"Nov 16, 2026 7:00 PM ET","Nov 16, 2026 03:23 AM CT",L
 2026-11-16,5,ML,away,St. Thomas-Minnesota ML,-142,0.617,0.031,,280,146,St. Thomas-Minnesota,Long Island University,"Nov 16, 2026 7:00 PM ET","Nov 16, 2026 03:23 AM CT",W
-2026-11-17,1,Spread,home,California Baptist +9.5,-110,0.655,0.131,9.5,262,39,Seattle U,California Baptist,"Nov 17, 2026 10:00 PM ET","Nov 17, 2026 03:23 AM CT",
-2026-11-17,2,ML,home,Louisiana Tech ML,-130,0.694,0.129,,128,149,Jacksonville State,Louisiana Tech,"Nov 17, 2026 7:30 PM ET","Nov 17, 2026 03:23 AM CT",
-2026-11-17,3,ML,home,Mount St. Mary's ML,-120,0.648,0.103,,141,183,Lehigh,Mount St. Mary's,"Nov 17, 2026 7:00 PM ET","Nov 17, 2026 03:23 AM CT",
-2026-11-17,4,Total,under,Under 163.5,-110,0.619,0.095,163.5,118,72,Illinois,Duke,"Nov 17, 2026 7:00 PM ET","Nov 17, 2026 03:23 AM CT",
-2026-11-17,5,ML,away,Middle Tennessee ML,-130,0.646,0.081,,171,99,Middle Tennessee,Georgia Southern,"Nov 17, 2026 8:00 PM ET","Nov 17, 2026 03:23 AM CT",
-2026-11-17,6,Spread,home,UCF +1.5,-110,0.605,0.081,1.5,174,312,Mississippi State,UCF,"Nov 17, 2026 7:00 PM ET","Nov 17, 2026 03:23 AM CT",
+2026-11-17,1,Spread,home,California Baptist +9.5,-110,0.655,0.131,9.5,262,39,Seattle U,California Baptist,"Nov 17, 2026 10:00 PM ET","Nov 17, 2026 03:23 AM CT",L
+2026-11-17,2,ML,home,Louisiana Tech ML,-130,0.694,0.129,,128,149,Jacksonville State,Louisiana Tech,"Nov 17, 2026 7:30 PM ET","Nov 17, 2026 03:23 AM CT",W
+2026-11-17,3,ML,home,Mount St. Mary's ML,-120,0.648,0.103,,141,183,Lehigh,Mount St. Mary's,"Nov 17, 2026 7:00 PM ET","Nov 17, 2026 03:23 AM CT",L
+2026-11-17,4,Total,under,Under 163.5,-110,0.619,0.095,163.5,118,72,Illinois,Duke,"Nov 17, 2026 7:00 PM ET","Nov 17, 2026 03:23 AM CT",L
+2026-11-17,5,ML,away,Middle Tennessee ML,-130,0.646,0.081,,171,99,Middle Tennessee,Georgia Southern,"Nov 17, 2026 8:00 PM ET","Nov 17, 2026 03:23 AM CT",W
+2026-11-17,6,Spread,home,UCF +1.5,-110,0.605,0.081,1.5,174,312,Mississippi State,UCF,"Nov 17, 2026 7:00 PM ET","Nov 17, 2026 03:23 AM CT",L
+2026-11-18,1,ML,home,Yale ML,-155,0.796,0.189,,337,360,Vermont,Yale,"Nov 18, 2026 7:00 PM ET","Nov 18, 2026 03:23 AM CT",
+2026-11-18,2,Total,under,Under 167.5,-110,0.690,0.166,167.5,264,279,Siena,St. John's,"Nov 18, 2026 7:00 PM ET","Nov 18, 2026 03:23 AM CT",
+2026-11-18,3,Spread,home,South Carolina Upstate +7.5,-110,0.670,0.146,7.5,256,268,Samford,South Carolina Upstate,"Nov 18, 2026 6:30 PM ET","Nov 18, 2026 03:23 AM CT",
+2026-11-18,4,ML,home,Towson ML,-162,0.739,0.121,,129,301,James Madison,Towson,"Nov 18, 2026 7:00 PM ET","Nov 18, 2026 03:23 AM CT",
+2026-11-18,5,ML,home,Lafayette ML,-142,0.691,0.104,,24,138,Binghamton,Lafayette,"Nov 18, 2026 7:00 PM ET","Nov 18, 2026 03:23 AM CT",
+2026-11-18,6,Spread,home,Charleston Southern +3.5,-110,0.621,0.097,3.5,356,47,Wofford,Charleston Southern,"Nov 18, 2026 7:00 PM ET","Nov 18, 2026 03:23 AM CT",
