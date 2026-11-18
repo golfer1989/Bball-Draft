@@ -555,7 +555,11 @@ def test_game_page_and_caption():
     html = site.game_page(done, {}, wu, "now")
     assert "Missed." in html and "Away U won 70-65" in html and "(70-65) result" in html
     cap = video.caption(r, wu, (66, 69))
-    assert cap.startswith("Away U vs Home St") and "66-69" in cap and "#collegebasketball" in cap
+    # built for search: the phrase people type comes first, then the call, then five specific tags
+    assert cap.splitlines()[0].startswith("Away U vs Home St prediction")
+    assert "The model has Home St winning 69-66." in cap and "Model ranks: Away U #50, Home St #20." in cap
+    assert cap.splitlines()[-1] == "#awayubasketball #homestbasketball #collegebasketball #cbb #collegehoops"
+    assert "tipoffedge.com" in cap and video.flagged(cap) == []
     page = site.today_page([r], "x", "now", "note", {}, "2026-11-04", writeups={"k": wu}, gotd=r, caption=cap)
     assert "daily.mp4" not in page and "Copy caption" not in page and "Full breakdown" in page   # public page: no clip box
     studio = site.studio_page("now", "x", r, {}, wu, cap, (17, 2))
@@ -678,3 +682,70 @@ def test_older_game_pages_get_the_counter(tmp_path, monkeypatch):
     html = old.read_text()
     assert html.count("beacon.min.js") == 1 and '"token": "bbbb2222"' in html and "aaaa1111" not in html
     assert html.count("<!-- Cloudflare Web Analytics -->") == 1
+
+
+# ---------------- the daily clip and what it may say ----------------
+def _clip_game(**kw):
+    g = dict(_r(), date="2026-11-17", game_key="k", when="Nov 17, 2026 7:00 PM ET", away="Illinois", home="Duke", pick="Duke",
+             differential="0.0300", away_id="1", home_id="2")
+    g.update(kw)
+    return g
+
+
+def test_betting_words_never_reach_the_clip_or_caption():
+    import video
+    for bad in ("Duke -8.5 is the play", "take the over", "Vegas likes Duke", "best bets today", "+150 on the moneyline",
+                "lock of the day", "the books have Duke", "against the spread", "3-leg parlay", "Duke covers", "5 units",
+                "odds are", "DraftKings", "our top picks", "pick'em", "the line moved", "O/U 150.5", "can't lose"):
+        assert video.flagged(bad), bad
+    for ok in ("Illinois vs Duke prediction", "The model has Duke winning 78-73.", "tipoffedge.com", "Tipoff Edge", "SLIGHT EDGE",
+               "BY 5", "TUE NOV 17", "TIP-OFF 6:00 PM CT", "Bethune-Cookman", "the overall record", "#3 AGAINST #6", "POINTS FOR HOME COURT"):
+        assert video.flagged(ok) == [], ok
+    wu = {"headline": "Duke by 5 in a close one", "away_rank": 6, "home_rank": 3, "n": 366,
+          "lines": ["The books have Duke by 8.5; the model likes Duke by more than that, so the spread value is on Duke \u22128.5."],
+          "facts": {"unit": "defense", "unit_rank": 1, "vs_rank": 2}}
+    teams = {"1": {"abbr": "ILL", "color": "ff5f05"}, "2": {"abbr": "DUKE", "color": "013088"}}
+    for g, pred in ((_clip_game(), (73, 78)), (_clip_game(neutral="1"), (73, 78)),
+                    (_clip_game(pick="Illinois", differential="0.0050"), (75, 74)),
+                    (_clip_game(away="Texas A&M-Corpus Christi", home="St. Thomas-Minnesota", pick="St. Thomas-Minnesota"), (60, 81)),
+                    (_clip_game(), (None, None))):
+        words = video.clip_text(g, wu, teams, pred, "Tuesday, Nov 17")
+        assert words and all(video.flagged(w) == [] for w in words), [w for w in words if video.flagged(w)]
+        assert not any("pick" in w.lower() or "bet" in w.lower().split() for w in words)
+        cap = video.caption(g, wu, pred)
+        assert video.flagged(cap) == [] and cap.splitlines()[0] == f"{g['away']} vs {g['home']} prediction \U0001F3C0"
+        tags = cap.splitlines()[-1].split()
+        assert len(tags) == 5 and all(t.startswith("#") and t[1:].isalnum() for t in tags)
+    # the write-up's sentence about the betting line never makes it into the clip
+    assert not any("books" in w.lower() or "spread" in w.lower() for w in video.clip_text(_clip_game(), wu, teams, (73, 78), "Tuesday, Nov 17"))
+    # hashtags: the two schools first (short names get "basketball"), nothing generic like #fyp
+    assert video.hashtags(_clip_game()) == "#illinoisbasketball #dukebasketball #collegebasketball #cbb #collegehoops"
+    assert video.hashtags(_clip_game(away="Texas A&M-Corpus Christi")).split()[0] == "#texasamcorpuschristi"
+
+
+def test_clip_cards_and_frames():
+    import video
+    wu = {"headline": "Duke by 5", "away_rank": 6, "home_rank": 3, "n": 366, "lines": [], "facts": {"unit": "defense", "unit_rank": 1, "vs_rank": 2}}
+    teams = {"1": {"abbr": "ILL", "color": "ff5f05"}, "2": {"abbr": "DUKE", "color": "013088"}}
+    c = video.Clip(_clip_game(), wu, teams, (73, 78), "Tuesday, Nov 17", render=False)
+    assert c.stamp == ["DUKE", "WINS"] and c.by == "BY 5" and (c.level, c.level_word) == (2, "SLIGHT EDGE")
+    assert c.cards == [("#3", "DUKE IN THE MODEL", "ILLINOIS IS #6 OF 366"), ("#1", "DUKE DEFENSE", "AGAINST THE #2 OFFENSE"),
+                       (f"{config.HOME_COURT_POINTS:g}", "POINTS FOR HOME COURT", "DUKE PLAYS AT HOME")]
+    assert c.date == "TUE NOV 17" and c.tip == "TIP-OFF 6:00 PM CT" and c.unsafe == []
+    # the lower-ranked team picked on the road at a toss-up: no boast about ranks, no signed numbers
+    road = video.Clip(_clip_game(pick="Illinois", differential="0.0050"), dict(wu, away_rank=40, home_rank=12, facts={}), teams,
+                      (75, 74), "Tuesday, Nov 17", render=False)
+    assert road.cards[0] == ("EVEN", "CLOSE IN THE MODEL", "#40 AGAINST #12") and road.cards[-1][0] == "ROAD" and road.by == "BY A BUCKET"
+    assert video.Clip(_clip_game(neutral="1"), wu, teams, (73, 78), "x", render=False).cards[-1] == ("0", "HOME COURT EDGE", "NEUTRAL SITE GAME")
+    assert video.name_lines("Texas A&M-Corpus Christi") == ["TEXAS A&M-", "CORPUS CHRISTI"] and video.name_lines("Duke") == ["DUKE"]
+    assert video.tone((1, 48, 136))[2] > 180 and video.tone((0, 0, 0)) == video.tone((20, 20, 20))        # navy lifted, black -> grey
+    # two blue teams: one side turns silver so the split still reads
+    same = video.Clip(_clip_game(), wu, {"1": {"color": "003087"}, "2": {"color": "013088"}}, (73, 78), "x", render=False)
+    assert same.col[0] == (226, 230, 238) and same.col[1] != same.col[0]
+    # every scene draws without error, at full size, with or without logos and write-up
+    full = video.Clip(_clip_game(), wu, teams, (73, 78), "Tuesday, Nov 17")
+    for t in (0.0, 0.5, 2.6, 4.0, 4.92, 5.9, 8.5, 11.5):
+        im = full.frame(t)
+        assert im.size == (1080, 1920) and im.mode == "RGB"
+    bare = video.Clip(_clip_game(away="Texas A&M-Corpus Christi"), None, {}, (None, None), "")
+    assert bare.frame(1.5).size == (1080, 1920) and bare.frame(5.5).size == (1080, 1920) and bare.frame(8.0).size == (1080, 1920)

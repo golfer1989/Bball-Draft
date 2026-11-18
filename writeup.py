@@ -70,12 +70,15 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
     # 2. what drives the gap: offense vs defense
     off_gap = (w["offense"] - l["offense"]) * config.POINTS_PER_RATING
     def_gap = (w["defense"] - l["defense"]) * config.POINTS_PER_RATING
+    facts = {"unit": "", "unit_rank": None, "vs_rank": None}      # the same finding as numbers, for the daily clip
     if abs(off_gap) >= abs(def_gap) and off_gap > 1:
         lines.append(f"The edge is mostly {winner}’s offense ({_ord(wr['off'])} nationally) against "
                      f"{loser}’s defense ({_ord(lr['def'])}).")
+        facts = {"unit": "offense", "unit_rank": wr["off"], "vs_rank": lr["def"]}
     elif def_gap > 1:
         lines.append(f"The edge is mostly {winner}’s defense ({_ord(wr['def'])} nationally) against "
                      f"{loser}’s offense ({_ord(lr['off'])}).")
+        facts = {"unit": "defense", "unit_rank": wr["def"], "vs_rank": lr["off"]}
     else:
         lines.append(f"The two are close on both ends: offense {_ord(wr['off'])} vs {_ord(lr['off'])}, "
                      f"defense {_ord(wr['def'])} vs {_ord(lr['def'])}.")
@@ -147,7 +150,8 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
                      "take over as they are played.")
     elif blend < 1:
         lines.append(f"Early-season note: about {round((1 - blend) * 100)}% of these numbers are still last season\u2019s.")
-    return {"headline": head, "lines": lines, "away_rank": ra["rank"], "home_rank": rh["rank"], "n": n}
+    return {"headline": head, "lines": lines, "away_rank": ra["rank"], "home_rank": rh["rank"], "n": n,
+            "facts": facts}
 
 
 def _id(v):
