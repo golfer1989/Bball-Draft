@@ -13,6 +13,10 @@ on:
     # before each tip-time block (11 AM, 2 PM, 5 PM, 8 PM Central); other firings stop at the guard.
     - cron: "8,23,38,53 14-23 * * *"
     - cron: "8,23,38,53 0-3 * * *"
+    # Night score updates (8:30 PM to 1:30 AM Central, see the guard): the entry above covers the
+    # evening, this one runs on to 12:53 AM Central (1:53 AM in summer time, still before the
+    # overnight build's 2 AM start).
+    - cron: "8,23,38,53 4-6 * * *"
   workflow_dispatch:
     inputs:
       auto:
@@ -42,7 +46,7 @@ jobs:
           hhmm=$(TZ=America/Chicago date +%H%M)
           nowm=$(( 10#${hhmm:0:2} * 60 + 10#${hhmm:2:2} ))
           last=$(cat data/last_build.txt 2>/dev/null || echo none)
-          run=false; why=""; mark=""
+          run=false; why=""; mark=""; flag=""
           if [ "$EVENT" != "schedule" ]; then
             run=true; why="manual run"
           elif [ "$last" != "$today" ] && [ $nowm -ge 120 ] && [ $nowm -lt 720 ]; then
@@ -52,13 +56,29 @@ jobs:
               hr=$(( 10#$seg / 100 )); start=$(( hr * 60 ))
               if [ $nowm -ge $((start - 20)) ] && [ $nowm -lt $((start + 90)) ] \
                  && ! grep -qx "$today $seg" data/refresh_marks.txt 2>/dev/null; then
-                run=true; why="refresh before the $((hr > 12 ? hr - 12 : hr)) o'clock block"; mark="$today $seg"; break
+                run=true; why="refresh before the $((hr > 12 ? hr - 12 : hr)) o'clock block"; mark="$today $seg"; flag="--refresh"; break
               fi
             done
+            # Night score updates: once in each hour from 8:30 PM to 1:30 AM Central the build grades the
+            # games that have gone final (results, record and Best Bets W/L go official without waiting
+            # for the overnight build). It adds no picks, bets or lines, and makes at most one data call,
+            # none when no game can be final yet.
+            if [ "$run" = false ]; then
+              night=$(TZ=America/Chicago date -d '12 hours ago' +%F)   # the evening this night began (same after midnight)
+              nm=$(( (nowm + 720) % 1440 ))                             # minutes since noon, so 12:30 AM comes after 11:30 PM
+              for seg in 2030 2130 2230 2330 0030; do
+                start=$(( (10#${seg:0:2} * 60 + 10#${seg:2:2} + 720) % 1440 ))
+                if [ $nm -ge $start ] && [ $nm -lt $((start + 60)) ] \
+                   && ! grep -qx "$night $seg" data/refresh_marks.txt 2>/dev/null; then
+                  run=true; why="score update"; mark="$night $seg"; flag="--scores"; break
+                fi
+              done
+            fi
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "why=$why" >> "$GITHUB_OUTPUT"
           echo "mark=$mark" >> "$GITHUB_OUTPUT"
+          echo "flag=$flag" >> "$GITHUB_OUTPUT"
           echo "Central time $hhmm, last build $last -> run=$run $why"
 
       - uses: actions/setup-python@v5
@@ -73,9 +93,15 @@ jobs:
 
       - name: Build picks + site
         if: steps.guard.outputs.run == 'true'
-        run: python build.py ${{ startsWith(steps.guard.outputs.why, 'refresh') && '--refresh' || '' }}
         env:
           CBBD_API_KEY: ${{ secrets.CBBD_API_KEY }}
+          FLAG: ${{ steps.guard.outputs.flag }}
+        run: |
+          # a build.py from before the night score updates does not know --scores: skip, don't fail
+          if [ "$FLAG" = "--scores" ] && ! grep -q -- '"--scores"' build.py; then
+            echo "build.py has no score update yet, nothing to do"; exit 0
+          fi
+          python build.py $FLAG
 
       - name: Commit
         if: steps.guard.outputs.run == 'true'
