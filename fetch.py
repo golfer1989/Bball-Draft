@@ -6,7 +6,8 @@ Replaces the spreadsheet's web pulls (RealGM blocks GitHub's servers):
   TeamRankings 1H PPG "Last 3"   -> first_half_last3()  (computed from halftime scores)
 
 Needs the API key in the CBBD_API_KEY environment variable (a GitHub secret).
-About 3-4 API calls per daily build.
+API calls: about 7 for the overnight build, 2 for each daytime refresh, 1 for a night score
+update (about 17 a day before the night updates; see CALLS_LEFT below for the monthly allowance).
 """
 import os
 import time
@@ -18,12 +19,28 @@ import config
 
 BASE = "https://api.collegebasketballdata.com"
 
+# The data plan has a monthly allowance of calls (1,000 on the free plan, and one key covers
+# college football as well, so a football site on the same key draws from the same 1,000).
+# Every counted response says how many are left in its X-CallLimit-Remaining header. The last
+# value seen is kept here; build.py saves it to data/api_calls_left.txt and the night score
+# updates stand down when it runs low. None = no response has reported it yet.
+CALLS_LEFT = None
+
 
 class FetchError(Exception):
     pass
 
 
+def _note_allowance(headers):
+    global CALLS_LEFT
+    try:
+        CALLS_LEFT = int(float(headers.get("X-CallLimit-Remaining")))
+    except (TypeError, ValueError):
+        pass
+
+
 def _get(path, params, tries=4, pause=5):
+    global CALLS_LEFT
     key = os.environ.get("CBBD_API_KEY", "").strip()
     if not key:
         raise FetchError("CBBD_API_KEY is not set (add it under Settings > Secrets and variables > Actions)")
@@ -33,9 +50,13 @@ def _get(path, params, tries=4, pause=5):
             r = requests.get(BASE + path, params=params, timeout=60,
                              headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
             if r.status_code == 200:
+                _note_allowance(r.headers)
                 return r.json()
             if r.status_code in (401, 403):
                 raise FetchError(f"{path}: HTTP {r.status_code} - API key rejected")
+            if r.status_code == 429 and "quota" in r.text.lower():       # "Monthly call quota exceeded."
+                CALLS_LEFT = 0                                            # retrying cannot help until the 1st
+                raise FetchError(f"{path}: this month's data-call allowance is used up (it resets on the 1st)")
             last = f"HTTP {r.status_code}: {r.text[:200]}"
         except requests.RequestException as e:
             last = str(e)
@@ -150,6 +171,31 @@ def parse_lines(rows):
     return out
 
 
+# ---------------- ESPN's schedule (for games the data feed lists against "TBD") ----------------
+ESPN_BOARD = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard"
+
+
+def espn_matchups(day):
+    """{ESPN game id: (away ESPN team id, home ESPN team id)} for one day, from ESPN's public
+    scoreboard (the same one the site's pages read for live scores). One request, no key, and not
+    counted against the data plan. Raises FetchError when ESPN can't be reached or answers oddly;
+    the caller treats that as "no help today", never as a reason to stop the build."""
+    try:
+        r = requests.get(ESPN_BOARD, params={"groups": 50, "limit": 500, "dates": day.strftime("%Y%m%d")}, timeout=20,
+                         headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0 (tipoffedge.com schedule check)"})
+        if r.status_code != 200:
+            raise FetchError(f"ESPN scoreboard: HTTP {r.status_code}")
+        out = {}
+        for e in r.json().get("events") or []:
+            comp = (e.get("competitions") or [{}])[0]
+            sides = {c.get("homeAway"): str((c.get("team") or {}).get("id") or "") for c in comp.get("competitors") or []}
+            if e.get("id") and sides.get("away") and sides.get("home"):
+                out[str(e["id"])] = (sides["away"], sides["home"])
+        return out
+    except (requests.RequestException, ValueError, AttributeError, TypeError) as exc:
+        raise FetchError(f"ESPN scoreboard: {exc}") from exc
+
+
 # ---------------- games: schedule, finals, halftime ----------------
 def _et(iso):
     dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
@@ -165,7 +211,10 @@ def parse_games(rows):
             start = _et(g["startDate"])
         except (KeyError, ValueError, TypeError):
             continue
-        final = g.get("status") == "final" and g.get("homePoints") is not None
+        # A real final has a winner. The API sometimes lists a game that was never played (an event
+        # bracket's placeholder matchup, a canceled game) as "final" 0-0; that is not a result.
+        final = (g.get("status") == "final" and g.get("homePoints") is not None and g.get("awayPoints") is not None
+                 and g.get("homePoints") != g.get("awayPoints"))
         hp, ap = g.get("homePeriodPoints") or [], g.get("awayPeriodPoints") or []
         out.append({
             "date": start.date().isoformat(),

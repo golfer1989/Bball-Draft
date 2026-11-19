@@ -1,11 +1,17 @@
 """Daily build: grade recent games, pull fresh stats + today's schedule, lock picks,
 rebuild the website. Run by GitHub Actions each morning.
-By hand:  set CBBD_API_KEY=...  then  python build.py  [--date 2026-11-15]"""
+By hand:  set CBBD_API_KEY=...  then  python build.py  [--date 2026-11-15]
+
+Three kinds of run (the workflow picks one):
+  python build.py            overnight build: everything, about 7 data calls
+  python build.py --refresh  before each tip-time block: today's schedule + lines only, 2 calls
+  python build.py --scores   night score update: grades the games on the board that have gone
+                             final, adds nothing new, at most 1 call (none when nothing is due)"""
 import argparse
 import json
 import statistics
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import bets, config, fetch, ledger, model, share, video, webpage as site, writeup
@@ -20,7 +26,194 @@ def log(*a):
 
 
 REFRESH = False          # set by --refresh: only today's schedule + lines are downloaded
+SCORES = False           # set by --scores: night score update (implies REFRESH; only the schedule is downloaded)
 LIVE_FEEDS = ("games_today", "lines_today")
+
+# ---- night score updates (--scores) ----
+# How long after tip-off a game can be final. Measured on 70 saved snapshots (Nov 5-18, 2026):
+# 4% of games were marked final 105-120 minutes after tip, 78% at 135-150, 99% at 150-180.
+SCORES_AFTER_TIP = 135
+# ...and a game still not final this many minutes after tip was postponed, not running long.
+SCORES_GIVE_UP = 300
+# The data plan's monthly allowance (see fetch.CALLS_LEFT) has to last the regular builds until
+# it resets on the 1st, so a score update only spends a call while at least this many per
+# remaining day are left. The regular builds use about 17 a day; the rest of the margin is for
+# runs by hand and for anything else on the same key. 30 a day is the most a 1,000-call plan can
+# hold back and still allow score updates on the 1st of a 31-day month.
+CALL_RESERVE_PER_DAY = 30
+
+
+def calls_file():
+    return DATA / "api_calls_left.txt"
+
+
+def save_calls_left(stamp):
+    """Write down the API's own count of calls left this month, when a response has reported it."""
+    left = getattr(fetch, "CALLS_LEFT", None)          # None too with a fetch.py from before this was added
+    if left is not None:
+        calls_file().write_text(f"{left}\ndata-API calls left this month, as of {stamp}\n", encoding="utf-8")
+
+
+def calls_left_saved():
+    """The count saved by the last build that made a call, or None if there isn't one."""
+    try:
+        return int(calls_file().read_text(encoding="utf-8").split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def calls_held_back(now):
+    """Calls kept for the regular builds from now until the allowance resets on the 1st (UTC)."""
+    u = now.astimezone(timezone.utc).date()
+    first_next = date(u.year + (u.month == 12), u.month % 12 + 1, 1)
+    return CALL_RESERVE_PER_DAY * (first_next - u).days
+
+
+def slate_date(now):
+    """The day whose picks are on the site: the date of the last build, as long as that is today or
+    yesterday in Eastern time. (After midnight Eastern the night's late games still belong to
+    yesterday's slate; the overnight build is what starts the new day.)"""
+    try:
+        d = date.fromisoformat((DATA / "last_build.txt").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return d if 0 <= (now.date() - d).days <= 1 else None
+
+
+def due_for_a_final(rows, day, now):
+    """Ledger rows of that day that are not graded yet and tipped off long enough ago to be final.
+    Games the last saved schedule lists as postponed or canceled are left out."""
+    off = set()
+    try:
+        for g in json.loads((RAW / "games_today.json").read_text(encoding="utf-8")):
+            if (g.get("status") or "").lower() in ("postponed", "cancelled", "canceled"):
+                off.add((str(g.get("awayTeamId")), str(g.get("homeTeamId"))))
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+    due = []
+    for r in rows:
+        if r["date"] != day or r["away_pts"] != "" or (str(r["away_id"]), str(r["home_id"])) in off:
+            continue
+        try:
+            tip = datetime.strptime(r["when"].replace(" ET", ""), "%b %d, %Y %I:%M %p").replace(tzinfo=config.ET)
+        except ValueError:
+            continue                                   # tip time still to be announced
+        if SCORES_AFTER_TIP <= (now - tip).total_seconds() / 60 <= SCORES_GIVE_UP:
+            due.append(r)
+    return due
+
+
+def _is_tbd(name):
+    return (name or "").strip().upper() in ("", "TBD", "TBA")
+
+
+def _read_matchups(path, day=None):
+    """{ESPN game id: [away ESPN team id, home ESPN team id]} from a small JSON file, {} if there is
+    none. Two shapes are read: {"games": {...}, "date": "2026-11-18"} and the bare {...}. With day
+    given, a file saved for another day counts as empty."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict) or (day and data.get("date") != day):
+        return {}
+    games = data.get("games", data)
+    return {str(k): [str(x) for x in v][:2] for k, v in games.items() if isinstance(v, (list, tuple)) and len(v) >= 2}
+
+
+def fill_tbd(raw_games, day):
+    """Bracket games. When a game's opponent depends on an earlier round, the data feed lists it as
+    "Rutgers vs TBD", and it can stay that way for hours after the matchup is set: on Nov 18, 2026 all
+    four Players Era games still said TBD at four builds in a row, the model had nobody to rate the
+    known team against, and the games got no pick.
+
+    Every schedule row carries ESPN's id for the game, so the missing side is looked up there:
+    in matchups.json (a hand-made list, for days ESPN turns GitHub's machines away), in what an
+    earlier build today already found, and on ESPN's scoreboard right now. Only the TBD side of a
+    row is filled, so the game keeps the order the feed gave it; a row ESPN can't settle either is
+    left as it is and skipped like before. Rows are changed in place. Returns the rows it filled."""
+    todo = [g for g in raw_games if _is_tbd(g.get("awayTeam")) or _is_tbd(g.get("homeTeam"))]
+    if not todo:
+        return []
+    try:
+        teams = json.loads((RAW / "teams.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        log(f"  {len(todo)} games list an opponent as TBD, and there is no saved team list to look them up in")
+        return []
+    by_id = {t.get("id"): t for t in teams}
+    by_espn = {str(t.get("sourceId")): t for t in teams if not _is_tbd(t.get("school"))}
+    saved_file = RAW / "matchups_today.json"
+    known = _read_matchups(ROOT / "matchups.json")
+    known.update(_read_matchups(saved_file, day.isoformat()))
+    espn_answered = False
+    try:
+        known.update({k: list(v) for k, v in fetch.espn_matchups(day).items()})
+        espn_answered = True
+    except AttributeError:
+        pass                                             # a fetch.py from before this was added
+    except fetch.FetchError as e:
+        log(f"  ! {e} (bracket games are filled from matchups.json or an earlier build, if they are there)")
+    filled = []
+    for g in todo:
+        pair = known.get(str(g.get("sourceId") or ""))
+        if not pair or pair[0] == pair[1]:
+            continue
+        away_tbd, home_tbd = _is_tbd(g.get("awayTeam")), _is_tbd(g.get("homeTeam"))
+        if away_tbd and home_tbd:
+            want = {"away": pair[0], "home": pair[1]}
+        else:
+            side, other = ("home", "away") if home_tbd else ("away", "home")
+            mine = str((by_id.get(g.get(f"{other}TeamId")) or {}).get("sourceId"))
+            if mine not in pair:
+                continue                                 # ESPN's game with this id is not this team's: leave the row alone
+            want = {side: pair[1] if pair[0] == mine else pair[0]}
+        found = {s: by_espn.get(e) for s, e in want.items()}
+        if not all(found.values()):
+            continue                                     # ESPN has no opponent yet either
+        for s, t in found.items():
+            g[f"{s}TeamId"], g[f"{s}Team"] = t.get("id"), t.get("school")
+            g[f"{s}Conference"], g[f"{s}ConferenceId"] = t.get("conference"), t.get("conferenceId")
+        filled.append(g)
+    if filled:
+        keep = {str(g["sourceId"]): known[str(g["sourceId"])] for g in filled}
+        # espn_answered: whether ESPN could be reached from this machine in this build (worth knowing,
+        # since GitHub's machines are sometimes turned away and then only the saved finds and the list help)
+        saved_file.write_text(json.dumps({"date": day.isoformat(), "espn_answered": espn_answered, "games": keep}, indent=1),
+                              encoding="utf-8")
+        log(f"  filled in {len(filled)} opponents the feed lists as TBD: "
+            + ", ".join(f"{g['awayTeam']} vs {g['homeTeam']}" for g in filled))
+    if len(filled) < len(todo):
+        log(f"  {len(todo) - len(filled)} games still list an opponent as TBD and are skipped")
+    return filled
+
+
+def orient_like_ledger(games, rows):
+    """A pick is stored under away|home. When the feed later lists the same game the other way round
+    (it happens with neutral-site bracket games), the feed's row is turned to match the pick, so the
+    pick is found again for grading and the game does not get a second pick. Returns how many."""
+    keys = {r["game_key"] for r in rows}
+    n = 0
+    for g in games:
+        if (ledger.key(g["date"], g["away_id"], g["home_id"]) in keys
+                or ledger.key(g["date"], g["home_id"], g["away_id"]) not in keys):
+            continue
+        for a, h in (("away_id", "home_id"), ("away", "home"), ("away_pts", "home_pts"), ("away_h1", "home_h1")):
+            g[a], g[h] = g[h], g[a]
+        n += 1
+    return n
+
+
+def ungrade_ties(rows):
+    """A final cannot be a tie, so a row graded from one was graded from a game that was never played
+    (the API listed an event's placeholder matchup as "final" 0-0; fetch.parse_games no longer
+    accepts that). Those rows go back to ungraded. Returns the rows that were cleared."""
+    cleared = []
+    for r in rows:
+        if r["away_pts"] != "" and r["away_pts"] == r["home_pts"]:
+            for k in ("away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct"):
+                r[k] = ""
+            cleared.append(r)
+    return cleared
 
 
 def _cache(name, loader):
@@ -102,6 +295,10 @@ def season_games(season, today):
     saved = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
     if saved.get("format") != 2:                       # older file without scores: rebuild once
         saved = {"format": 2, "through": "", "games": []}
+    # A game without a winner was never played: the API listed some placeholder and canceled games
+    # as 0-0 finals, and fetch.parse_games used to let them through. As "ties" they bent the
+    # results-based strength of schedule, so they are dropped from what was saved as well.
+    saved["games"] = [g for g in saved["games"] if g[3] != g[4]]
     start = date(season - 1, 11, 1)
     end = min(today - timedelta(days=1), date(season, 4, 15))
 
@@ -138,27 +335,63 @@ def main():
     ap.add_argument("--date", help="build for this ET date (YYYY-MM-DD) instead of today")
     ap.add_argument("--refresh", action="store_true",
                     help="afternoon refresh: re-download only today's schedule and lines")
+    ap.add_argument("--scores", action="store_true",
+                    help="night score update: grade the games on the board that have gone final; "
+                         "no new picks, bets or lines")
     args = ap.parse_args()
-    global REFRESH
-    REFRESH = args.refresh
+    global REFRESH, SCORES, LIVE_FEEDS
+    SCORES = args.scores
+    REFRESH = args.refresh or SCORES
+    LIVE_FEEDS = ("games_today",) if SCORES else ("games_today", "lines_today")
     now = config.now_et()
-    today = date.fromisoformat(args.date) if args.date else now.date()
+    # The site's day turns over at 3 AM Eastern (2 AM Central), not at midnight: a run started by hand
+    # late at night still belongs to the evening's slate. Starting the next day is the overnight
+    # build's job, and the workflow does not let that begin before 2 AM Central.
+    today = date.fromisoformat(args.date) if args.date else (now - timedelta(hours=3)).date()
+    if SCORES:
+        # Stay on the slate that is on the site. After midnight Eastern "today" is already tomorrow,
+        # and tomorrow's picks are the overnight build's job (it needs tonight's results first).
+        today = slate_date(now)
+        if today is None:
+            log("Score update: the site's slate is not today's or last night's, nothing to do")
+            return 0
     today_str = today.isoformat()
     stamp = now.astimezone(config.CT).strftime("%b %d, %Y %I:%M %p CT")
-    log(f"Build for {today_str}")
+    log(f"Build for {today_str}" + (" (score update)" if SCORES else ""))
 
     rows = ledger.load()
+    if SCORES:
+        due = due_for_a_final(rows, today_str, now)
+        if not due:
+            log("  no game on the board can be final yet (or all are graded): nothing to do, no data call made")
+            return 0
+        left, held = calls_left_saved(), calls_held_back(now)
+        if left is not None and left < held:
+            log(f"  {len(due)} games may be final, but only {left} data calls are left this month and {held} are "
+                f"held back for the regular builds: skipped (the overnight build grades them)")
+            return 0
+        log(f"  {len(due)} games tipped off at least {SCORES_AFTER_TIP} minutes ago and are not graded yet")
+    else:
+        for r in ungrade_ties(rows):                     # the regular builds always save the ledger further down
+            log(f"  un-graded {r['away']} @ {r['home']} on {r['date']}: it was listed as a 0-0 final but never played")
+            stale = site.DOCS / site.game_path(r)        # its page reports a result that never happened
+            if stale.exists():
+                stale.unlink()
 
     # two games calls (API max is 3,000 per call, oldest first): today's slate on its own,
     # and the last 14 days for grading (finals and halftime scores)
     raw_today, _ = _cache("games_today", lambda: fetch.games(today, today))
+    fill_tbd(raw_today or [], today)                    # bracket games the feed still lists against "TBD"
     raw_hist, _ = _cache("games_recent", lambda: fetch.games(today - timedelta(days=14), today - timedelta(days=1)))
     all_games = fetch.parse_games((raw_hist or []) + (raw_today or []))
+    turned = orient_like_ledger(all_games, rows)
+    if turned:
+        log(f"  {turned} games are listed the other way round from their pick: matched to the pick")
     log(f"  {len(raw_today or [])} games today, {len(raw_hist or [])} in the last 14 days")
 
-    # 1) grade finished days from the last week
+    # 1) grade finished days from the last week (a score update has nothing new for earlier days)
     week_ago = (today - timedelta(days=7)).isoformat()
-    for d in ledger.ungraded_dates(rows, today_str):
+    for d in ([] if SCORES else ledger.ungraded_dates(rows, today_str)):
         if d >= week_ago:
             n = ledger.grade(rows, d, [g for g in all_games if g["date"] == d])
             log(f"  graded {n} games for {d}")
@@ -181,14 +414,20 @@ def main():
     pre_tip = {(g["away_id"], g["home_id"]) for g in todays_games if not_started(g)}
     late = [p for p in preds if (p["away_id"], p["home_id"]) not in pre_tip and p.get("pick")]
     preds = [p for p in preds if (p["away_id"], p["home_id"]) in pre_tip]
-    if late:
+    if late and not SCORES:
         log(f"  {len(late)} games already started: not adding new picks for them")
-    added = ledger.lock(rows, today_str, preds, season, now.isoformat(timespec="minutes"))
-    log(f"  locked {added} new picks")
-    # games already final today move to the Results page at the next refresh (the rest grade overnight)
+    if not SCORES:                                      # a score update never adds a pick
+        added = ledger.lock(rows, today_str, preds, season, now.isoformat(timespec="minutes"))
+        log(f"  locked {added} new picks")
+    # games already final today move to the Results page at the next refresh or score update
+    # (whatever is left grades overnight)
     n_final = ledger.grade(rows, today_str, todays_games)
     if n_final:
         log(f"  graded {n_final} finished games from today")
+    if SCORES and not n_final:
+        save_calls_left(stamp)
+        log("  no new finals yet: site left as it is")
+        return 0
     raw_lines, _ = _cache("lines_today", lambda: fetch.lines(today, today))
     all_lines = fetch.parse_lines(raw_lines)
     line_map = {k: v for k, v in all_lines.items() if k in pre_tip}
@@ -216,7 +455,7 @@ def main():
     # the day's top single bets are locked in once most games have a line, then graded like picks
     book = bets.load_book()
     with_line = sum(1 for r in day_rows if r["line_spread"] or r["line_total"])
-    if day_rows and with_line / len(day_rows) >= bets.LOCK_COVERAGE:
+    if not SCORES and day_rows and with_line / len(day_rows) >= bets.LOCK_COVERAGE:      # a score update never adds a bet
         n_locked = bets.lock_day(book, today_str, best["singles"], stamp)
         if n_locked:
             log(f"  locked today's top {n_locked} single bets")
@@ -259,35 +498,48 @@ def main():
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))
     gotd = share.game_of_day(todays, writeups)
     season_rec = (sum(1 for r in rows if r["pick_correct"] == "1"), sum(1 for r in rows if r["pick_correct"] == "0"))
-    try:
-        share.share_image(site.DOCS / "og.png", label, gotd, writeups.get(gotd["game_key"]) if gotd else None, teams,
-                          site.predicted_score(gotd) if gotd else None, season_rec if config.SHOW_RESULTS_STATS else None)
-    except Exception as e:                              # noqa: BLE001 - the share image is cosmetic
-        log(f"  ! share image: {e}")
-    caption = ""
-    if gotd and not REFRESH:                            # the clip is rendered once a day, by the overnight build
+    caption = studio = ""
+    # A score update leaves the share image, the clip, its caption and the posting page exactly as the
+    # day's builds made them: late at night the "game of the day" among the games still to play is a
+    # different game from the one the clip was made for.
+    if not SCORES:
         try:
-            clip = video.daily_video(site.DOCS / "daily.mp4", label, gotd, writeups.get(gotd["game_key"]), teams,
-                                     site.predicted_score(gotd))
-            log(f"  daily clip: {'ok' if clip else 'skipped'}")
-        except Exception as e:                          # noqa: BLE001 - cosmetic
-            log(f"  ! daily clip: {e}")
-    if gotd and (site.DOCS / "daily.mp4").exists():
-        caption = video.caption(gotd, writeups.get(gotd["game_key"]), site.predicted_score(gotd))
-        (DATA / "caption.txt").write_text(caption + "\n", encoding="utf-8")
-    studio = site.studio_page(stamp, label, gotd, teams, writeups.get(gotd["game_key"]) if gotd else None, caption, yesterday)
+            share.share_image(site.DOCS / "og.png", label, gotd, writeups.get(gotd["game_key"]) if gotd else None, teams,
+                              site.predicted_score(gotd) if gotd else None, season_rec if config.SHOW_RESULTS_STATS else None)
+        except Exception as e:                              # noqa: BLE001 - the share image is cosmetic
+            log(f"  ! share image: {e}")
+        if gotd and not REFRESH:                            # the clip is rendered once a day, by the overnight build
+            try:
+                clip = video.daily_video(site.DOCS / "daily.mp4", label, gotd, writeups.get(gotd["game_key"]), teams,
+                                         site.predicted_score(gotd))
+                log(f"  daily clip: {'ok' if clip else 'skipped'}")
+            except Exception as e:                          # noqa: BLE001 - cosmetic
+                log(f"  ! daily clip: {e}")
+        if gotd and (site.DOCS / "daily.mp4").exists():
+            caption = video.caption(gotd, writeups.get(gotd["game_key"]), site.predicted_score(gotd))
+            (DATA / "caption.txt").write_text(caption + "\n", encoding="utf-8")
+        studio = site.studio_page(stamp, label, gotd, teams, writeups.get(gotd["game_key"]) if gotd else None, caption, yesterday)
+    # final scores for the graded bets on the Best Bets page ("83-54", away-home)
+    finals = {(r["date"], str(r["away_id"]), str(r["home_id"])): f'{r["away_pts"]}-{r["home_pts"]}'
+              for r in rows if r["away_pts"] != "" and r["date"] >= week_ago}
     # the one bet the model likes in each open game (same rules as Best Bets), for the Bet pills
     bets_by_game = {}
     for r in open_rows:
         ok = [b for b in bets.game_bets(r, bets._lookup(all_lines, r), best["cal"]) if bets.qualifies(b)]
         if ok:
             bets_by_game[r["game_key"]] = max(ok, key=lambda b: b["edge"])
+    bets_html = (site.bets_page(best, label, stamp, teams, book, today_str, finals)
+                 if "finals" in site.bets_page.__code__.co_varnames              # older webpage.py: no final scores
+                 else site.bets_page(best, label, stamp, teams, book, today_str))
     site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, "", bets_by_game),
-               site.results_page(rows, stamp, teams), site.bets_page(best, label, stamp, teams, book, today_str),
+               site.results_page(rows, stamp, teams), bets_html,
                stamp=stamp, studio_html=studio,
                live_html=site.live_page([r for r in rows if r["date"] == today_str], teams, stamp, today_str, label))
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
-    log("done")
+    save_calls_left(stamp)
+    left = getattr(fetch, "CALLS_LEFT", None)
+    log("done" + (f" ({left} data calls left this month)" if left is not None else ""))
+    return 0
 
 
 if __name__ == "__main__":

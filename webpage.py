@@ -215,6 +215,9 @@ footer .links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px}footer a{c
 .res.big{font:800 20px/1 'Big Shoulders Display',sans-serif;padding:8px 14px;border-radius:10px}
 .res.P{background:#2a2a32;color:var(--mute)}
 .bet.W{border-color:rgba(69,212,138,.45)}.bet.L{border-color:rgba(255,97,97,.35);opacity:.8}
+.bet.is-live{border-color:rgba(255,59,59,.55)}
+.pc .lvrow{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:6px}
+.pc .res.big+small{margin-top:9px}
 .stat.win b{color:var(--win)}.stat.loss b{color:var(--loss)}
 .singles.past .bet{padding:10px 18px}.singles.past .rk{font-size:22px}.singles.past .bl b{font-size:16px}
 .disc.ou{--c:#26262e}.disc.ou em{font-size:20px}
@@ -238,6 +241,7 @@ footer .links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px}footer a{c
  .bet{grid-template-columns:26px 42px 1fr auto;gap:10px;padding:12px 14px}
  .bet .disc{flex-basis:42px;width:42px;height:42px}.bet .disc img{width:30px;height:30px}
  .bet .kind,.pc .mc{display:none}.bet .rk{font-size:24px}.bl b{font-size:16px}.pc b{font-size:22px}.pc{min-width:70px}
+ .pc .lvrow{flex-direction:column;align-items:flex-end;gap:4px}
  .top .wrap{gap:8px}.brand{font-size:20px}.brand i{width:18px;height:18px}nav{gap:0}nav a{padding:7px 8px;font-size:13px}
 }
 @media (prefers-reduced-motion:no-preference){.g{animation:in .35s ease-out both}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
@@ -283,9 +287,12 @@ document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',(
  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(ta.value).then(ok,legacy)}else legacy()}));
 const sel=document.getElementById('conf');if(sel)sel.addEventListener('change',()=>{C=sel.value;
  if(C){S='all';document.querySelectorAll('.chip[data-s]').forEach(x=>x.classList.toggle('on',x.dataset.s==='all'))}apply()});
-const etDay=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+const etDay=(back=0)=>new Date(Date.now()-back*36e5).toLocaleDateString('en-CA',{timeZone:'America/New_York'});
 const isToday=box&&box.dataset.date===etDay();
-if(box&&box.dataset.date&&box.dataset.date<etDay()){ // last build was an earlier day
+// After midnight Eastern the night's late games are still this page's games: the live scores keep
+// running, and the "earlier day" note holds off, until 5 AM Eastern when the next day's page is due.
+const lateNight=box&&!isToday&&box.dataset.date===etDay(5);
+if(box&&box.dataset.date&&box.dataset.date<etDay(5)){ // last build was an earlier day
  const n=document.createElement('div');n.className='stale';
  const d=new Date(box.dataset.date+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'});
  n.innerHTML='<b>Showing '+d+'.</b> Today\u2019s picks haven\u2019t been built yet \u2014 the site rebuilds overnight and before each tip-off block. Check back shortly.';
@@ -297,7 +304,7 @@ if(isToday){ // open on the block that's on now, or the next one with games
  if(cur){S=cur.dataset.s;document.querySelectorAll('.chip[data-s]').forEach(x=>x.classList.toggle('on',x===cur))}
 }
 apply();
-if(!isToday)return;
+if(!isToday&&!lateNight)return;
 const liveChip=document.querySelector('.chip[data-s=live]');
 async function poll(){
  try{
@@ -306,13 +313,16 @@ async function poll(){
   const map={};
   for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};
    c.competitors.forEach(p=>sc[p.team.id]=p.score);const st=(c.status||e.status).type;
-   map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:st.state,detail:st.shortDetail||st.detail||''}}
+   map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:st.state,done:st.completed===true,detail:st.shortDetail||st.detail||''}}
   let live=0,open=0;
   games.forEach(g=>{
    const m=map[[g.dataset.ea,g.dataset.eh].sort().join('-')];
    if(!m||m.state==='pre'){open++;return}
    const a=+m.sc[g.dataset.ea]||0,h=+m.sc[g.dataset.eh]||0,lv=g.querySelector('.lv');if(!lv)return;
-   lv.hidden=false;lv.querySelector('.la').textContent=a;lv.querySelector('.lh').textContent=h;
+   if(m.state!=='in'&&!m.done){ // postponed or canceled: there is no score and no result to show
+    lv.hidden=false;lv.querySelector('.score').style.display='none';g.classList.remove('is-live');g.classList.add('is-done');g.style.order=1;
+    lv.querySelector('.lstat').innerHTML='<span class="fintag"></span>';lv.querySelector('.fintag').textContent=m.detail||'Off';return}
+   lv.hidden=false;lv.querySelector('.score').style.display='';lv.querySelector('.la').textContent=a;lv.querySelector('.lh').textContent=h;
    lv.querySelector('.la').className='la '+(a>=h?'w':'l');lv.querySelector('.lh').className='lh '+(h>=a?'w':'l');
    const ls=lv.querySelector('.lstat');
    if(m.state==='in'){live++;open++;g.classList.add('is-live');g.classList.remove('is-done');
@@ -773,8 +783,8 @@ def about_page(stamp):
             '<p>Every pick is written down before tip-off and never changed. The Results page shows each graded game with the '
             'projected and actual scores. No pick is ever removed.</p>'
             '<h2>Data</h2>'
-            '<p>Team statistics, schedules, scores and betting lines come from CollegeBasketballData. Live scores on the Today '
-            'page come from ESPN. Team logos belong to the schools.</p>'
+            '<p>Team statistics, schedules, scores and betting lines come from CollegeBasketballData. Live scores on the Today, '
+            'Live and Best Bets pages come from ESPN. Team logos belong to the schools.</p>'
             '<h2>Please read this part</h2>'
             '<p>Everything here is for information and entertainment. It is not betting advice, and a model that is right '
             'two-thirds of the time is wrong one game in three. Never bet money you can\u2019t afford to lose. You must be of '
@@ -797,7 +807,7 @@ def privacy_page(stamp):
             'read how Google uses data from sites that use its services at '
             '<a href="https://policies.google.com/technologies/partner-sites">policies.google.com/technologies/partner-sites</a>.</p>'
             '<h2>Live scores and fonts</h2>'
-            '<p>On game days the Today page asks ESPN for live scores from your browser, and the pages load fonts from Google '
+            '<p>On game days the Today, Live and Best Bets pages ask ESPN for live scores from your browser, and the pages load fonts from Google '
             'Fonts. Those services see your IP address in the ordinary way any web request does.</p>'
             '<h2>Hosting</h2>'
             '<p>The pages are hosted on GitHub Pages, which keeps standard server logs. See '
@@ -1042,14 +1052,21 @@ def _bet_where(b, teams):
             f' \u00b7 {tip}')
 
 
-def _single(i, b, teams, status=""):
-    """One row of the single-bet list. status = HTML for the right-hand column (default: model chance)."""
+def _single(i, b, teams, status="", live=False):
+    """One row of the single-bet list. status = HTML for the right-hand column (default: model chance).
+    live = add what the page's script needs to follow the game and grade the bet at the final (BETS_JS)."""
     import bets as B
     if not status:
         status = (f'<div class="pc"><b>{b["chance"] * 100:.0f}%</b><small><span class="mc">model chance, </span>'
                   f'+{b["edge"] * 100:.0f}<span class="mc"> pts</span> edge</small>'
                   f'<div class="bar2"><i style="width:{b["chance"] * 100:.0f}%"></i></div></div>')
-    return (f'<div class="bet{" " + b["result"] if b.get("result") else ""}"><div class="rk">{i}</div>{_bet_disc(b, teams)}'
+    hooks = ""
+    if live:
+        a, h = _team(teams, b["away_id"], b["away"]), _team(teams, b["home_id"], b["home"])
+        num = "" if b.get("num") in (None, "") else f'{float(b["num"]):g}'
+        hooks = (f' data-ea="{escape(a["espn"])}" data-eh="{escape(h["espn"])}" data-kind="{escape(b["kind"])}"'
+                 f' data-side="{escape(b["side"])}" data-num="{num}" data-res="{escape(b.get("result") or "")}"')
+    return (f'<div class="bet{" " + b["result"] if b.get("result") else ""}"{hooks}><div class="rk">{i}</div>{_bet_disc(b, teams)}'
             f'<div class="bl"><b>{escape(b["label"])} <span style="color:var(--mute);font-weight:600">{B.fmt_odds(b["odds"])}</span></b>'
             f'<small>{_bet_where(b, teams)}</small></div>'
             f'<span class="kind {b["kind"]}">{"Moneyline" if b["kind"] == "ML" else b["kind"]}</span>{status}</div>')
@@ -1062,22 +1079,82 @@ def _from_book(b):
     return r
 
 
-def _status(b):
+def _status(b, final=""):
+    """Right-hand column of a locked bet: W / L / Push once it is graded (with the final score,
+    "83-54" away-home, when the caller has it), otherwise the model's chance."""
     res = b.get("result")
+    fin = f'<small class="fin">Final {escape(final)}</small>' if final else ""
     if res == "W":
-        return '<div class="pc"><span class="res W big">W</span></div>'
+        return f'<div class="pc"><span class="res W big">W</span>{fin}</div>'
     if res == "L":
-        return '<div class="pc"><span class="res L big">L</span></div>'
+        return f'<div class="pc"><span class="res L big">L</span>{fin}</div>'
     if res == "P":
-        return '<div class="pc"><span class="res P big">Push</span></div>'
+        return f'<div class="pc"><span class="res P big">Push</span>{fin}</div>'
     return (f'<div class="pc"><b>{b["chance"] * 100:.0f}%</b><small>model chance</small>'
             f'<div class="bar2"><i style="width:{b["chance"] * 100:.0f}%"></i></div></div>')
 
 
-def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
+# Today's locked bets grade themselves in the visitor's browser, from the same public scoreboard the
+# Today page uses: the live score while a game is on, then W / L / Push the minute it goes final.
+# Builds only happen a few times a day (and each one spends data-API calls), so without this an
+# evening bet showed no result until the overnight build. The rules mirror bets.grade_bet; the
+# builds still do the official grading, and a bet a build has already graded is left alone.
+BETS_JS = r"""<script>
+(()=>{
+const box=document.getElementById('bets-live');if(!box)return;
+const rows=[...box.querySelectorAll('.bet')],sub=document.getElementById('bets-sub'),day=box.dataset.day;
+const et=back=>new Date(Date.now()-back*36e5).toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+const current=()=>day===et(0)||day===et(5);   // this slate's own day, or after midnight Eastern while its late games finish
+if(!day||!current()||rows.every(r=>r.dataset.res))return;   // nothing left to follow
+const API='https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=500&dates=';
+function grade(r,a,h){
+ const k=r.dataset.kind,s=r.dataset.side,n=parseFloat(r.dataset.num)||0;
+ const v=k==='Total'?(a+h-n)*(s==='over'?1:-1):(s==='home'?h-a:a-h)+(k==='Spread'?n:0);
+ return v>0?'W':v<0?'L':'P'}
+function tally(){let w=0,l=0,p=0,open=0;
+ rows.forEach(r=>{const x=r.dataset.res;if(x==='W')w++;else if(x==='L')l++;else if(x==='P')p++;else open++});
+ if(sub&&w+l+p){const rec=w+'-'+l+(p?'-'+p:'');sub.textContent=open?rec+' so far, '+open+' still to play':'final: '+rec}
+ return open}
+async function poll(){
+ if(!current()){clearInterval(timer);return}
+ try{
+  const j=await fetch(API+day.replace(/-/g,''),{cache:'no-store'}).then(r=>r.json());
+  const map={};
+  for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};
+   c.competitors.forEach(p=>sc[p.team.id]=+p.score||0);const t=(c.status||e.status||{}).type||{};
+   map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:t.state,done:t.completed===true,detail:t.shortDetail||t.detail||''}}
+  rows.forEach(r=>{
+   if(r.dataset.res||!r.dataset.ea||!r.dataset.eh)return;
+   const m=map[[r.dataset.ea,r.dataset.eh].sort().join('-')],pc=r.querySelector('.pc');
+   if(!m||!pc||m.state==='pre')return;
+   const a=m.sc[r.dataset.ea]||0,h=m.sc[r.dataset.eh]||0;
+   if(m.state==='in'){r.classList.add('is-live');
+    pc.innerHTML='<b></b><small class="lvrow"><span class="livetag">LIVE</span><span class="clock"></span></small>';
+    pc.querySelector('b').textContent=a+'-'+h;pc.querySelector('.clock').textContent=m.detail}
+   else if(m.done){const g=grade(r,a,h);r.dataset.res=g;r.classList.remove('is-live');r.classList.add(g);
+    pc.innerHTML='<span class="res '+g+' big">'+(g==='P'?'Push':g)+'</span><small class="fin"></small>';
+    pc.querySelector('.fin').textContent='Final '+a+'-'+h}
+   else if(!pc.querySelector('.off')){   // postponed or canceled: no result, say why
+    const s=document.createElement('small');s.className='off';s.textContent=m.detail;pc.appendChild(s)}
+  });
+  if(!tally())clearInterval(timer);
+ }catch(e){}
+}
+const timer=setInterval(poll,60000);poll();
+})();
+</script>"""
+
+
+def bets_page(best, date_label, stamp, teams=None, book=None, date_iso="", finals=None):
+    """finals = {(date, away_id, home_id): "83-54"} final scores (away-home) for graded games, shown
+    under each graded bet's W / L."""
     import bets as B
     teams = teams or {}
     book = book or []
+    finals = finals or {}
+
+    def final_of(b):
+        return finals.get((b["date"], str(b["away_id"]), str(b["home_id"])), "")
     today_book = [_from_book(b) for b in book if b["date"] == date_iso]
     past_dates = sorted({b["date"] for b in book if b["date"] < date_iso and b["result"]})
     yday = past_dates[-1] if past_dates else ""
@@ -1099,18 +1176,22 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
                  f'<div class="stat am"><b>{rec(sw, sl, sp)}</b><span>season, {pct(sw, sl)}</span></div></div>')
     hero = ('<section class="hero"><div><h1>Best Bets</h1>'
             f'<p>{escape(date_label)}. The model\u2019s projections against the current lines. The top single bets lock in '
-            f'each morning and are graded from the final score; parlays rebuild before each time block from games that '
-            f'haven\u2019t tipped off. Times are Central.</p></div>{stats}</section>')
+            f'each morning; each one shows the live score while its game is on and is graded the minute it ends. '
+            f'Parlays rebuild before each time block from games that haven\u2019t tipped off. Times are Central.</p></div>{stats}</section>')
     singles = best["singles"]
     if today_book:
         done = sum(1 for b in today_book if b.get("result"))
-        sub = ("locked in at " + escape(today_book[0]["locked_at"].split(", ")[-1]) if "locked_at" in today_book[0] else "locked in")
+        # "Nov 18, 2026 03:23 AM CT" -> "locked in at 3:23 AM CT" (this used to show the year as well)
+        at = re.search(r"(\d{1,2}:\d{2} [AP]M(?: CT)?)$", today_book[0].get("locked_at") or "")
+        sub = "locked in at " + escape(at.group(1).lstrip("0")) if at else "locked in"
         if done:
             tw, tl, tp = B.record([b for b in book if b["date"] == date_iso])
             sub = f"{rec(tw, tl, tp)} so far, {len(today_book) - done} still to play" if done < len(today_book) else f"final: {rec(tw, tl, tp)}"
-        rows = "".join(_single(i, b, teams, _status(b)) for i, b in enumerate(today_book, 1))
-        single_html = (f'<div class="sect"><h2>Today\u2019s top {len(today_book)} single bets</h2><span>{sub}</span></div>'
-                       f'<div class="singles">{rows}</div>')
+        # these rows follow their games in the visitor's browser (BETS_JS): live score while a game is
+        # on, W/L at the final, without waiting for the next build
+        rows = "".join(_single(i, b, teams, _status(b, final_of(b)), live=True) for i, b in enumerate(today_book, 1))
+        single_html = (f'<div class="sect"><h2>Today\u2019s top {len(today_book)} single bets</h2><span id="bets-sub">{sub}</span></div>'
+                       f'<div class="singles" id="bets-live" data-day="{escape(date_iso)}">{rows}</div>')
     elif singles:
         rows = "".join(_single(i, b, teams) for i, b in enumerate(singles, 1))
         single_html = (f'<div class="sect"><h2>Top {len(singles)} single bets</h2><span>Preview, locks in once most lines are posted</span></div>'
@@ -1120,7 +1201,7 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
                        'or every game today has already tipped off.</div>')
     if yday_book:
         ylab = datetime.fromisoformat(yday).strftime("%A, %b %-d")
-        rows = "".join(_single(i, b, teams, _status(b)) for i, b in enumerate(yday_book, 1))
+        rows = "".join(_single(i, b, teams, _status(b, final_of(b))) for i, b in enumerate(yday_book, 1))
         single_html += (f'<div class="sect"><h2>{escape(ylab)}</h2><span>top bets went {rec(yw, yl, yp)}</span></div>'
                         f'<div class="singles past">{rows}</div>')
     cards = []
@@ -1144,7 +1225,7 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso=""):
             'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>')
     short = _short_date(date_iso)
     return page(f'College Basketball Best Bets Today{", " + short if short else ""} | {config.SITE_NAME}', "bets.html",
-                hero + single_html + parlay_html + note, stamp,
+                hero + single_html + parlay_html + note + (BETS_JS if today_book else ""), stamp,
                 "Today\u2019s college basketball best bets from the model: the top single bets and 3, 6 and 8-leg parlays "
                 "against the current lines, locked each morning and graded in public.")
 
@@ -1270,8 +1351,10 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_ht
     if bets_html:
         (docs / "bets.html").write_text(bets_html, encoding="utf-8")
     (docs / ".nojekyll").write_text("", encoding="utf-8")
-    (docs / "robots.txt").write_text(f"User-agent: *\nDisallow: /{config.STUDIO_PAGE}\nDisallow: /daily.mp4\nAllow: /\n"
-                                     f"Sitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
+    # robots.txt is a public file, so it names nothing private: the posting page keeps itself out
+    # of search with its own noindex tag, and listing it (or the clip) here would hand both
+    # addresses to anyone who opens this file
+    (docs / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {config.SITE_URL}/sitemap.xml\n", encoding="utf-8")
     # sitemap: the home page as the bare domain, the daily pages dated today, and each game page
     # dated the day after its game (when its result went up), so search engines know what is fresh
     today = _stamp_date(stamp)

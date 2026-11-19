@@ -51,11 +51,42 @@ def test_parse_games_times_and_finals():
     assert g[0]["date"] == "2026-11-03" and g[0]["when"] == "Nov 3, 2026 7:00 PM ET"
     assert g[0]["away_pts"] is None and g[0]["away_h1"] is None
     assert (g[1]["away_pts"], g[1]["home_pts"], g[1]["away_h1"], g[1]["home_h1"]) == (64, 71, 27, 33)
+    # a "final" without a winner is a game that was never played (the API lists some placeholder
+    # matchups that way, 0-0): it is not a result and must never be graded
+    ghost = fetch.parse_games([game(3, "2026-11-14T18:00:00.000Z", "Towson", 50, "Morgan State", 60, "final", 0, 0)])[0]
+    assert ghost["away_pts"] is None and ghost["home_pts"] is None
+    rows = []
+    ledger.lock(rows, "2026-11-14", [{"when": ghost["when"], "away_id": 50, "away": "Towson", "home_id": 60, "home": "Morgan State",
+                                      "away_rating": 1.3, "home_rating": 1.2, "pick": "Towson", "differential": 0.1,
+                                      "strong_pick": "", "total": 144.2}], "2026-27", "t")
+    assert ledger.grade(rows, "2026-11-14", [ghost]) == 0 and rows[0]["pick_correct"] == ""
+
+
+def test_a_row_graded_from_a_tie_goes_back_to_ungraded():
+    import build
+    row = {k: "" for k in ledger.FIELDS}
+    ghost = dict(row, date="2026-11-14", away="Towson", home="Morgan State", away_pts="0", home_pts="0", pick_correct="1", total_error="-144.2")
+    real = dict(row, date="2026-11-14", away="UMBC", home="Towson", away_pts="42", home_pts="68", pick_correct="1")
+    open_ = dict(row, date="2026-11-18", away="A", home="B")
+    rows = [ghost, real, open_]
+    assert build.ungrade_ties(rows) == [ghost]
+    assert (ghost["away_pts"], ghost["home_pts"], ghost["pick_correct"], ghost["total_error"]) == ("", "", "", "")
+    assert real["home_pts"] == "68" and build.ungrade_ties(rows) == []
+
+
+def test_never_played_games_leave_the_schedule_strength_data(tmp_path, monkeypatch):
+    import build
+    monkeypatch.setattr(build, "RAW", tmp_path)
+    monkeypatch.setattr(build, "REFRESH", True)
+    saved = {"format": 2, "through": "2026-11-17", "games": [["2026-11-10", 1, 2, 0, 0, 0], ["2026-11-12", 1, 3, 70, 60, 0],
+                                                              ["2026-11-14", 4, 5, 0, 0, 1]]}
+    (tmp_path / "season_games_2027.json").write_text(json.dumps(saved))
+    assert build.season_games(2027, date(2026, 11, 18)) == [(1, 3, 70, 60, False)]      # the two 0-0 "ties" are gone
 
 
 def test_first_half_last3():
     gl = fetch.parse_games([
-        game(i, f"2026-11-{d:02d}T23:00:00Z", "A", 1, "B", 2, "final", 70, 70, [a1, 35], [b1, 35])
+        game(i, f"2026-11-{d:02d}T23:00:00Z", "A", 1, "B", 2, "final", 70, 71, [a1, 35], [b1, 35])
         for i, (d, a1, b1) in enumerate([(1, 10, 20), (3, 30, 40), (5, 40, 50), (7, 50, 60), (9, 99, 99)])])
     fh = fetch.first_half_last3(gl, "2026-11-09")    # Nov 9 game excluded (not before the date)
     assert fh[1] == pytest.approx((30 + 40 + 50) / 3)
@@ -749,3 +780,388 @@ def test_clip_cards_and_frames():
         assert im.size == (1080, 1920) and im.mode == "RGB"
     bare = video.Clip(_clip_game(away="Texas A&M-Corpus Christi"), None, {}, (None, None), "")
     assert bare.frame(1.5).size == (1080, 1920) and bare.frame(5.5).size == (1080, 1920) and bare.frame(8.0).size == (1080, 1920)
+
+
+# ---------------- robots.txt, live Best Bets, night score updates ----------------
+def test_robots_file_names_nothing_private(tmp_path):
+    site.write("<html></html>", "<html></html>", "<html></html>", tmp_path, "Nov 18, 2026 10:00 AM CT", studio_html="<html></html>")
+    robots = (tmp_path / "robots.txt").read_text()
+    assert robots == f"User-agent: *\nAllow: /\nSitemap: {config.SITE_URL}/sitemap.xml\n"
+    assert "Disallow" not in robots and "studio" not in robots and "daily.mp4" not in robots
+    assert (tmp_path / config.STUDIO_PAGE).exists()                                    # the page is still made...
+    assert config.STUDIO_PAGE not in (tmp_path / "sitemap.xml").read_text()            # ...and still listed nowhere
+    assert 'content="noindex,nofollow"' in site.studio_page("now", "x")                # it keeps itself out of search
+
+
+def _book_row(rank, **kw):
+    b = {"date": "2026-11-17", "rank": str(rank), "kind": "ML", "side": "home", "label": "Home ML", "odds": "-130",
+         "chance": "0.650", "edge": "0.085", "num": "", "away_id": "1", "home_id": "2", "away": "Away U", "home": "Home St",
+         "when": "Nov 17, 2026 7:00 PM ET", "locked_at": "Nov 17, 2026 08:45 AM CT", "result": ""}
+    b.update(kw)
+    return b
+
+
+def test_best_bets_rows_follow_their_games():
+    import bets
+    teams = {"1": {"espn": "2547"}, "2": {"espn": "2856"}, "3": {"espn": "356"}, "4": {"espn": "150"}}
+    book = [_book_row(1, kind="Spread", label="Home St +9.5", num="9.5", odds="-110"),
+            _book_row(2, kind="Total", side="under", label="Under 163.5", num="163.5", odds="-110", away_id="3", home_id="4"),
+            _book_row(3, kind="ML", side="away", label="Away U ML", result="W"),
+            _book_row(1, date="2026-11-16", label="Old ML", result="L")]
+    empty = bets.best([], {})
+    finals = {("2026-11-17", "1", "2"): "83-54", ("2026-11-16", "1", "2"): "61-70"}
+    html = site.bets_page(empty, "Tuesday, Nov 17", "now", teams, book, "2026-11-17", finals)
+    assert '<div class="singles" id="bets-live" data-day="2026-11-17">' in html and 'id="bets-sub"' in html
+    today, past = html.split('id="bets-live"')[1].split('class="singles past"')
+    # what the page's script needs to follow each game and grade the bet the way bets.grade_bet does
+    assert ('data-ea="2547" data-eh="2856" data-kind="Spread" data-side="home" data-num="9.5" data-res=""') in today
+    assert ('data-ea="356" data-eh="150" data-kind="Total" data-side="under" data-num="163.5" data-res=""') in today
+    assert 'data-kind="ML" data-side="away" data-num="" data-res="W"' in today
+    assert '<span class="res W big">W</span><small class="fin">Final 83-54</small>' in today    # graded by a build: score shown
+    assert "data-ea" not in past and '<span class="res L big">L</span><small class="fin">Final 61-70</small>' in past
+    assert "1-0 so far, 2 still to play" in html
+    fresh = [dict(b, result="") for b in book]                                          # nothing graded yet: when the bets locked
+    assert '<span id="bets-sub">locked in at 8:45 AM CT</span>' in site.bets_page(empty, "x", "now", teams, fresh, "2026-11-17")
+    js = site.BETS_JS
+    assert js in html and "site.api.espn.com" in js and "t.completed===true" in js and "et(5)" in js
+    # the same three rules as bets.grade_bet: total, spread (points added to the side), moneyline
+    assert "k==='Total'?(a+h-n)*(s==='over'?1:-1):(s==='home'?h-a:a-h)+(k==='Spread'?n:0)" in js
+    # no script when there is nothing locked to follow: preview list, or a day with no bets
+    assert site.BETS_JS not in site.bets_page(empty, "x", "now", teams, book, "2026-11-18")
+    assert site.BETS_JS not in site.bets_page(empty, "x", "now", {})
+    assert site._status(_from := site._from_book(_book_row(1, result="P")), "70-70").count("Push") == 1 and _from["odds"] == -130
+
+
+def test_today_page_live_scores_run_through_the_night():
+    # after midnight Eastern the page keeps following last evening's late games until 5 AM Eastern,
+    # and a postponed game (ESPN: state "post" but not completed) is never shown as a final
+    assert "const lateNight=box&&!isToday&&box.dataset.date===etDay(5);" in site.JS
+    assert "if(!isToday&&!lateNight)return;" in site.JS and "box.dataset.date<etDay(5)" in site.JS
+    assert "done:st.completed===true" in site.JS and "if(m.state!=='in'&&!m.done){" in site.JS
+
+
+def test_api_allowance_is_recorded(monkeypatch):
+    from requests.structures import CaseInsensitiveDict      # what a real response's headers are
+
+    class R:
+        def __init__(self, code, headers=None, text="[]"):
+            self.status_code, self.headers, self.text = code, CaseInsensitiveDict(headers or {}), text
+
+        def json(self):
+            return json.loads(self.text)
+    monkeypatch.setenv("CBBD_API_KEY", "k")
+    monkeypatch.setattr(fetch.time, "sleep", lambda s: pytest.fail("no waiting expected"))
+    monkeypatch.setattr(fetch, "CALLS_LEFT", None)
+    calls = []
+
+    def get(url, **kw):
+        calls.append(url)
+        return replies.pop(0)
+    monkeypatch.setattr(fetch.requests, "get", get)
+    replies = [R(200, {"x-calllimit-remaining": "612"})]
+    assert fetch.teams() == [] and fetch.CALLS_LEFT == 612
+    replies = [R(200, {})]                                   # no header: the last known count stays
+    fetch.teams()
+    assert fetch.CALLS_LEFT == 612
+    replies = [R(429, text='{"message":"Monthly call quota exceeded."}'), R(200)]
+    with pytest.raises(fetch.FetchError, match="allowance is used up"):
+        fetch.teams()
+    assert fetch.CALLS_LEFT == 0 and len(replies) == 1      # no retries: they cannot help until the 1st
+
+
+def _site_in(tmp_path, monkeypatch):
+    """Point the build at a scratch folder (data, ledger, bets book, pages)."""
+    import bets, build, video
+    monkeypatch.setattr(build, "DATA", tmp_path)
+    monkeypatch.setattr(build, "RAW", tmp_path / "raw")
+    for fn in (ledger.load, ledger.save):
+        monkeypatch.setattr(fn, "__defaults__", (tmp_path / "ledger.csv",))
+    monkeypatch.setattr(site.write, "__defaults__", ("", tmp_path / "docs", "", "", ""))
+    monkeypatch.setattr(site, "DOCS", tmp_path / "docs")
+    for fn in (bets.load_book, bets.save_book):
+        monkeypatch.setattr(fn, "__defaults__", (tmp_path / "bets.csv",))
+    monkeypatch.setattr(video, "daily_video", lambda *a, **k: None)
+    monkeypatch.setattr(fetch, "CALLS_LEFT", None)
+    return build
+
+
+def test_night_score_updates(tmp_path, monkeypatch):
+    """A whole night on a scratch copy: what a score update grades, what it must never touch, and
+    when it makes no data call at all."""
+    import bets
+    from datetime import datetime
+    build = _site_in(tmp_path, monkeypatch)
+    stats = [stats_row(i, f"T{i}") for i in range(1, 321)]
+    stats.append(stats_row(500, "Tennessee", team=unit(320, 600, 160, 200, 110, 260, 90, 860)))
+    stats.append(stats_row(600, "Wofford"))
+    games = [
+        game(2, "2026-11-09T00:00:00Z", "T1", 1, "T2", 2, "final", 60, 70, [25, 35], [40, 30]),      # Nov 8, already final
+        game(10, "2026-11-10T00:00:00Z", "Wofford", 600, "Tennessee", 500),                           # Nov 9, 7:00 PM ET
+        game(11, "2026-11-10T02:30:00Z", "T3", 3, "T4", 4),                                           # Nov 9, 9:30 PM ET
+        game(12, "2026-11-10T03:00:00Z", "T5", 5, "T6", 6),                                           # Nov 9, 10:00 PM ET
+        game(20, "2026-11-11T00:00:00Z", "T7", 7, "T8", 8),                                           # Nov 10, 7:00 PM ET
+    ]
+    clock, calls = {}, {"games": [], "other": 0}
+
+    def at(when):
+        clock["now"] = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=config.ET)
+    monkeypatch.setattr(config, "now_et", lambda: clock["now"])
+
+    def other(*a, **k):
+        calls["other"] += 1
+        return []
+
+    def get_games(a, b):
+        calls["games"].append((a.isoformat(), b.isoformat()))
+        fetch.CALLS_LEFT = 900 - len(calls["games"])                     # what the API's header would say
+        return [g for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()]
+    monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
+    monkeypatch.setattr(fetch, "lines", lambda a, b: [_gl(600, "Wofford", 500, "Tennessee",
+                        [{"provider": "consensus", "spread": -9.5, "overUnder": 152.5}])])
+    monkeypatch.setattr(fetch, "teams", lambda: [{"id": 500, "sourceId": "2633"}, {"id": 600, "sourceId": "2747"}])
+    monkeypatch.setattr(fetch, "games", get_games)
+
+    def run(*flags):
+        monkeypatch.setattr("sys.argv", ["build.py", *flags])
+        return build.main()
+
+    def rows():
+        return {r["game_key"]: r for r in ledger.load(tmp_path / "ledger.csv")}
+    docs = tmp_path / "docs"
+
+    # --- the day's regular build (10 AM Eastern, Nov 9): three picks locked, one bet in the book
+    at("2026-11-09 10:00")
+    run()
+    assert sorted(r["away"] for r in rows().values() if r["date"] == "2026-11-09") == ["T3", "T5", "Wofford"]
+    locked = {k: (r["pick"], r["differential"], r["total"], r["locked_at"]) for k, r in rows().items()}
+    assert (tmp_path / "api_calls_left.txt").read_text().split()[0] == str(900 - len(calls["games"]))
+    bets.save_book([_book_row(1, date="2026-11-09", away_id="600", home_id="500", away="Wofford", home="Tennessee",
+                              label="Tennessee ML", when="Nov 9, 2026 7:00 PM ET")], tmp_path / "bets.csv")
+    studio_before = (docs / config.STUDIO_PAGE).read_bytes()
+    (docs / "og.png").write_bytes(b"share image of the day")
+    (tmp_path / "caption.txt").write_text("caption of the day\n")
+    monkeypatch.setattr(fetch, "team_stats", other)                      # from here on only the schedule may be downloaded
+    monkeypatch.setattr(fetch, "lines", other)
+    monkeypatch.setattr(fetch, "teams", other)
+    n0 = len(calls["games"])
+
+    # --- 8:30 PM Central (9:30 PM Eastern): the 7 PM game tipped 150 minutes ago; the API has it final
+    games[1].update(status="final", awayPoints=60, homePoints=75, awayPeriodPoints=[28, 32], homePeriodPoints=[36, 39])
+    index_before = (docs / "index.html").read_text()
+    at("2026-11-09 21:10")                                               # 130 minutes after tip: too early to be worth a call
+    assert run("--scores") == 0 and len(calls["games"]) == n0 and (docs / "index.html").read_text() == index_before
+    at("2026-11-09 21:30")
+    run("--scores")
+    assert calls["games"][n0:] == [("2026-11-09", "2026-11-09")] and calls["other"] == 0      # one call: tonight's schedule
+    r = rows()["2026-11-09|600|500"]
+    assert (r["away_pts"], r["home_pts"], r["pick_correct"], r["fh_correct"]) == ("60", "75", "1", "1")
+    assert bets.load_book(tmp_path / "bets.csv")[0]["result"] == "W"
+    bets_html = (docs / "bets.html").read_text()
+    assert '<span class="res W big">W</span><small class="fin">Final 60-75</small>' in bets_html and "final: 1-0" in bets_html
+    assert 'data-res="W"' in bets_html and 'data-day="2026-11-09"' in bets_html
+    assert "Wofford" in (docs / "results.html").read_text() and 'data-date="2026-11-09"' in (docs / "index.html").read_text()
+    assert "1 finished game now on Results" in (docs / "index.html").read_text()
+    assert (tmp_path / "api_calls_left.txt").read_text().split()[0] == str(900 - len(calls["games"]))
+    # ...and it left the posting page, the share image, the caption and the day's stamp alone
+    assert (docs / config.STUDIO_PAGE).read_bytes() == studio_before and (docs / "og.png").read_bytes() == b"share image of the day"
+    assert (tmp_path / "caption.txt").read_text() == "caption of the day\n" and (tmp_path / "last_build.txt").read_text().strip() == "2026-11-09"
+
+    # --- 9:30 PM Central: nothing else can be final yet (9:30 and 10 PM Eastern tips) -> no call, nothing written
+    n1 = len(calls["games"])
+    at("2026-11-09 22:30")
+    assert run("--scores") == 0 and len(calls["games"]) == n1
+
+    # --- 11:45 PM Central = 12:45 AM Eastern, Nov 10: still last evening's slate, no picks for the new day
+    games[2].update(status="final", awayPoints=71, homePoints=64, awayPeriodPoints=[30, 41], homePeriodPoints=[33, 31])
+    at("2026-11-10 00:45")
+    run("--scores")
+    assert calls["games"][n1:] == [("2026-11-09", "2026-11-09")]
+    got = rows()
+    assert got["2026-11-09|3|4"]["away_pts"] == "71" and got["2026-11-09|5|6"]["away_pts"] == ""      # 10 PM tip: still playing
+    assert not [k for k in got if k.startswith("2026-11-10")]                                         # tomorrow's game not locked
+    assert (tmp_path / "last_build.txt").read_text().strip() == "2026-11-09"
+    assert "<title>College Basketball Predictions Today, Nov 9 | " in (docs / "index.html").read_text()
+    assert {k: (r["pick"], r["differential"], r["total"], r["locked_at"]) for k, r in got.items()} == locked   # no pick changed
+
+    # --- the allowance: with too few calls left for the rest of the month, the update stands down
+    games[3].update(status="final", awayPoints=80, homePoints=70)
+    at("2026-11-10 01:20")                                               # 12:20 AM Central, 10 PM tip is 200 minutes old
+    n2 = len(calls["games"])
+    (tmp_path / "api_calls_left.txt").write_text("629\nnote\n")
+    assert build.calls_held_back(clock["now"]) == 21 * build.CALL_RESERVE_PER_DAY == 630              # Nov 10-30
+    assert run("--scores") == 0 and len(calls["games"]) == n2 and rows()["2026-11-09|5|6"]["away_pts"] == ""
+    (tmp_path / "api_calls_left.txt").write_text("630\nnote\n")
+    run("--scores")
+    assert len(calls["games"]) == n2 + 1 and rows()["2026-11-09|5|6"]["away_pts"] == "80"
+
+    # --- everything graded: no call; a slate that is not today's or last night's: no call
+    n3 = len(calls["games"])
+    at("2026-11-10 01:50")
+    assert run("--scores") == 0 and len(calls["games"]) == n3
+    (tmp_path / "last_build.txt").write_text("2026-11-07\n")
+    assert build.slate_date(clock["now"]) is None and run("--scores") == 0 and len(calls["games"]) == n3
+    (tmp_path / "last_build.txt").write_text("2026-11-09\n")
+
+    # --- a run by hand at 12:55 AM Central (1:55 AM Eastern) is still last evening's build, not tomorrow's
+    monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
+    monkeypatch.setattr(fetch, "lines", lambda a, b: [])
+    monkeypatch.setattr(fetch, "teams", lambda: [])
+    at("2026-11-10 01:55")
+    run()
+    assert not [k for k in rows() if k.startswith("2026-11-10")] and (tmp_path / "last_build.txt").read_text().strip() == "2026-11-09"
+
+    # --- the overnight build (3:23 AM Central): the new day starts, last night's grades stand
+    at("2026-11-10 04:23")
+    run()
+    got = rows()
+    assert [k for k in got if k.startswith("2026-11-10")] == ["2026-11-10|7|8"]
+    assert (tmp_path / "last_build.txt").read_text().strip() == "2026-11-10"
+    assert (got["2026-11-09|600|500"]["home_pts"], got["2026-11-09|3|4"]["away_pts"], got["2026-11-09|5|6"]["home_pts"]) == ("75", "71", "70")
+    assert 'data-date="2026-11-10"' in (docs / "index.html").read_text()
+
+
+def test_score_update_skips_postponed_and_stale_games(tmp_path, monkeypatch):
+    from datetime import datetime
+    build = _site_in(tmp_path, monkeypatch)
+    now = datetime(2026, 11, 9, 23, 0, tzinfo=config.ET)                 # 11 PM Eastern
+    row = {k: "" for k in ledger.FIELDS}
+
+    def r(aid, when, **kw):
+        return dict(row, date="2026-11-09", away_id=str(aid), home_id=str(aid + 1), when=when, **kw)
+    rows = [r(1, "Nov 9, 2026 8:00 PM ET"),                              # 180 minutes ago: due
+            r(3, "Nov 9, 2026 9:00 PM ET"),                              # 120 minutes: not yet
+            r(5, "Nov 9, 2026 8:45 PM ET"),                              # exactly 135: due
+            r(7, "Nov 9, 2026 5:30 PM ET"),                              # 330 minutes and still not final: given up on
+            r(9, "Nov 9, 2026 7:00 PM ET", away_pts="70", home_pts="60"),   # graded already
+            r(11, "Nov 9, 2026 7:00 PM ET"),                             # postponed in the saved schedule
+            r(13, "TBD"),
+            dict(r(15, "Nov 8, 2026 7:00 PM ET"), date="2026-11-08")]    # another day
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "games_today.json").write_text(json.dumps([{"awayTeamId": 11, "homeTeamId": 12, "status": "postponed"},
+                                                                    {"awayTeamId": 1, "homeTeamId": 2, "status": "in_progress"}]))
+    assert [x["away_id"] for x in build.due_for_a_final(rows, "2026-11-09", now)] == ["1", "5"]
+    (tmp_path / "raw" / "games_today.json").write_text("not json")
+    assert [x["away_id"] for x in build.due_for_a_final(rows, "2026-11-09", now)] == ["1", "5", "11"]   # no schedule to consult
+    # the allowance resets on the 1st (UTC): days left x the per-day reserve
+    assert build.calls_held_back(datetime(2026, 11, 30, 23, 0, tzinfo=config.ET)) == 31 * build.CALL_RESERVE_PER_DAY   # already Dec 1 in UTC
+    assert build.calls_held_back(datetime(2026, 12, 31, 12, 0, tzinfo=config.ET)) == build.CALL_RESERVE_PER_DAY
+    assert build.calls_left_saved() is None
+    monkeypatch.setattr(fetch, "CALLS_LEFT", 432)
+    build.save_calls_left("Nov 9, 2026 10:00 PM CT")
+    assert build.calls_left_saved() == 432 and "as of Nov 9, 2026 10:00 PM CT" in (tmp_path / "api_calls_left.txt").read_text()
+
+
+# ---------------- bracket games the data feed lists against "TBD" ----------------
+TBD_TEAMS = [{"id": 245, "sourceId": "164", "school": "Rutgers", "conference": "Big Ten", "conferenceId": 10},
+             {"id": 213, "sourceId": "87", "school": "Notre Dame", "conference": "ACC", "conferenceId": 2},
+             {"id": 113, "sourceId": "248", "school": "Houston"}, {"id": 87, "sourceId": "57", "school": "Florida"},
+             {"id": 1543, "sourceId": "-1", "school": "TBD"}, {"id": 1217, "sourceId": "-2", "school": "TBD"}]
+
+
+def _tbd_rows():
+    return [dict(game(1, "2026-11-18T19:00:00.000Z", "Rutgers", 245, "TBD", 1543), sourceId="401920513", neutralSite=True),
+            dict(game(2, "2026-11-18T21:30:00.000Z", "TBD", 1543, "Houston", 113), sourceId="401920514"),    # open on the away side
+            dict(game(3, "2026-11-19T00:30:00.000Z", "TBD", 1543, "TBD", 1217), sourceId="401920599"),        # both sides open
+            dict(game(4, "2026-11-19T02:00:00.000Z", "Rutgers", 245, "TBD", 1543), sourceId="401920600"),     # ESPN has no opponent either
+            dict(game(5, "2026-11-19T02:00:00.000Z", "Houston", 113, "Florida", 87), sourceId="401920601"),   # an ordinary game
+            dict(game(6, "2026-11-19T03:00:00.000Z", "Rutgers", 245, "TBD", 1543), sourceId="401920602")]     # ESPN's game 602 is other teams'
+
+
+def test_bracket_games_listed_against_tbd_get_their_opponent(tmp_path, monkeypatch):
+    import build
+    monkeypatch.setattr(build, "RAW", tmp_path / "raw")
+    monkeypatch.setattr(build, "ROOT", tmp_path)
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "teams.json").write_text(json.dumps(TBD_TEAMS))
+    board = {"401920513": ("164", "87"),             # Rutgers (away) vs Notre Dame (home)
+             "401920514": ("248", "57"),             # ESPN has Houston as the away team; the feed has it at home
+             "401920599": ("87", "57"), "401920600": ("164", "-1"), "401920601": ("248", "57"), "401920602": ("248", "57")}
+    asked = []
+    monkeypatch.setattr(fetch, "espn_matchups", lambda day: asked.append(day) or dict(board))
+    day = date(2026, 11, 18)
+    g = _tbd_rows()
+    assert [x["id"] for x in build.fill_tbd(g, day)] == [1, 2, 3] and asked == [day]
+    assert (g[0]["awayTeam"], g[0]["homeTeam"], g[0]["homeTeamId"], g[0]["homeConference"]) == ("Rutgers", "Notre Dame", 213, "ACC")
+    assert (g[1]["awayTeam"], g[1]["awayTeamId"], g[1]["homeTeam"]) == ("Florida", 87, "Houston")     # only the open side is filled
+    assert (g[2]["awayTeam"], g[2]["homeTeam"]) == ("Notre Dame", "Florida")
+    assert g[3]["homeTeam"] == "TBD" and g[4]["homeTeam"] == "Florida" and g[5]["homeTeam"] == "TBD"
+    first = fetch.parse_games(g)[0]
+    assert (first["away_id"], first["home_id"], first["home"], first["neutral"]) == (245, 213, "Notre Dame", True)
+
+    def turned_away(day):
+        raise fetch.FetchError("ESPN scoreboard: HTTP 403")
+    monkeypatch.setattr(fetch, "espn_matchups", turned_away)
+    assert [x["id"] for x in build.fill_tbd(_tbd_rows(), day)] == [1, 2, 3]           # what the earlier build found is reused
+    (tmp_path / "matchups.json").write_text(json.dumps({"note": "by hand", "games": {"401920600": ["164", "57"]}}))
+    g = _tbd_rows()
+    assert [x["id"] for x in build.fill_tbd(g, day)] == [1, 2, 3, 4] and g[3]["homeTeam"] == "Florida"   # plus the hand-made list
+    monkeypatch.setattr(fetch, "espn_matchups", lambda day: pytest.fail("a schedule without TBD never asks ESPN"))
+    assert build.fill_tbd([_tbd_rows()[4]], day) == [] and build.fill_tbd([], day) == []
+    monkeypatch.delattr(fetch, "espn_matchups")                                        # a fetch.py from before this existed
+    assert [x["id"] for x in build.fill_tbd(_tbd_rows(), day)] == [1, 2, 3, 4]         # saved finds + the list still work
+    (tmp_path / "matchups.json").unlink()
+    assert build.fill_tbd(_tbd_rows(), date(2026, 11, 19)) == []                       # yesterday's finds are not carried into a new day
+
+
+def test_espn_schedule_reader(monkeypatch):
+    class R:
+        status_code = 200
+
+        def json(self):
+            return {"events": [{"id": "401920513", "competitions": [{"competitors": [{"homeAway": "home", "team": {"id": "87"}},
+                                                                                     {"homeAway": "away", "team": {"id": "164"}}]}]},
+                               {"id": "401920999", "competitions": [{"competitors": [{"homeAway": "home", "team": {"id": "57"}}]}]},
+                               {"id": "1", "competitions": []}]}
+    seen = {}
+
+    def get(url, **kw):
+        seen.update(url=url, **kw)
+        return R()
+    monkeypatch.setattr(fetch.requests, "get", get)
+    assert fetch.espn_matchups(date(2026, 11, 18)) == {"401920513": ("164", "87")}
+    assert seen["params"]["dates"] == "20261118" and "espn.com" in seen["url"] and "Authorization" not in seen["headers"]   # no key sent to ESPN
+    R.status_code = 403
+    with pytest.raises(fetch.FetchError, match="HTTP 403"):
+        fetch.espn_matchups(date(2026, 11, 18))
+
+
+def test_tbd_game_gets_a_pick_before_it_tips(tmp_path, monkeypatch):
+    from datetime import datetime
+    build = _site_in(tmp_path, monkeypatch)
+    monkeypatch.setattr(build, "ROOT", tmp_path)
+    stats = [stats_row(i, f"T{i}") for i in range(1, 321)] + [stats_row(245, "Rutgers"), stats_row(213, "Notre Dame"),
+                                                               stats_row(113, "Houston"), stats_row(87, "Florida")]
+    games = [dict(game(1, "2026-11-18T19:00:00.000Z", "Rutgers", 245, "TBD", 1543), sourceId="401920513", neutralSite=True),   # 2 PM Eastern
+             dict(game(2, "2026-11-18T21:30:00.000Z", "Houston", 113, "TBD", 1543), sourceId="401920514", neutralSite=True),   # 4:30 PM Eastern
+             game(3, "2026-11-19T00:00:00.000Z", "T1", 1, "T2", 2)]
+    monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
+    monkeypatch.setattr(fetch, "games", lambda a, b: [dict(g) for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()])
+    monkeypatch.setattr(fetch, "lines", lambda a, b: [])
+    monkeypatch.setattr(fetch, "teams", lambda: TBD_TEAMS)
+    board = {}
+    monkeypatch.setattr(fetch, "espn_matchups", lambda day: dict(board))
+    clock = {}
+    monkeypatch.setattr(config, "now_et", lambda: clock["now"])
+
+    def run(when, *flags):
+        clock["now"] = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=config.ET)
+        monkeypatch.setattr("sys.argv", ["build.py", *flags])
+        build.main()
+        return {r["game_key"]: r for r in ledger.load(tmp_path / "ledger.csv")}
+    rows = run("2026-11-18 04:23")                                     # overnight: nobody knows the opponents yet
+    assert list(rows) == ["2026-11-18|1|2"]
+    board.update({"401920513": ("164", "87"), "401920514": ("248", "57")})
+    rows = run("2026-11-18 14:45", "--refresh")                         # 1:45 PM Central: ESPN has both; the 2 PM game has tipped
+    assert set(rows) == {"2026-11-18|1|2", "2026-11-18|113|87"}
+    r = rows["2026-11-18|113|87"]
+    assert (r["away"], r["home"], r["neutral"], r["when"]) == ("Houston", "Florida", "1", "Nov 18, 2026 4:30 PM ET") and r["pick"] in ("Houston", "Florida")
+    page = (tmp_path / "docs" / "index.html").read_text()
+    assert "Florida" in page and "Notre Dame" not in page               # no pick, no row, for the game already under way
+    # the feed catches up before the tip, with the two teams the other way round: still one pick
+    games[1].update(awayTeam="Florida", awayTeamId=87, homeTeam="Houston", homeTeamId=113)
+    assert set(run("2026-11-18 15:45", "--refresh")) == {"2026-11-18|1|2", "2026-11-18|113|87"}
+    # ...and when the game goes final it is graded like any other (Houston 70, Florida 66)
+    games[1].update(status="final", awayPoints=66, homePoints=70, awayPeriodPoints=[33, 33], homePeriodPoints=[30, 40])
+    rows = run("2026-11-18 20:45", "--refresh")
+    assert set(rows) == {"2026-11-18|1|2", "2026-11-18|113|87"}                          # the caught-up feed row is the same game, not a second pick
+    assert (rows["2026-11-18|113|87"]["away_pts"], rows["2026-11-18|113|87"]["home_pts"]) == ("70", "66")

@@ -1,0 +1,10 @@
+{
+ "note": "Bracket games the data feed listed against TBD. ESPN game id: [away ESPN team id, home ESPN team id]. Used only while the feed still says TBD for that game.",
+ "date": "2026-11-18",
+ "games": {
+  "401920513": ["164", "87"],
+  "401920514": ["248", "57"],
+  "401920515": ["2305", "277"],
+  "401920516": ["2439", "2"]
+ }
+}
