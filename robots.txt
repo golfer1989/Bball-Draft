@@ -1,5 +1,3 @@
 User-agent: *
-Disallow: /studio-95ea9e.html
-Disallow: /daily.mp4
 Allow: /
 Sitemap: https://tipoffedge.com/sitemap.xml
