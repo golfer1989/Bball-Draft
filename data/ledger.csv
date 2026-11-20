@@ -782,9 +782,9 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-19|144|127,2026-11-19,"Nov 19, 2026 7:00 PM ET",144,Little Rock,127,Jacksonville,0.9576,0.9861,Jacksonville,0.0520,,148.1,Jacksonville,4.9,2026-27,2026-11-19T04:23-05:00,,,,,,,,Jacksonville,2.5,144.5,Draft Kings
 2026-11-19|154|238,2026-11-19,"Nov 19, 2026 7:00 PM ET",154,Maine,238,Quinnipiac,0.9132,0.9717,Quinnipiac,0.0820,,139.3,Quinnipiac,7.7,2026-27,2026-11-19T04:23-05:00,,,,,,,,Quinnipiac,10.5,136.5,Bovada
 2026-11-19|180|109,2026-11-19,"Nov 19, 2026 7:00 PM ET",180,Montana State,109,High Point,0.9966,1.0281,High Point,0.0551,,151.4,High Point,5.1,2026-27,2026-11-19T04:23-05:00,,,,,,,,High Point,13.5,144.5,Bovada
-2026-11-19|185|184,2026-11-19,"Nov 19, 2026 6:00 PM ET",185,NC State,184,Murray State,1.0902,1.0225,NC State,0.0677,,159.6,NC State,6.3,2026-27,2026-11-19T04:23-05:00,,,,,,,1,NC State,4.5,161.5,Draft Kings
+2026-11-19|185|184,2026-11-19,"Nov 19, 2026 6:00 PM ET",185,NC State,184,Murray State,1.0902,1.0225,NC State,0.0677,,159.6,NC State,6.3,2026-27,2026-11-19T04:23-05:00,93,83,1,,16.4,1,1,NC State,4.5,161.5,Draft Kings
 2026-11-19|205|34,2026-11-19,"Nov 19, 2026 7:00 PM ET",205,Northeastern,34,Butler,0.9683,1.0598,Butler,0.1150,Butler,157.2,Butler,10.8,2026-27,2026-11-19T04:23-05:00,,,,,,,,Butler,15.5,164.5,Draft Kings
-2026-11-19|213|16,2026-11-19,"Nov 19, 2026 5:00 PM ET",213,Notre Dame,16,Auburn,1.0588,1.0888,Auburn,0.0301,,155.9,Auburn,2.8,2026-27,2026-11-19T04:23-05:00,,,,,,,1,Auburn,3.5,152.5,Bovada
+2026-11-19|213|16,2026-11-19,"Nov 19, 2026 5:00 PM ET",213,Notre Dame,16,Auburn,1.0588,1.0888,Auburn,0.0301,,155.9,Auburn,2.8,2026-27,2026-11-19T04:23-05:00,78,73,0,,-4.9,0,1,Auburn,3.5,152.5,Bovada
 2026-11-19|224|223,2026-11-19,"Nov 19, 2026 9:00 PM ET",224,Oregon State,223,Oregon,1.0190,1.0692,Oregon,0.0502,,149.1,Oregon,4.7,2026-27,2026-11-19T04:23-05:00,,,,,,,1,Oregon,1.5,161.5,Draft Kings
 2026-11-19|244|300,2026-11-19,"Nov 19, 2026 7:00 PM ET",244,Robert Morris,300,Toledo,0.9913,1.0204,Toledo,0.0526,,151.1,Toledo,4.9,2026-27,2026-11-19T04:23-05:00,,,,,,,,Toledo,6.5,144.5,Draft Kings
 2026-11-19|245|322,2026-11-19,"Nov 19, 2026 8:30 PM ET",245,Rutgers,322,UNLV,1.0422,1.0346,Rutgers,0.0076,,153.8,Rutgers,0.7,2026-27,2026-11-19T04:23-05:00,,,,,,,1,Rutgers,2.5,157.5,Bovada
