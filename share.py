@@ -110,7 +110,10 @@ def share_image(path, date_label, game=None, wu=None, teams=None, pred=None, rec
         else:
             d.text((W // 2, cy - 20), "vs", font=_font(60), fill=(92, 94, 102), anchor="mm")
         pick = f"Model pick: {game['pick']}"
-        d.text((W // 2, cy + 108), pick, font=_font(30), fill=(242, 165, 65), anchor="mm")
+        fp = _font(30)
+        while d.textlength(pick, font=fp) > 430 and fp.size > 16:   # stay between the two team names (long school names)
+            fp = _font(fp.size - 2)
+        d.text((W // 2, cy + 108), pick, font=fp, fill=(242, 165, 65), anchor="mm")
         line = (wu or {}).get("headline") or ""
         if line:
             d.text((W // 2, 530), line, font=_font(28, bold=False), fill=(201, 201, 196), anchor="mm")

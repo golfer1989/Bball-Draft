@@ -216,6 +216,21 @@ def ungrade_ties(rows):
     return cleared
 
 
+def bet_of_the_day(book, day, singles, day_rows):
+    """The bet the site's "Game of the day" is built around, with its game: {"bet", "row", "final"},
+    or None on a day with nothing to bet. Once the day's top bets are locked it is the #1 on that
+    list, and it stays that game all day: the card shows the live score, then the result. Before the
+    lock it is the best bet on the board right now. "final" is "70-75" (away-home) once graded."""
+    by_game = {(str(r["away_id"]), str(r["home_id"])): r for r in day_rows}
+    locked = sorted((b for b in book if b["date"] == day), key=lambda b: int(b["rank"]))
+    for b in locked[:1] or list(singles[:1]):
+        r = by_game.get((str(b["away_id"]), str(b["home_id"])))
+        if r:
+            bet = dict(b, odds=int(b["odds"]), chance=float(b["chance"]), edge=float(b["edge"]))
+            return {"bet": bet, "row": r, "final": f'{r["away_pts"]}-{r["home_pts"]}' if r["away_pts"] != "" else ""}
+    return None
+
+
 def _cache(name, loader):
     """Fetch with loader(); save to data/raw/<name>.json; on failure reuse the saved copy.
     In a --refresh run everything except today's schedule and lines comes from the saved copy
@@ -465,12 +480,15 @@ def main():
     bets.save_book(book)
     rk = writeup.ranks(rat)
 
-    def line_of(r):
-        ln = all_lines.get((int(r["away_id"]), int(r["home_id"])))
-        if ln or not (r.get("line_spread") or r.get("line_total")):
-            return ln
+    def kept_line(r):
+        """The line saved with the pick (the first one seen that day), or None."""
+        if not (r.get("line_spread") or r.get("line_total")):
+            return None
         return {"fav": r["line_fav"], "spread": float(r["line_spread"]) if r["line_spread"] else None,
                 "total": float(r["line_total"]) if r["line_total"] else None}
+
+    def line_of(r):
+        return all_lines.get((int(r["away_id"]), int(r["home_id"]))) or kept_line(r)
     writeups = {r["game_key"]: writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"]) for r in todays}
     # a page of its own for every game of the last three days (today's get the result as it comes in)
     recent = [r for r in rows if (today - timedelta(days=2)).isoformat() <= r["date"] <= today_str]
@@ -496,16 +514,30 @@ def main():
     yday = (today - timedelta(days=1)).isoformat()
     yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))
+    # Two different games can lead the day. gotd is the biggest matchup on the slate: the daily clip,
+    # its caption and the posting page are made for it (big names travel on social, and the clip may
+    # not mention a bet anyway). The site's "Game of the day" is the game behind the day's top bet:
+    # the card on the Today page and the share image (the site's link preview) follow that one.
     gotd = share.game_of_day(todays, writeups)
+    feature = bet_of_the_day(book, today_str, best["singles"], day_rows)
+    lead = feature["row"] if feature else gotd
+    if lead and lead["game_key"] not in writeups:           # the top bet's game is already final: still needs its write-up
+        writeups[lead["game_key"]] = writeup.game_writeup(lead, rat, rk, line_of(lead), best["cal"]["scale"])
+    if feature:
+        # A locked bet was made against the morning's line, the one saved with the pick. Its card explains
+        # the game against that same line, so the reasons still match the bet after the line has moved.
+        if feature["bet"].get("locked_at") and kept_line(lead):
+            feature["wu"] = writeup.game_writeup(lead, rat, rk, kept_line(lead), best["cal"]["scale"])
+        log(f'  game of the day: {lead["away"]} @ {lead["home"]} ({feature["bet"]["label"]})')
     season_rec = (sum(1 for r in rows if r["pick_correct"] == "1"), sum(1 for r in rows if r["pick_correct"] == "0"))
     caption = studio = ""
     # A score update leaves the share image, the clip, its caption and the posting page exactly as the
-    # day's builds made them: late at night the "game of the day" among the games still to play is a
+    # day's builds made them: late at night the biggest matchup among the games still to play is a
     # different game from the one the clip was made for.
     if not SCORES:
         try:
-            share.share_image(site.DOCS / "og.png", label, gotd, writeups.get(gotd["game_key"]) if gotd else None, teams,
-                              site.predicted_score(gotd) if gotd else None, season_rec if config.SHOW_RESULTS_STATS else None)
+            share.share_image(site.DOCS / "og.png", label, lead, writeups.get(lead["game_key"]) if lead else None, teams,
+                              site.predicted_score(lead) if lead else None, season_rec if config.SHOW_RESULTS_STATS else None)
         except Exception as e:                              # noqa: BLE001 - the share image is cosmetic
             log(f"  ! share image: {e}")
         if gotd and not REFRESH:                            # the clip is rendered once a day, by the overnight build
@@ -531,7 +563,8 @@ def main():
     bets_html = (site.bets_page(best, label, stamp, teams, book, today_str, finals)
                  if "finals" in site.bets_page.__code__.co_varnames              # older webpage.py: no final scores
                  else site.bets_page(best, label, stamp, teams, book, today_str))
-    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, "", bets_by_game),
+    extra = {"feature": feature} if "feature" in site.today_page.__code__.co_varnames else {}     # older webpage.py: no such argument
+    site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, "", bets_by_game, **extra),
                site.results_page(rows, stamp, teams), bets_html,
                stamp=stamp, studio_html=studio,
                live_html=site.live_page([r for r in rows if r["date"] == today_str], teams, stamp, today_str, label))

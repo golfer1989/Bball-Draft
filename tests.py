@@ -622,9 +622,63 @@ def test_bet_pills_on_today_page():
            "away_id": "1", "home_id": "2", "away": "Away U", "home": "Home St", "when": "x"}
     r = _r(date="2026-11-04", game_key="k")
     html = site.today_page([r], "x", "now", "note", {}, "2026-11-04", gotd=r, bets_by_game={"k": bet})
-    assert html.count("Away U +4.5") >= 1 and "The bet" in html and 'betpill strong' in html
+    assert html.count("Away U +4.5") >= 2 and "Today’s best bet" in html and 'betpill strong' in html
+    # a day with lines but nothing worth a bet, and a morning before any line is posted: the card says which
     none = site.today_page([r], "x", "now", "note", {}, "2026-11-04", gotd=r)
-    assert "Nothing here" in none and "line already prices it in" in none
+    assert "No bet today" in none and "line already prices it in" not in none and 'data-kind="' not in none
+    early = dict(r, line_fav="", line_spread="", line_total="")
+    assert "Not posted yet" in site.today_page([early], "x", "now", "note", {}, "2026-11-04", gotd=early)
+
+
+def test_game_of_the_day_is_the_days_top_bet():
+    """The card at the top of the Today page is the game behind the day's top bet, not the biggest
+    matchup on the slate, and it follows that bet to its result."""
+    import build
+    teams = {"1": {"espn": "2547"}, "2": {"espn": "2856"}, "3": {"espn": "356"}, "4": {"espn": "150"}}
+    big = _r(date="2026-11-17", game_key="2026-11-17|3|4", away_id="3", home_id="4", away="Duke", home="Kansas",
+             pick="Kansas", line_fav="Kansas")
+    small = _r(date="2026-11-17", game_key="2026-11-17|1|2", when="Nov 17, 2026 7:00 PM ET")
+    book = [_book_row(2, away_id="3", home_id="4", away="Duke", home="Kansas", label="Kansas ML"),
+            _book_row(1, kind="Spread", side="away", label="Away U +4.5", num="4.5", odds="-110", chance="0.630", edge="0.110"),
+            _book_row(1, date="2026-11-16", label="Old ML", result="L")]
+    live = {"kind": "ML", "side": "home", "label": "Kansas ML", "odds": -140, "chance": 0.66, "edge": 0.08, "num": None,
+            "away_id": "3", "home_id": "4", "away": "Duke", "home": "Kansas", "when": "x"}
+    f = build.bet_of_the_day(book, "2026-11-17", [live], [big, small])
+    assert f["row"] is small and f["bet"]["label"] == "Away U +4.5" and f["final"] == ""       # the locked #1, whatever the board says now
+    assert (f["bet"]["odds"], f["bet"]["chance"], f["bet"]["edge"]) == (-110, 0.63, 0.11)
+    assert build.bet_of_the_day([], "2026-11-17", [live], [big, small])["row"] is big          # before the lock: the best bet on the board
+    assert build.bet_of_the_day([], "2026-11-17", [], [big, small]) is None                    # a day with nothing to bet
+    assert build.bet_of_the_day(book, "2026-11-17", [], [big]) is None                         # its game is not on the slate
+    html = site.today_page([big, small], "x", "now", "note", teams, "2026-11-17", gotd=big, feature=f)
+    card = html.split('<section class="gotd"')[1].split("</section>")[0]
+    assert html.count('<span class="kicker">Game of the day</span>') == 1
+    assert "Away U" in card and "Home St" in card and "Kansas" not in card                     # the bet's game, not Duke-Kansas
+    assert "Today’s best bet" in card and "Away U +4.5 <i>−110</i>" in card and "63% model chance, +11 pts edge" in card
+    assert 'data-ea="2547" data-eh="2856" data-kind="Spread" data-side="away" data-num="4.5" data-res=""' in card
+    assert '<div class="gst" hidden></div>' in card and 'href="bets.html"' in card and "6:00 PM CT" in card
+    assert "including Duke vs Kansas" in html                                                  # search description: still the big game
+    # once a build has graded it the card shows the result, and the page's script leaves it alone
+    done = dict(small, away_pts="70", home_pts="72", pick_correct="1")
+    won = build.bet_of_the_day([dict(book[1], result="W")], "2026-11-17", [live], [big, done])
+    assert won["row"] is done and won["final"] == "70-72" and won["bet"]["result"] == "W"
+    html = site.today_page([big], "x", "now", "note", teams, "2026-11-17", gotd=big, feature=won)
+    assert 'class="gbet top W"' in html and '<span class="res W">Won</span><em>Final 70-72</em>' in html and 'data-res="W"' in html
+    lost = site.gotd_card(done, teams, None, 70, 72, bet=dict(won["bet"], result="L"), top=True, final="70-72")
+    assert 'class="gbet top L"' in lost and '<span class="res L">Lost</span>' in lost
+    # the script: live score while the game is on, then the same three rules as bets.grade_bet
+    js = site.JS
+    assert "const gd=document.querySelector('.gotd[data-ea]');" in js and "if(gd&&!gd.dataset.res){" in js
+    assert "k==='Total'?(a+h-n)*(s==='over'?1:-1):(s==='home'?h-a:a-h)+(k==='Spread'?n:0)" in js
+    assert "(r==='W'?'Won':r==='L'?'Lost':'Push')" in js and "'Final '+a+'-'+h" in js
+    # an older build.py hands over no top bet: the card takes the best bet among the games still open
+    mine = dict(live, label="Home St ML", away_id="1", home_id="2", away="Away U", home="Home St", edge=0.2)
+    old = site.today_page([big, small], "x", "now", "note", teams, "2026-11-17", gotd=big,
+                          bets_by_game={big["game_key"]: live, small["game_key"]: mine})
+    assert "Home St ML" in old.split('<section class="gotd"')[1].split("</section>")[0]
+    # the private posting page shows the clip's matchup (the big game) with no bet box
+    studio = site.studio_page("now", "x", big, teams, None, "cap").split('<section class="gotd"')[1].split("</section>")[0]
+    assert "Today’s clip" in studio and "Kansas" in studio and "best bet" not in studio and "gbet" not in studio
+    assert "Game of the day</b>The game behind the day’s top bet" in html                # explained in "How to read this page"
 
 
 def test_bet_guards_big_spreads_and_bad_data():
@@ -818,7 +872,7 @@ def test_best_bets_rows_follow_their_games():
     assert ('data-ea="356" data-eh="150" data-kind="Total" data-side="under" data-num="163.5" data-res=""') in today
     assert 'data-kind="ML" data-side="away" data-num="" data-res="W"' in today
     assert '<span class="res W big">W</span><small class="fin">Final 83-54</small>' in today    # graded by a build: score shown
-    assert "data-ea" not in past and '<span class="res L big">L</span><small class="fin">Final 61-70</small>' in past
+    assert 'data-ea="' not in past and '<span class="res L big">L</span><small class="fin">Final 61-70</small>' in past
     assert "1-0 so far, 2 still to play" in html
     fresh = [dict(b, result="") for b in book]                                          # nothing graded yet: when the bets locked
     assert '<span id="bets-sub">locked in at 8:45 AM CT</span>' in site.bets_page(empty, "x", "now", teams, fresh, "2026-11-17")
@@ -959,6 +1013,10 @@ def test_night_score_updates(tmp_path, monkeypatch):
     bets_html = (docs / "bets.html").read_text()
     assert '<span class="res W big">W</span><small class="fin">Final 60-75</small>' in bets_html and "final: 1-0" in bets_html
     assert 'data-res="W"' in bets_html and 'data-day="2026-11-09"' in bets_html
+    # the Today page's Game of the day is still that bet's game (now off the list of open games), with its result
+    card = (docs / "index.html").read_text().split('<section class="gotd"')[1].split("</section>")[0]
+    assert "Wofford" in card and "Tennessee ML" in card and 'data-res="W"' in card
+    assert '<span class="res W">Won</span><em>Final 60-75</em>' in card and "<li>" in card      # and it kept its write-up
     assert "Wofford" in (docs / "results.html").read_text() and 'data-date="2026-11-09"' in (docs / "index.html").read_text()
     assert "1 finished game now on Results" in (docs / "index.html").read_text()
     assert (tmp_path / "api_calls_left.txt").read_text().split()[0] == str(900 - len(calls["games"]))

@@ -84,9 +84,17 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .betpill.strong{box-shadow:0 0 14px -4px rgba(69,212,138,.9)}
 .gbet{display:flex;align-items:baseline;justify-content:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px;padding:10px 14px;border-radius:12px;
  background:rgba(69,212,138,.1);border:1px solid rgba(69,212,138,.4)}
-.gbet span{font:800 11px Barlow,sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:var(--win)}
-.gbet b{font:800 22px/1 'Big Shoulders Display',sans-serif}.gbet small{color:var(--mute);font-size:12px;flex-basis:100%;text-align:center}
-.gbet.none{background:#111115;border-color:var(--line)}.gbet.none span{color:var(--mute)}.gbet.none b{color:var(--mute);font-size:18px}
+.gbet>span{font:800 11px Barlow,sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:var(--win)}
+.gbet>b{font:800 22px/1 'Big Shoulders Display',sans-serif}.gbet>small{color:var(--mute);font-size:12px;flex-basis:100%;text-align:center}
+.gbet.none{background:#111115;border-color:var(--line)}.gbet.none>span{color:var(--mute)}.gbet.none>b{color:var(--mute);font-size:18px}
+.gbet.top{padding:14px 16px 12px;box-shadow:0 0 26px -12px rgba(69,212,138,.9)}.gbet.top>b{font-size:30px}
+.gbet>b i{font-style:normal;color:var(--mute);font-size:.72em;margin-left:4px}
+.gst{flex-basis:100%;display:flex;justify-content:center;align-items:center;gap:8px;margin-top:8px;padding-top:9px;border-top:1px solid rgba(255,255,255,.09);
+ color:var(--mute);font:600 13px Barlow,sans-serif}
+.gst b{font:800 22px/1 'Big Shoulders Display',sans-serif;color:var(--ink)}.gst em{font-style:normal}
+.gbet.L{background:rgba(255,97,97,.07);border-color:rgba(255,97,97,.35);box-shadow:none}.gbet.L>span{color:var(--loss)}
+.gbet.P{background:#111115;border-color:var(--line);box-shadow:none}.gbet.P>span{color:var(--mute)}
+.gmore{display:inline-block;margin-top:12px;color:var(--amber);font-size:13px;font-weight:700;text-decoration:none}.gmore:hover{text-decoration:underline}
 .rk{font:700 12px Barlow,sans-serif;font-style:normal;color:var(--mute);margin-left:6px;vertical-align:2px}
 .why{grid-column:1/-1;margin:2px 0 -4px;border-top:1px solid #1a1a20;padding-top:8px}
 .why summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;color:var(--mute);font-size:13px}
@@ -251,6 +259,7 @@ JS = """<script>
 (()=>{
 const games=[...document.querySelectorAll('.g')];
 const box=document.querySelector('[data-date]');
+const gd=document.querySelector('.gotd[data-ea]'); // Game of the day: the day's top bet, followed live below
 // ---- My teams: favorites kept in this browser, no account ----
 const KEY='te_favs';let favs=new Set();
 try{favs=new Set(JSON.parse(localStorage.getItem(KEY)||'[]'))}catch(e){}
@@ -315,6 +324,17 @@ async function poll(){
    c.competitors.forEach(p=>sc[p.team.id]=p.score);const st=(c.status||e.status).type;
    map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:st.state,done:st.completed===true,detail:st.shortDetail||st.detail||''}}
   let live=0,open=0;
+  if(gd&&!gd.dataset.res){ // the Game of the day's bet: live score, then Won / Lost / Push by the same rules as the Best Bets page
+   const m=map[[gd.dataset.ea,gd.dataset.eh].sort().join('-')],st=gd.querySelector('.gst');
+   if(m&&st&&m.state!=='pre'){const a=+m.sc[gd.dataset.ea]||0,h=+m.sc[gd.dataset.eh]||0;st.hidden=false;
+    if(m.state==='in'){st.innerHTML='<span class="livetag">LIVE</span><b></b><span class="clock"></span>';
+     st.querySelector('b').textContent=a+'-'+h;st.querySelector('.clock').textContent=m.detail}
+    else if(m.done){const k=gd.dataset.kind,s=gd.dataset.side,n=parseFloat(gd.dataset.num)||0;
+     const v=k==='Total'?(a+h-n)*(s==='over'?1:-1):(s==='home'?h-a:a-h)+(k==='Spread'?n:0),r=v>0?'W':v<0?'L':'P';
+     gd.dataset.res=r;gd.querySelector('.gbet').classList.add(r);
+     st.innerHTML='<span class="res '+r+'">'+(r==='W'?'Won':r==='L'?'Lost':'Push')+'</span><em></em>';
+     st.querySelector('em').textContent='Final '+a+'-'+h}
+    else st.textContent=m.detail}}
   games.forEach(g=>{
    const m=map[[g.dataset.ea,g.dataset.eh].sort().join('-')];
    if(!m||m.state==='pre'){open++;return}
@@ -744,7 +764,8 @@ def studio_page(stamp, date_label, gotd=None, teams=None, wu=None, caption="", y
     teams = teams or {}
     if gotd:
         pa, ph = predicted_score(gotd)
-        card = gotd_card(gotd, teams, wu, pa, ph)
+        # the clip is made for the day's biggest matchup, which is not always the site's Game of the day
+        card = gotd_card(gotd, teams, wu, pa, ph, kicker="Today’s clip: the day’s biggest matchup", show_bet=False)
     else:
         card = '<div class="empty"><b>No games today</b>Nothing to post; the next clip renders overnight.</div>'
     rec = (f'<p class="note">Yesterday the picks went <b>{yesterday[0]}-{yesterday[1]}</b>; worth putting in the caption.</p>'
@@ -835,8 +856,18 @@ def clip_box(caption):
             f'<button class="btn ghost" data-copy>Copy caption</button></div><textarea hidden>{escape(caption)}</textarea></div>')
 
 
-def gotd_card(r, teams, wu, pa, ph, caption="", bet=None):
-    """The marquee matchup at the top of the Today page."""
+BET_WORD = {"W": "Won", "L": "Lost", "P": "Push"}
+
+
+def gotd_card(r, teams, wu, pa, ph, caption="", bet=None, top=False, final="", lines_out=True,
+              kicker="Game of the day", show_bet=True):
+    """The Game of the day at the top of the Today page: the game behind the day's top bet.
+    top=True: `bet` is that bet (the #1 on the day's locked list, or before the lock the best one on
+    the board) and the card follows it through the game. The page's script shows the live score and
+    grades the bet at the final, the way the Best Bets page does; final = "70-75" (away-home) and
+    bet["result"] when a build has already graded it. Without a top bet the card is a fallback (the
+    day's biggest matchup) and says why there is no bet: lines_out=False means no line is posted yet.
+    The private posting page shows the clip's matchup with this card too: show_bet=False, own kicker."""
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
     ra, rh = (wu or {}).get("away_rank"), (wu or {}).get("home_rank")
     home_pick = r["pick"] == r["home"]
@@ -844,29 +875,62 @@ def gotd_card(r, teams, wu, pa, ph, caption="", bet=None):
     tip = t.strftime("%-I:%M %p") + " CT" if t else "TBD"
     pills = _line_pills(r, teams)                      # the bet gets its own box below, not a pill
     import bets as B
-    if bet:
+    hooks, more = "", ""
+    accent = (h if home_pick else a)["vivid"]
+    if not show_bet:
+        thebet = ""
+    elif bet and top:
+        res = bet.get("result") if bet.get("result") in BET_WORD else ""
+        state = (f'<div class="gst"><span class="res {res}">{BET_WORD[res]}</span>{f"<em>Final {escape(final)}</em>" if final else ""}</div>'
+                 if res else '<div class="gst" hidden></div>')
+        thebet = (f'<div class="gbet top{" " + res if res else ""}"><span>Today’s best bet</span>'
+                  f'<b>{escape(bet["label"])} <i>{B.fmt_odds(bet["odds"])}</i></b>'
+                  f'<small>{bet["chance"] * 100:.0f}% model chance, +{bet["edge"] * 100:.0f} pts edge</small>{state}</div>')
+        num = "" if bet.get("num") in (None, "") else f'{float(bet["num"]):g}'
+        hooks = (f' data-ea="{escape(a["espn"])}" data-eh="{escape(h["espn"])}" data-kind="{escape(bet["kind"])}"'
+                 f' data-side="{escape(bet["side"])}" data-num="{num}" data-res="{res}"')
+        if bet["kind"] != "Total":                     # the stripe down the side takes the color of the team the bet is on
+            accent = (h if bet["side"] == "home" else a)["vivid"]
+        more = '<a class="gmore" href="bets.html">All of today’s best bets &rarr;</a>'
+    elif bet:
         thebet = (f'<div class="gbet"><span>The bet</span><b>{escape(bet["label"])} {B.fmt_odds(bet["odds"])}</b>'
                   f'<small>{bet["chance"] * 100:.0f}% model chance</small></div>')
+    elif not lines_out:
+        thebet = ('<div class="gbet none"><span>Today’s best bet</span><b>Not posted yet</b>'
+                  '<small>It goes here as soon as the betting lines are out</small></div>')
     else:
-        thebet = ('<div class="gbet none"><span>The bet</span><b>Nothing here</b>'
-                  f'<small>{escape(r["pick"])} is the projected winner, but the line already prices it in</small></div>')
+        thebet = ('<div class="gbet none"><span>Today’s best bet</span><b>No bet today</b>'
+                  '<small>Nothing on today’s lines clears the model’s bar, so this is the day’s biggest matchup</small></div>')
     reasons = "".join(f"<li>{escape(x)}</li>" for x in (wu or {}).get("lines", [])[:5])
 
     def side(team, rk, cls, lose):
         return (f'<div class="gt {cls}{" lose" if lose else ""}">{_disc(team)}<div class="gn">'
                 f'{f"<small>#{rk}</small>" if rk else ""}<b>{escape(team["name"])}</b><span>{escape(team["mascot"])}</span></div></div>')
     flag = ('<span class="flag">Strong pick</span>' if r.get("strong_pick") else "")
-    return (f'<section class="gotd" style="--pc:{(h if home_pick else a)["vivid"]}">'
-            f'<div class="gh"><span class="kicker">Game of the day</span><span class="gtip">{escape(tip)}'
+    return (f'<section class="gotd" style="--pc:{accent}"{hooks}>'
+            f'<div class="gh"><span class="kicker">{escape(kicker)}</span><span class="gtip">{escape(tip)}'
             f'{" &middot; Neutral site" if r.get("neutral") == "1" else ""}</span></div>'
             f'<div class="gbody">{side(a, ra, "a", home_pick)}'
             f'<div class="gmid"><div class="gscore"><span class="{"l" if home_pick else "w"}">{pa}</span><span class="dash"></span>'
             f'<span class="{"w" if home_pick else "l"}">{ph}</span></div><div class="gpick">{flag}Projected winner: <b>{escape(r["pick"])}</b></div>{thebet}{pills}</div>'
             f'{side(h, rh, "h", not home_pick)}</div>'
-            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}</section>')
+            f'{f"<ul class=greasons>{reasons}</ul>" if reasons else ""}{more}</section>')
+
+
+def open_feature(rows, bets_by_game):
+    """The best bet among the games still open, with its game: {"bet", "row", "final"} or None.
+    What the Game of the day card uses when the build did not hand it the day's locked top bet."""
+    by_key = {r.get("game_key"): r for r in rows}
+    open_bets = [(k, b) for k, b in (bets_by_game or {}).items() if k in by_key]
+    if not open_bets:
+        return None
+    key, bet = min(open_bets, key=lambda kb: (-kb[1]["edge"], -kb[1]["chance"]))
+    return {"bet": bet, "row": by_key[key], "final": ""}
 
 
 LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
+          '<div><b>Game of the day</b>The game behind the day\u2019s top bet: the biggest gap the model finds between its '
+          'chance and the price. It stays that game all day and shows the result when it ends.</div>'
           '<div><b>Predicted score</b>The model\u2019s projected final. The bigger number is the pick.</div>'
           '<div><b>Edge bar</b>How far apart the two teams rate. A full bar is a lopsided matchup.</div>'
           '<div><b><span class="flag">Strong pick</span></b>The model projects a win by about 15 points or more. '
@@ -886,14 +950,25 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
 
 
 def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None,
-               gotd=None, caption="", bets_by_game=None):
+               gotd=None, caption="", bets_by_game=None, feature=None):
+    """gotd = the day's biggest matchup (ledger row). feature = {"bet", "row", "final", "wu"}: the day's
+    top bet and its game, which is what the Game of the day card shows ("wu" = the write-up to show
+    with it, when it differs from the game's row). Without one the card uses the best bet among the
+    games still open, and only on a day with nothing to bet the biggest matchup."""
     teams = teams or {}
     writeups = writeups or {}
     bets_by_game = bets_by_game or {}
     gotd_html = ""
-    if gotd:
+    feature = feature or open_feature(rows, bets_by_game)
+    if feature:
+        fr = feature["row"]
+        pa, ph = predicted_score(fr)
+        gotd_html = gotd_card(fr, teams, feature.get("wu") or writeups.get(fr.get("game_key")), pa, ph, caption, feature["bet"],
+                              top=True, final=feature.get("final") or "")
+    elif gotd:
         pa, ph = predicted_score(gotd)
-        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph, caption, bets_by_game.get(gotd.get("game_key")))
+        gotd_html = gotd_card(gotd, teams, writeups.get(gotd.get("game_key")), pa, ph, caption,
+                              lines_out=any(r.get("line_spread") or r.get("line_total") for r in rows))
     n_strong = sum(1 for r in rows if r["strong_pick"])
     n_ou = sum(1 for r in rows if ou_play(r))
     n_up = sum(1 for r in rows if upset(r))
