@@ -93,3 +93,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-19,4,ML,home,Jacksonville ML,-142,0.671,0.084,,144,127,Little Rock,Jacksonville,"Nov 19, 2026 7:00 PM ET","Nov 19, 2026 03:23 AM CT",L
 2026-11-19,5,ML,home,Oregon ML,-130,0.645,0.080,,224,223,Oregon State,Oregon,"Nov 19, 2026 9:00 PM ET","Nov 19, 2026 03:23 AM CT",L
 2026-11-19,6,ML,home,Santa Clara ML,-125,0.629,0.074,,333,261,VCU,Santa Clara,"Nov 19, 2026 10:30 PM ET","Nov 19, 2026 03:23 AM CT",L
+2026-11-20,1,Total,under,Under 165.5,-110,0.648,0.124,165.5,77,118,Eastern Illinois,Illinois,"Nov 20, 2026 9:00 PM ET","Nov 20, 2026 03:23 AM CT",
+2026-11-20,2,ML,home,Idaho ML,-118,0.651,0.109,,36,117,Cal State Bakersfield,Idaho,"Nov 20, 2026 9:00 PM ET","Nov 20, 2026 03:23 AM CT",
+2026-11-20,3,Total,over,Over 144.5,-110,0.614,0.090,144.5,21,78,Bellarmine,Eastern Kentucky,"Nov 20, 2026 7:00 PM ET","Nov 20, 2026 03:23 AM CT",
+2026-11-20,4,ML,home,The Citadel ML,-148,0.686,0.089,,267,299,South Carolina State,The Citadel,"Nov 20, 2026 7:00 PM ET","Nov 20, 2026 03:23 AM CT",
+2026-11-20,5,Total,under,Under 170.5,-110,0.610,0.086,170.5,255,25,Sam Houston,Boise State,"Nov 20, 2026 9:00 PM ET","Nov 20, 2026 03:23 AM CT",
+2026-11-20,6,ML,home,Jacksonville State ML,-130,0.644,0.079,,100,128,Georgia State,Jacksonville State,"Nov 20, 2026 7:00 PM ET","Nov 20, 2026 03:23 AM CT",
