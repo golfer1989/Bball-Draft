@@ -835,7 +835,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-20|251|71,2026-11-20,"Nov 20, 2026 7:00 PM ET",251,Saint Joseph's,71,Drexel,1.0251,0.9727,Saint Joseph's,0.0288,,140.7,Saint Joseph's,2.7,2026-27,2026-11-20T04:23-05:00,,,,,,,,Saint Joseph's,3.5,138.5,Draft Kings
 2026-11-20|252|253,2026-11-20,"Nov 20, 2026 11:00 PM ET",252,Saint Louis,253,Saint Mary's,1.0812,1.0862,Saint Mary's,0.0285,,153.7,Saint Mary's,2.7,2026-27,2026-11-20T04:23-05:00,,,,,,,,Saint Mary's,1.5,159.5,Draft Kings
 2026-11-20|255|25,2026-11-20,"Nov 20, 2026 9:00 PM ET",255,Sam Houston,25,Boise State,1.0357,1.0793,Boise State,0.0671,,159.2,Boise State,6.3,2026-27,2026-11-20T04:23-05:00,,,,,,,,Boise State,11.5,170.5,Draft Kings
-2026-11-20|263|185,2026-11-20,"Nov 20, 2026 9:30 PM ET",263,Seton Hall,185,NC State,1.0707,1.0868,NC State,0.0162,,146.3,NC State,1.5,2026-27,2026-11-20T04:23-05:00,,,,,,,1,,,,
+2026-11-20|263|185,2026-11-20,"Nov 20, 2026 9:30 PM ET",263,Seton Hall,185,NC State,1.0707,1.0868,NC State,0.0162,,146.3,NC State,1.5,2026-27,2026-11-20T04:23-05:00,,,,,,,1,NC State,2.5,140.5,Draft Kings
 2026-11-20|265|248,2026-11-20,"Nov 20, 2026 8:00 PM ET",265,South Alabama,248,SMU,0.9969,1.0891,SMU,0.1157,SMU,154.5,SMU,10.8,2026-27,2026-11-20T04:23-05:00,,,,,,,,SMU,15.5,147.5,Draft Kings
 2026-11-20|267|299,2026-11-20,"Nov 20, 2026 7:00 PM ET",267,South Carolina State,299,The Citadel,0.9321,0.9620,The Citadel,0.0535,,148.1,The Citadel,5.0,2026-27,2026-11-20T04:23-05:00,,,,,,,,The Citadel,2.5,144.5,Draft Kings
 2026-11-20|270|116,2026-11-20,"Nov 20, 2026 4:00 PM ET",270,South Dakota State,116,Idaho State,1.0222,0.9795,South Dakota State,0.0192,,148.9,South Dakota State,1.8,2026-27,2026-11-20T04:23-05:00,,,,,,,,South Dakota State,6.5,144.5,Draft Kings
@@ -846,7 +846,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-20|341|160,2026-11-20,"Nov 20, 2026 7:00 PM ET",341,Wagner,160,Maryland,0.9749,1.0603,Maryland,0.1089,Maryland,146.5,Maryland,10.2,2026-27,2026-11-20T04:23-05:00,,,,,,,,Maryland,35.5,147.5,Draft Kings
 2026-11-20|349|306,2026-11-20,"Nov 20, 2026 3:00 PM ET",349,Western Illinois,306,UAlbany,0.9343,0.9598,UAlbany,0.0255,,143.7,UAlbany,2.4,2026-27,2026-11-20T04:23-05:00,,,,,,,1,UAlbany,8.5,139.5,Draft Kings
 2026-11-20|351|183,2026-11-20,"Nov 20, 2026 7:00 PM ET",351,Western Michigan,183,Mount St. Mary's,1.0145,0.9513,Western Michigan,0.0397,,145.1,Western Michigan,3.7,2026-27,2026-11-20T04:23-05:00,,,,,,,,Western Michigan,8.5,143.5,Draft Kings
-2026-11-20|355|184,2026-11-20,"Nov 20, 2026 7:00 PM ET",355,Wisconsin,184,Murray State,1.0780,1.0242,Wisconsin,0.0538,,159.3,Wisconsin,5.0,2026-27,2026-11-20T04:23-05:00,,,,,,,1,,,,
+2026-11-20|355|184,2026-11-20,"Nov 20, 2026 7:00 PM ET",355,Wisconsin,184,Murray State,1.0780,1.0242,Wisconsin,0.0538,,159.3,Wisconsin,5.0,2026-27,2026-11-20T04:23-05:00,,,,,,,1,Wisconsin,3.5,161.5,Draft Kings
 2026-11-20|36|117,2026-11-20,"Nov 20, 2026 9:00 PM ET",36,Cal State Bakersfield,117,Idaho,0.9820,1.0060,Idaho,0.0475,,154.3,Idaho,4.4,2026-27,2026-11-20T04:23-05:00,,,,,,,,Idaho,1.5,154.5,Draft Kings
 2026-11-20|41|132,2026-11-20,"Nov 20, 2026 8:00 PM ET",41,Campbell,132,Kansas State,1.0022,1.0617,Kansas State,0.0830,,157.6,Kansas State,7.8,2026-27,2026-11-20T04:23-05:00,,,,,,,,Kansas State,16.5,155.5,Draft Kings
 2026-11-20|45|229,2026-11-20,"Nov 20, 2026 7:00 PM ET",45,Central Michigan,229,Pittsburgh,0.9995,1.0560,Pittsburgh,0.0801,,146.8,Pittsburgh,7.5,2026-27,2026-11-20T04:23-05:00,,,,,,,,Pittsburgh,21.5,144.5,Draft Kings
