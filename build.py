@@ -6,7 +6,10 @@ Three kinds of run (the workflow picks one):
   python build.py            overnight build: everything, about 7 data calls
   python build.py --refresh  before each tip-time block: today's schedule + lines only, 2 calls
   python build.py --scores   night score update: grades the games on the board that have gone
-                             final, adds nothing new, at most 1 call (none when nothing is due)"""
+                             final, adds nothing new, at most 1 call (none when nothing is due)
+
+Once the day's last game has tipped off, any of the three also adds an early look at the next
+day's games to the Today page (one more call, see early_look)."""
 import argparse
 import json
 import statistics
@@ -41,6 +44,18 @@ SCORES_GIVE_UP = 300
 # runs by hand and for anything else on the same key. 30 a day is the most a 1,000-call plan can
 # hold back and still allow score updates on the 1st of a 31-day month.
 CALL_RESERVE_PER_DAY = 30
+
+# ---- early look at the next day ----
+# From the moment the day's last game has tipped off until the overnight build, the Today page has
+# nothing left to predict (late at night it used to be an empty "all games are final" page). So the
+# builds in that window add the next day's games with the model's projected scores, marked as an
+# early look. Nothing about it is saved to the ledger: the official picks are made and locked by the
+# overnight build, with the night's results counted in the ratings.
+EARLY_LOOK = True
+# When the next day's picks are normally on the site, in UTC: the workflow's first overnight chance
+# is 9:23 UTC, and a build takes a few minutes to run and publish. Shown with the early look in
+# Central time (3:30 AM in winter, 4:30 AM in summer time).
+OVERNIGHT_UTC = (9, 30)
 
 
 def calls_file():
@@ -121,7 +136,7 @@ def _read_matchups(path, day=None):
     return {str(k): [str(x) for x in v][:2] for k, v in games.items() if isinstance(v, (list, tuple)) and len(v) >= 2}
 
 
-def fill_tbd(raw_games, day):
+def fill_tbd(raw_games, day, saved="matchups_today.json"):
     """Bracket games. When a game's opponent depends on an earlier round, the data feed lists it as
     "Rutgers vs TBD", and it can stay that way for hours after the matchup is set: on Nov 18, 2026 all
     four Players Era games still said TBD at four builds in a row, the model had nobody to rate the
@@ -131,7 +146,11 @@ def fill_tbd(raw_games, day):
     in matchups.json (a hand-made list, for days ESPN turns GitHub's machines away), in what an
     earlier build today already found, and on ESPN's scoreboard right now. Only the TBD side of a
     row is filled, so the game keeps the order the feed gave it; a row ESPN can't settle either is
-    left as it is and skipped like before. Rows are changed in place. Returns the rows it filled."""
+    left as it is and skipped like before. Rows are changed in place. Returns the rows it filled.
+
+    saved = the file this build's finds are kept in. The early look fills the next day's games the
+    same way and keeps its finds in matchups_tomorrow.json, which the overnight build then reads
+    too: one more chance on a morning when ESPN turns GitHub's machine away."""
     todo = [g for g in raw_games if _is_tbd(g.get("awayTeam")) or _is_tbd(g.get("homeTeam"))]
     if not todo:
         return []
@@ -142,8 +161,9 @@ def fill_tbd(raw_games, day):
         return []
     by_id = {t.get("id"): t for t in teams}
     by_espn = {str(t.get("sourceId")): t for t in teams if not _is_tbd(t.get("school"))}
-    saved_file = RAW / "matchups_today.json"
+    saved_file = RAW / saved
     known = _read_matchups(ROOT / "matchups.json")
+    known.update(_read_matchups(RAW / "matchups_tomorrow.json", day.isoformat()))      # found by last night's early look
     known.update(_read_matchups(saved_file, day.isoformat()))
     espn_answered = False
     try:
@@ -229,6 +249,72 @@ def bet_of_the_day(book, day, singles, day_rows):
             bet = dict(b, odds=int(b["odds"]), chance=float(b["chance"]), edge=float(b["edge"]))
             return {"bet": bet, "row": r, "final": f'{r["away_pts"]}-{r["home_pts"]}' if r["away_pts"] != "" else ""}
     return None
+
+
+def _tip_et(when):
+    """'Nov 20, 2026 9:30 PM ET' -> aware Eastern datetime, or None when the tip time is not set."""
+    try:
+        return datetime.strptime((when or "").replace(" ET", ""), "%b %d, %Y %I:%M %p").replace(tzinfo=config.ET)
+    except ValueError:
+        return None
+
+
+def still_to_tip(day_rows, now):
+    """Is one of the day's games on the site still to tip off? (A game with no tip time, or one that
+    never got a final, does not count: there is nothing to wait for.)"""
+    return any(r["away_pts"] == "" and (_tip_et(r["when"]) or now) > now for r in day_rows)
+
+
+def next_day_schedule(nxt, now):
+    """The next day's schedule, for the early look: one data call. A copy stays in
+    data/raw/games_tomorrow.json, so a build that cannot download it (the feed is down, or the
+    month's calls are being held back for the regular builds) still has the last one for that day.
+    Returns the feed's rows, or None."""
+    path = RAW / "games_tomorrow.json"
+
+    def kept():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data["games"] if data["date"] == nxt.isoformat() else None
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+    left, held = calls_left_saved(), calls_held_back(now)
+    if left is not None and left < held:
+        log(f"  early look: only {left} data calls are left this month and {held} are held back for the "
+            f"regular builds, so the schedule for {nxt} is not downloaded")
+        return kept()
+    try:
+        raw = fetch.games(nxt, nxt)
+    except fetch.FetchError as e:
+        log(f"  ! early look: {e}")
+        return kept()
+    RAW.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"date": nxt.isoformat(), "games": raw}), encoding="utf-8")
+    return raw
+
+
+def early_look(day, rat, rk, season, now):
+    """The next day's games as the model sees them tonight, for the Today page (see EARLY_LOOK).
+    The rows have the shape of ledger rows but are saved nowhere, and they carry no line and no bet.
+    Returns {"date", "label", "rows", "ranks", "waiting", "official"}, or None when there is
+    nothing to show."""
+    nxt = day + timedelta(days=1)
+    raw = next_day_schedule(nxt, now)
+    if not raw:
+        return None
+    fill_tbd(raw, nxt, saved="matchups_tomorrow.json")       # bracket games whose opponent was decided tonight
+    games = [g for g in fetch.parse_games(raw) if g["date"] == nxt.isoformat()]
+    rows = []
+    ledger.lock(rows, nxt.isoformat(), [model.predict(g, rat, {}) for g in games], season, "")
+    if not rows:
+        return None
+    rows.sort(key=lambda r: (_tip_et(r["when"]) is None, _tip_et(r["when"]) or now))       # by tip time; no time yet goes last
+    waiting = sum(1 for g in games if _is_tbd(g["away"]) or _is_tbd(g["home"]))
+    official = datetime(nxt.year, nxt.month, nxt.day, *OVERNIGHT_UTC, tzinfo=timezone.utc).astimezone(config.CT)
+    log(f"  early look: {len(rows)} games for {nxt}" + (f", {waiting} more wait for a matchup" if waiting else ""))
+    return {"date": nxt.isoformat(), "label": nxt.strftime("%A, %b %-d"), "rows": rows,
+            "ranks": {str(t): v["rank"] for t, v in rk.items()}, "waiting": waiting,
+            "official": official.strftime("%-I:%M %p")}
 
 
 def clip_mark():
@@ -610,6 +696,12 @@ def main():
                  if "finals" in site.bets_page.__code__.co_varnames              # older webpage.py: no final scores
                  else site.bets_page(best, label, stamp, teams, book, today_str))
     extra = {"feature": feature} if "feature" in site.today_page.__code__.co_varnames else {}     # older webpage.py: no such argument
+    if (EARLY_LOOK and not args.date and "early" in site.today_page.__code__.co_varnames
+            and not still_to_tip(day_rows, now)):
+        try:
+            extra["early"] = early_look(today, rat, rk, season, now)
+        except Exception as e:                              # noqa: BLE001 - an extra on the page, never worth a failed build
+            log(f"  ! early look: {e}")
     site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, "", bets_by_game, **extra),
                site.results_page(rows, stamp, teams), bets_html,
                stamp=stamp, studio_html=studio,

@@ -187,6 +187,22 @@ nav a:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-o
 .okx{font:800 12px Barlow,sans-serif;padding:3px 8px;border-radius:999px}
 .okx.W{background:rgba(69,212,138,.15);color:var(--win)}.okx.L{background:rgba(255,97,97,.15);color:var(--loss)}
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:56px 20px;text-align:center;color:var(--mute)}
+/* early look at the next day (Today page, once the day's last game has tipped off) */
+.alldone{margin:6px 0 4px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--mute);font-size:14px}
+.alldone b{color:var(--ink)}
+.early{margin:26px 0 48px;scroll-margin-top:76px}.games+.early{margin-top:-14px}
+.early h2{margin:6px 0 0;font:800 clamp(30px,5vw,44px)/.95 'Big Shoulders Display',sans-serif;letter-spacing:.3px}
+.early p{margin:8px 0 14px;color:var(--mute);font-size:14px;max-width:760px}.early p b{color:var(--ink);font-weight:600}
+.elist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+.eg{position:relative;display:grid;grid-template-columns:68px minmax(0,1fr);align-items:center;gap:10px;background:var(--panel);
+ border:1px solid var(--line);border-radius:12px;padding:9px 14px 9px 16px;overflow:hidden}
+.eg:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--pc)}
+.etime{color:var(--mute);font-weight:600;font-size:13px;line-height:1.25}
+.etime small{display:block;margin-top:2px;color:var(--dim);font-size:11px;font-weight:500}
+.et{display:flex;justify-content:space-between;align-items:baseline;gap:10px;color:#a3a4ab}
+.et span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:15px}
+.et b{font:800 22px/1.2 'Big Shoulders Display',sans-serif;font-variant-numeric:tabular-nums;color:var(--dim)}
+.et.w,.et.w b{color:var(--ink)}
 .empty b{display:block;color:var(--ink);font:800 28px/1.1 'Big Shoulders Display',sans-serif;margin-bottom:6px}
 footer{color:var(--dim);font-size:12px;padding:0 0 30px}
 footer .links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px}footer a{color:var(--mute)}
@@ -936,6 +952,42 @@ def open_feature(rows, bets_by_game):
     return {"bet": bet, "row": by_key[key], "final": ""}
 
 
+def early_look(early, teams=None):
+    """The next day's games as an early look: one compact row per game, visitor first, with the
+    projected score. Shown on the Today page from the day's last tip-off until the overnight build.
+    early = {"label": "Saturday, Nov 21", "rows": rows shaped like ledger rows (saved nowhere, no line,
+    no bet), "ranks": {team id: model rank}, "waiting": games still without a matchup,
+    "official": "3:30 AM"}. Nothing here is a pick yet, and the text says so. "" when there are no rows."""
+    rows = (early or {}).get("rows") or []
+    if not rows:
+        return ""
+    teams, ranks = teams or {}, early.get("ranks") or {}
+
+    def side(t, tid, pts, win):
+        rank = ranks.get(str(tid))
+        return (f'<div class="et{" w" if win else ""}"><span>{escape(t["name"])}'
+                + (f'<i class="rk" title="Model rank">#{rank}</i>' if rank else "") + f'</span><b>{pts}</b></div>')
+
+    def game(r):
+        a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
+        pa, ph = predicted_score(r)
+        home_pick = r["pick"] == r["home"]
+        t = tip_ct(r["when"])
+        return (f'<div class="eg" style="--pc:{(h if home_pick else a)["vivid"]}">'
+                f'<div class="etime">{t.strftime("%-I:%M %p") if t else "Time TBD"}'
+                f'{"<small>Neutral</small>" if r.get("neutral") == "1" else ""}</div><div>'
+                f'{side(a, r["away_id"], pa, not home_pick)}{side(h, r["home_id"], ph, home_pick)}</div></div>')
+    n, wait = len(rows), early.get("waiting") or 0
+    when = f' (about {escape(early["official"])} Central)' if early.get("official") else ""
+    return (f'<section class="early" id="early"><span class="kicker">Early look</span><h2>{escape(early.get("label") or "")}</h2>'
+            f'<p>The model’s first projected {"scores for <b>" + str(n) + " games</b>" if n != 1 else "score for <b>1 game</b>"}, '
+            f'visitor listed first. <b>These are not official picks yet.</b> The picks, betting lines and best bets post '
+            f'overnight{when}, and the numbers can still move a little as the latest results are counted.'
+            + (f' {wait} more game{"s are" if wait != 1 else " is"} waiting on a matchup.' if wait else "")
+            + ' Times are Central.</p>'
+            f'<div class="elist">{"".join(game(r) for r in rows)}</div></section>')
+
+
 LEGEND = ('<details class="legend"><summary>How to read this page</summary><div class="lg">'
           '<div><b>Game of the day</b>The game behind the day\u2019s top bet: the biggest gap the model finds between its '
           'chance and the price. It stays that game all day and shows the result when it ends.</div>'
@@ -958,11 +1010,14 @@ LEGEND = ('<details class="legend"><summary>How to read this page</summary><div 
 
 
 def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_final=0, writeups=None, yesterday=None,
-               gotd=None, caption="", bets_by_game=None, feature=None):
+               gotd=None, caption="", bets_by_game=None, feature=None, early=None):
     """gotd = the day's biggest matchup (ledger row). feature = {"bet", "row", "final", "wu"}: the day's
     top bet and its game, which is what the Game of the day card shows ("wu" = the write-up to show
     with it, when it differs from the game's row). Without one the card uses the best bet among the
-    games still open, and only on a day with nothing to bet the biggest matchup."""
+    games still open, and only on a day with nothing to bet the biggest matchup.
+    early = the next day's games as an early look (see early_look), handed over by the builds that run
+    after the day's last tip-off: it goes under whatever is left of today, and when nothing is left it
+    is what the page shows instead of an empty box."""
     teams = teams or {}
     writeups = writeups or {}
     bets_by_game = bets_by_game or {}
@@ -982,24 +1037,33 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
     n_up = sum(1 for r in rows if upset(r))
     done_note = (f' <a class="donelink" href="results.html">{n_final} finished game{"s" if n_final != 1 else ""}'
                  ' now on Results &rarr;</a>') if n_final else ""
+    early_html = early_look(early, teams)
+    if early_html and rows:                              # the early look sits under the games still on the board
+        done_note += f' <a class="donelink" href="#early">Early look at {escape(early.get("label") or "tomorrow")} &darr;</a>'
     n_all = len(rows) + n_final
     # what the page is, in the words people search for (also feeds the title and description below)
     lead = (f'College basketball predictions for {"all " + str(n_all) + " games" if n_all > 1 else "the one game"} today: '
             'model picks, projected scores and the reasons behind them. ' if n_all else
             'College basketball predictions from a statistical model, posted every game day. ')
+    # the counters describe the games still on the board; with none left, four zeros say nothing
+    stats = (f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
+             f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
+             f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
+             f'<div class="stat up"><b>{n_up}</b><span>upset picks</span></div>'
+             + (f'<div class="stat {"win" if yesterday[0] >= yesterday[1] else "loss"}"><b>{yesterday[0]}-{yesterday[1]}</b><span>yesterday</span></div>'
+                if yesterday and config.SHOW_RESULTS_STATS and sum(yesterday) else "")
+             + '</div>') if rows or not early_html else ""
     hero = (f'<section class="hero"><div><h1>{escape(date_label)}</h1><p>{lead}{escape(stats_note)}. Times are Central.{done_note}</p></div>'
-            f'<div class="stats"><div class="stat"><b>{len(rows)}</b><span>games</span></div>'
-            f'<div class="stat am"><b>{n_strong}</b><span>strong picks</span></div>'
-            f'<div class="stat am"><b>{n_ou}</b><span>O/U plays</span></div>'
-            f'<div class="stat up"><b>{n_up}</b><span>upset picks</span></div>'
-            + (f'<div class="stat {"win" if yesterday[0] >= yesterday[1] else "loss"}"><b>{yesterday[0]}-{yesterday[1]}</b><span>yesterday</span></div>'
-               if yesterday and config.SHOW_RESULTS_STATS and sum(yesterday) else "")
-            + '</div></section>')
+            f'{stats}</section>')
     if not rows and n_final:
-        body = hero + ('<div class="empty"><b>All of today\'s games are final</b>'
-                       'See how the picks did on the <a class="donelink" href="results.html">Results</a> page.</div>')
+        # the day is done: the Game of the day keeps its place with its result, then the next day's early look
+        body = hero + gotd_html + (
+            '<div class="alldone"><b>All of today\'s games are final.</b> See how the picks did on the '
+            '<a class="donelink" href="results.html">Results</a> page.</div>' + early_html if early_html else
+            '<div class="empty"><b>All of today\'s games are final</b>'
+            'See how the picks did on the <a class="donelink" href="results.html">Results</a> page.</div>')
     elif not rows:
-        body = hero + '<div class="empty"><b>No games today</b>Picks post here each morning on game days.</div>'
+        body = hero + '<div class="empty"><b>No games today</b>Picks post here each morning on game days.</div>' + early_html
     else:
         chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
                  '<button class="chip favchip" data-f="fav">\u2605 My teams<span class="n">0</span></button>'
@@ -1036,7 +1100,8 @@ def today_page(rows, date_label, stamp, stats_note, teams=None, date_iso="", n_f
                       '<div class="empty" data-empty="mix" hidden><b>Nothing here</b>No games match both filters in this time block.</div>'
                       '<div class="empty" data-empty="conf" hidden><b>No games</b>Nothing from that conference in this view. Try All day.</div>')
         body = (hero + gotd_html + slot_chips + chips + LEGEND + f'<div class="games" data-date="{escape(date_iso)}">'
-                + "".join(_row(r, teams, wu=writeups.get(r.get("game_key")), bet=bets_by_game.get(r.get("game_key"))) for r in rows) + "</div>")
+                + "".join(_row(r, teams, wu=writeups.get(r.get("game_key")), bet=bets_by_game.get(r.get("game_key"))) for r in rows) + "</div>"
+                + early_html)
     short = _short_date(date_iso)
     title = f'College Basketball Predictions Today{", " + short if short else ""} | {config.SITE_NAME}'
     desc = ((f'Model picks and projected scores for {"all " + str(n_all) if n_all > 1 else "the"} college basketball '

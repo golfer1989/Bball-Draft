@@ -1039,6 +1039,7 @@ def test_night_score_updates(tmp_path, monkeypatch):
     assert '<span class="res W">Won</span><em>Final 60-75</em>' in card and "<li>" in card      # and it kept its write-up
     assert "Wofford" in (docs / "results.html").read_text() and 'data-date="2026-11-09"' in (docs / "index.html").read_text()
     assert "1 finished game now on Results" in (docs / "index.html").read_text()
+    assert '<section class="early"' not in (docs / "index.html").read_text()        # a 10 PM game is still to tip: no early look yet
     assert (tmp_path / "api_calls_left.txt").read_text().split()[0] == str(900 - len(calls["games"]))
     # ...and it left the posting page, the share image, the caption and the day's stamp alone
     assert (docs / config.STUDIO_PAGE).read_bytes() == studio_before and (docs / "og.png").read_bytes() == b"share image of the day"
@@ -1053,7 +1054,15 @@ def test_night_score_updates(tmp_path, monkeypatch):
     games[2].update(status="final", awayPoints=71, homePoints=64, awayPeriodPoints=[30, 41], homePeriodPoints=[33, 31])
     at("2026-11-10 00:45")
     run("--scores")
-    assert calls["games"][n1:] == [("2026-11-09", "2026-11-09")]
+    # the day's last game has tipped off, so the update also downloads the next day's schedule (one more call)...
+    assert calls["games"][n1:] == [("2026-11-09", "2026-11-09"), ("2026-11-10", "2026-11-10")]
+    # ...and the Today page carries an early look at it, under the game that is still being played
+    page = (docs / "index.html").read_text()
+    look = page.split('<section class="early"')[1].split("</section>")[0]
+    assert "Tuesday, Nov 10" in look and "<span>T7<" in look and "<span>T8<" in look and "not official picks yet" in look
+    assert "about 3:30 AM Central" in look and 'href="#early"' in page
+    assert page.index('<div class="games"') < page.index('<section class="early"') and 'data-date="2026-11-09"' in page
+    assert json.loads((tmp_path / "raw" / "games_tomorrow.json").read_text())["date"] == "2026-11-10"
     got = rows()
     assert got["2026-11-09|3|4"]["away_pts"] == "71" and got["2026-11-09|5|6"]["away_pts"] == ""      # 10 PM tip: still playing
     assert not [k for k in got if k.startswith("2026-11-10")]                                         # tomorrow's game not locked
@@ -1070,7 +1079,14 @@ def test_night_score_updates(tmp_path, monkeypatch):
     assert run("--scores") == 0 and len(calls["games"]) == n2 and rows()["2026-11-09|5|6"]["away_pts"] == ""
     (tmp_path / "api_calls_left.txt").write_text("630\nnote\n")
     run("--scores")
-    assert len(calls["games"]) == n2 + 1 and rows()["2026-11-09|5|6"]["away_pts"] == "80"
+    assert calls["games"][n2:] == [("2026-11-09", "2026-11-09"), ("2026-11-10", "2026-11-10")]
+    assert rows()["2026-11-09|5|6"]["away_pts"] == "80"
+    # every game is final now: instead of an empty page, the day's top bet with its result and the early look
+    page = (docs / "index.html").read_text()
+    assert "All of today's games are final." in page and 'class="empty"' not in page and 'class="stats"' not in page
+    assert '<span class="res W">Won</span><em>Final 60-75</em>' in page.split('<section class="gotd"')[1].split("</section>")[0]
+    assert page.index('<section class="gotd"') < page.index('class="alldone"') < page.index('<section class="early"')
+    assert "<span>T7<" in page and 'href="#early"' not in page and "<title>College Basketball Predictions Today, Nov 9 | " in page
 
     # --- everything graded: no call; a slate that is not today's or last night's: no call
     n3 = len(calls["games"])
@@ -1085,8 +1101,11 @@ def test_night_score_updates(tmp_path, monkeypatch):
     monkeypatch.setattr(fetch, "lines", lambda a, b: [])
     monkeypatch.setattr(fetch, "teams", lambda: [])
     at("2026-11-10 01:55")
+    (tmp_path / "api_calls_left.txt").write_text("100\nnote\n")          # too few to spend one on an extra: the kept copy will do
+    n_next = calls["games"].count(("2026-11-10", "2026-11-10"))
     run()
     assert not [k for k in rows() if k.startswith("2026-11-10")] and (tmp_path / "last_build.txt").read_text().strip() == "2026-11-09"
+    assert calls["games"].count(("2026-11-10", "2026-11-10")) == n_next and "<span>T7<" in (docs / "index.html").read_text()
 
     # --- the overnight build (3:23 AM Central): the new day starts, last night's grades stand
     at("2026-11-10 04:23")
@@ -1095,7 +1114,8 @@ def test_night_score_updates(tmp_path, monkeypatch):
     assert [k for k in got if k.startswith("2026-11-10")] == ["2026-11-10|7|8"]
     assert (tmp_path / "last_build.txt").read_text().strip() == "2026-11-10"
     assert (got["2026-11-09|600|500"]["home_pts"], got["2026-11-09|3|4"]["away_pts"], got["2026-11-09|5|6"]["home_pts"]) == ("75", "71", "70")
-    assert 'data-date="2026-11-10"' in (docs / "index.html").read_text()
+    page = (docs / "index.html").read_text()
+    assert 'data-date="2026-11-10"' in page and '<section class="early"' not in page and "Early look" not in page
 
 
 def test_the_clip_shows_the_game_of_the_day(tmp_path, monkeypatch):
@@ -1207,6 +1227,139 @@ def test_the_clip_shows_the_game_of_the_day(tmp_path, monkeypatch):
     assert ">T9<" in card() and ">T7<" not in card()
     studio = (docs / config.STUDIO_PAGE).read_text()
     assert '<span class="kicker">Today’s clip</span>' in studio and "Game of the day clip" not in studio
+
+
+def test_early_look_on_the_today_page():
+    """From the day's last tip-off until the overnight build the Today page adds the next day's games
+    as an early look. With every game final it is what the page shows, instead of an empty box."""
+    teams = {"1": {"color": "aa0000"}, "2": {"color": "0000aa"}}
+    nxt = [_r(date="2026-11-21", when="Nov 21, 2026 12:00 PM ET", away_id="3", away="Road A&M", home_id="4", home="Host <U>",
+              pick="Road A&M", neutral="1"),
+           _r(date="2026-11-21", when="Nov 21, 2026 1:00 PM ET"),
+           _r(date="2026-11-21", when="TBD", away_id="5", away="Late U", home_id="6", home="Night St", pick="Night St")]
+    early = {"date": "2026-11-21", "label": "Saturday, Nov 21", "rows": nxt, "ranks": {"1": 12, "2": 3, "3": 250},
+             "waiting": 2, "official": "3:30 AM"}
+    look = site.early_look(early, teams)
+    assert look.startswith('<section class="early" id="early"><span class="kicker">Early look</span><h2>Saturday, Nov 21</h2>')
+    assert "scores for <b>3 games</b>, visitor listed first" in look and "<b>These are not official picks yet.</b>" in look
+    assert "post overnight (about 3:30 AM Central)" in look and "2 more games are waiting on a matchup." in look
+    # one compact row per game, in the order given: Central time, visitor on top, the projected winner marked
+    pa, ph = site.predicted_score(nxt[1])
+    assert pa < ph and look.count('<div class="eg"') == 3
+    assert look.index("11:00 AM") < look.index("12:00 PM") < look.index("Time TBD")
+    assert f'<div class="et"><span>Away U<i class="rk" title="Model rank">#12</i></span><b>{pa}</b></div>' in look
+    assert f'<div class="et w"><span>Home St<i class="rk" title="Model rank">#3</i></span><b>{ph}</b></div>' in look
+    assert '<div class="et w"><span>Road A&amp;M<i class="rk" title="Model rank">#250</i></span>' in look     # picked on the road
+    assert "<span>Host &lt;U&gt;</span>" in look and look.count("<small>Neutral</small>") == 1                 # no rank known: none shown
+    assert f'style="--pc:{site._vivid("0000aa")}"' in look                                                     # the stripe is the winner's color
+    # nothing in it for the page's script to treat as one of today's games, and no line, bet, pick badge or link
+    for hook in ('class="g', "data-ea", "data-slot", 'class="fav"', "<a ", "Bet", "Strong pick", "O/U", "Line"):
+        assert hook not in look, hook
+    assert site.early_look(None) == "" and site.early_look({"rows": []}) == "" and site.early_look({}, teams) == ""
+    one = site.early_look(dict(early, rows=nxt[:1], waiting=1, official=""))
+    assert "score for <b>1 game</b>" in one and "1 more game is waiting on a matchup." in one and "post overnight, and" in one
+
+    today = [_r(date="2026-11-20", game_key="2026-11-20|1|2", when="Nov 20, 2026 11:00 PM ET")]
+    # 1) a late game is still on the board: the early look goes under the list, with a link to it up top
+    page = site.today_page(today, "Friday, Nov 20", "now", "note", teams, "2026-11-20", 50, early=early)
+    assert page.index('<div class="games"') < page.index('<section class="early"') and 'class="stats"' in page
+    assert '<a class="donelink" href="#early">Early look at Saturday, Nov 21 &darr;</a>' in page
+    # 2) every game is final: the Game of the day with its result, one line about the day, then the early look
+    bet = dict(_book_row(1, kind="Total", side="under", label="Under 145.5", num="145.5", odds="-110", result="W"), odds=-110, chance=0.65, edge=0.12)
+    done = dict(today[0], away_pts="60", home_pts="70", pick_correct="1")
+    feature = {"bet": bet, "row": done, "final": "60-70"}
+    page = site.today_page([], "Friday, Nov 20", "now", "note", teams, "2026-11-20", 51, feature=feature, early=early)
+    assert page.index('<section class="gotd"') < page.index('<div class="alldone">') < page.index('<section class="early"')
+    assert "<b>All of today's games are final.</b>" in page and 'class="empty"' not in page and 'href="#early"' not in page
+    assert 'class="stats"' not in page and "51 finished games now on Results" in page and "Under 145.5" in page
+    # ...and without an early look (no games tomorrow, or the schedule could not be had) the page is as it was
+    page = site.today_page([], "Friday, Nov 20", "now", "note", teams, "2026-11-20", 51)
+    assert '<div class="empty"><b>All of today\'s games are final</b>' in page and 'class="stats"' in page and "Early look" not in page
+    assert 'class="alldone"' not in page and '<section class="early"' not in page
+    # 3) a day with no games at all: the next day's early look, all day
+    page = site.today_page([], "Thursday, Dec 24", "now", "note", teams, "2026-12-24", early=early)
+    assert "<b>No games today</b>" in page and page.index("No games today") < page.index('<section class="early"') and 'class="stats"' not in page
+    # 4) no early look handed over (every build before the last tip-off): nothing about one anywhere
+    page = site.today_page(today, "Friday, Nov 20", "now", "note", teams, "2026-11-20", 50)
+    assert '<section class="early"' not in page and "Early look" not in page and 'href="#early"' not in page
+
+
+def test_early_look_is_made_from_the_next_days_schedule(tmp_path, monkeypatch):
+    """What the builds hand to the page: the next day's games projected with tonight's ratings, saved
+    nowhere near the ledger, with one data call that the month's allowance can veto."""
+    import build, writeup
+    from datetime import datetime
+    build = _site_in(tmp_path, monkeypatch)
+    monkeypatch.setattr(build, "ROOT", tmp_path)
+    now = datetime(2026, 11, 21, 0, 50, tzinfo=config.ET)                 # 11:50 PM Central on Friday the 20th
+    # when is it time? Once no game on the board is still to tip.
+    late = _r(when="Nov 20, 2026 11:00 PM ET")
+    assert build.still_to_tip([dict(late, when="Nov 21, 2026 1:00 AM ET")], now)                 # a Hawaii tip is still ahead
+    assert not build.still_to_tip([late], now) and not build.still_to_tip([], now)             # tipped (still playing) / no games today
+    assert not build.still_to_tip([dict(late, when="TBD")], now)                                # no tip time to wait for
+    assert not build.still_to_tip([dict(late, when="Nov 21, 2026 1:00 AM ET", away_pts="70", home_pts="60")], now)
+
+    rat = {1: {"rating": 0.30, "ppg": 75.0}, 2: {"rating": 0.25, "ppg": 70.0}, 3: {"rating": 0.10, "ppg": 68.0},
+           4: {"rating": 0.20, "ppg": 72.0}, 245: {"rating": 0.22, "ppg": 71.0}, 213: {"rating": 0.21, "ppg": 69.0}}
+    rk = writeup.ranks(rat)
+    sched = [game(1, "2026-11-22T00:00:00Z", "T1", 1, "T2", 2),                                  # Sat 7:00 PM ET
+             game(2, "2026-11-21T17:00:00Z", "T3", 3, "T4", 4),                                  # Sat noon ET
+             game(3, "2026-11-21T20:00:00Z", "T1", 1, "Elms College", 99),                       # not a rated team: no projection
+             dict(game(4, "2026-11-21T22:00:00Z", "Rutgers", 245, "TBD", 1543), sourceId="401920513", neutralSite=True),
+             game(5, "2026-11-22T05:30:00Z", "T4", 4, "T3", 3),                                  # 12:30 AM ET Sunday: not Saturday's
+             dict(game(6, "2026-11-21T05:00:00Z", "T2", 2, "T4", 4), startTimeTbd=True)]         # tip time not announced
+    asked = []
+
+    def get_games(a, b):
+        asked.append((a.isoformat(), b.isoformat()))
+        return [dict(g) for g in sched]
+    monkeypatch.setattr(fetch, "games", get_games)
+    monkeypatch.setattr(fetch, "espn_matchups", lambda day: {})          # ESPN has not set the bracket game either
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "teams.json").write_text(json.dumps(TBD_TEAMS))
+    look = build.early_look(date(2026, 11, 20), rat, rk, "2026-27", now)
+    assert asked == [("2026-11-21", "2026-11-21")]                       # one call: Saturday's schedule
+    assert (look["date"], look["label"], look["official"], look["waiting"]) == ("2026-11-21", "Saturday, Nov 21", "3:30 AM", 1)
+    assert [r["game_key"] for r in look["rows"]] == ["2026-11-21|3|4", "2026-11-21|1|2", "2026-11-21|2|4"]      # by tip; no time last
+    first = look["rows"][0]
+    assert set(first) == set(ledger.FIELDS) and first["pick"] == "T4" and first["locked_at"] == "" and first["line_spread"] == ""
+    assert site.predicted_score(first)[1] > site.predicted_score(first)[0] and look["ranks"]["1"] == 1 and look["ranks"]["3"] == 6
+    assert not (tmp_path / "ledger.csv").exists() and not (tmp_path / "bets.csv").exists()                      # nothing is locked
+    assert json.loads((tmp_path / "raw" / "games_tomorrow.json").read_text())["date"] == "2026-11-21"
+    assert "<span>T3<" in site.early_look(look)                           # and the page can draw it as it comes
+    # summer time: the overnight build lands an hour later by the Central clock
+    assert build.early_look(date(2027, 3, 19), rat, rk, "2026-27", now) is None                 # (this schedule has no March games)
+    sched.append(game(7, "2027-03-20T23:00:00Z", "T1", 1, "T2", 2))
+    assert build.early_look(date(2027, 3, 19), rat, rk, "2026-27", now)["official"] == "4:30 AM"
+    del sched[-1], asked[:]
+
+    # a bracket game decided tonight: ESPN names the opponent, the game joins the list, and the find is kept
+    # for the overnight build without touching today's own finds
+    monkeypatch.setattr(fetch, "espn_matchups", lambda day: {"401920513": ("164", "87")} if day == date(2026, 11, 21) else {})
+    look = build.early_look(date(2026, 11, 20), rat, rk, "2026-27", now)
+    assert look["waiting"] == 0 and "2026-11-21|245|213" in [r["game_key"] for r in look["rows"]]
+    kept = json.loads((tmp_path / "raw" / "matchups_tomorrow.json").read_text())
+    assert kept["date"] == "2026-11-21" and kept["games"] == {"401920513": ["164", "87"]}
+    assert not (tmp_path / "raw" / "matchups_today.json").exists()
+
+    def turned_away(day):
+        raise fetch.FetchError("ESPN scoreboard: HTTP 403")
+    monkeypatch.setattr(fetch, "espn_matchups", turned_away)             # 3:23 AM: ESPN turns the machine away, the find still counts
+    morning = [dict(g) for g in sched]
+    assert [g["id"] for g in build.fill_tbd(morning, date(2026, 11, 21))] == [4] and morning[3]["homeTeam"] == "Notre Dame"
+    assert build.fill_tbd([dict(g) for g in sched], date(2026, 11, 22)) == []                   # ...but only for its own day
+
+    # the feed is down: the copy kept by the last build stands in, as long as it is that day's
+    def down(a, b):
+        asked.append("down")
+        raise fetch.FetchError("/games: HTTP 503")
+    monkeypatch.setattr(fetch, "games", down)
+    assert len(build.early_look(date(2026, 11, 20), rat, rk, "2026-27", now)["rows"]) == 4
+    assert build.early_look(date(2026, 11, 21), rat, rk, "2026-27", now) is None               # no copy for Sunday: no early look
+    # the month's calls are nearly gone: no call is spent on it at all
+    del asked[:]
+    (tmp_path / "api_calls_left.txt").write_text("10\nnote\n")
+    assert len(build.early_look(date(2026, 11, 20), rat, rk, "2026-27", now)["rows"]) == 4 and asked == []
 
 
 def test_score_update_skips_postponed_and_stale_games(tmp_path, monkeypatch):
