@@ -231,6 +231,30 @@ def bet_of_the_day(book, day, singles, day_rows):
     return None
 
 
+def clip_mark():
+    return DATA / "clip_game.txt"
+
+
+def clip_game(day_rows, clip_path):
+    """The game the daily clip on file was rendered for (today's ledger row), or None when there is
+    no clip for today: none rendered yet, or daily.mp4 is still an earlier day's."""
+    try:
+        key = clip_mark().read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not key or not Path(clip_path).exists():
+        return None
+    return next((r for r in day_rows if r["game_key"] == key), None)
+
+
+def clip_target(lead, has_bet, made_for):
+    """The game the day's clip should show: the site's Game of the day, so the video and the Today
+    page always name the same game. One exception: on a day with no bet the Game of the day is the
+    biggest game still to play, which moves on as games tip off, and a clip that exists (and may
+    already be posted) stays on the game it was made for."""
+    return lead if has_bet or made_for is None else made_for
+
+
 def _cache(name, loader):
     """Fetch with loader(); save to data/raw/<name>.json; on failure reuse the saved copy.
     In a --refresh run everything except today's schedule and lines comes from the saved copy
@@ -514,10 +538,11 @@ def main():
     yday = (today - timedelta(days=1)).isoformat()
     yesterday = (sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "1"),
                  sum(1 for r in rows if r["date"] == yday and r["pick_correct"] == "0"))
-    # Two different games can lead the day. gotd is the biggest matchup on the slate: the daily clip,
-    # its caption and the posting page are made for it (big names travel on social, and the clip may
-    # not mention a bet anyway). The site's "Game of the day" is the game behind the day's top bet:
-    # the card on the Today page and the share image (the site's link preview) follow that one.
+    # One game leads the day everywhere: the site's "Game of the day" is the game behind the day's top
+    # bet, and the card on the Today page, the share image (the site's link preview), the daily clip,
+    # its caption and the posting page all show that game. (The clip never mentions the bet: it gives
+    # the projected winner and score.) gotd, the biggest matchup still to play, is only the fallback
+    # for a day with nothing to bet.
     gotd = share.game_of_day(todays, writeups)
     feature = bet_of_the_day(book, today_str, best["singles"], day_rows)
     lead = feature["row"] if feature else gotd
@@ -526,31 +551,52 @@ def main():
     if feature:
         # A locked bet was made against the morning's line, the one saved with the pick. Its card explains
         # the game against that same line, so the reasons still match the bet after the line has moved.
+        card_wu = writeups[lead["game_key"]]
         if feature["bet"].get("locked_at") and kept_line(lead):
-            feature["wu"] = writeup.game_writeup(lead, rat, rk, kept_line(lead), best["cal"]["scale"])
+            card_wu = writeup.game_writeup(lead, rat, rk, kept_line(lead), best["cal"]["scale"])
+        # The card has room for five reasons: the one behind the bet itself must be one of them.
+        if hasattr(writeup, "for_bet"):                     # older writeup.py: the first five, as before
+            card_wu = writeup.for_bet(card_wu, feature["bet"]["kind"])
+        feature["wu"] = card_wu
         log(f'  game of the day: {lead["away"]} @ {lead["home"]} ({feature["bet"]["label"]})')
     season_rec = (sum(1 for r in rows if r["pick_correct"] == "1"), sum(1 for r in rows if r["pick_correct"] == "0"))
     caption = studio = ""
     # A score update leaves the share image, the clip, its caption and the posting page exactly as the
-    # day's builds made them: late at night the biggest matchup among the games still to play is a
-    # different game from the one the clip was made for.
+    # day's builds made them.
     if not SCORES:
         try:
             share.share_image(site.DOCS / "og.png", label, lead, writeups.get(lead["game_key"]) if lead else None, teams,
                               site.predicted_score(lead) if lead else None, season_rec if config.SHOW_RESULTS_STATS else None)
         except Exception as e:                              # noqa: BLE001 - the share image is cosmetic
             log(f"  ! share image: {e}")
-        if gotd and not REFRESH:                            # the clip is rendered once a day, by the overnight build
+
+        def wu_of(r):                                       # a game that is already final has no write-up yet
+            return writeups.get(r["game_key"]) or writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"])
+        # The clip shows the site's Game of the day. The overnight build renders it; a refresh renders
+        # it again only when it has to: there is no clip for today yet, or the day's top bet came in
+        # (or locked) after the clip was made and belongs to another game.
+        clip_path = site.DOCS / "daily.mp4"
+        made_for = clip_game(day_rows, clip_path)
+        target = clip_target(lead, bool(feature), made_for)
+        if target and (not REFRESH or made_for is None or made_for["game_key"] != target["game_key"]):
             try:
-                clip = video.daily_video(site.DOCS / "daily.mp4", label, gotd, writeups.get(gotd["game_key"]), teams,
-                                         site.predicted_score(gotd))
-                log(f"  daily clip: {'ok' if clip else 'skipped'}")
+                clip = video.daily_video(clip_path, label, target, wu_of(target), teams, site.predicted_score(target))
+                if clip:
+                    clip_mark().write_text(target["game_key"] + "\n", encoding="utf-8")
+                    made_for = target
+                log(f"  daily clip: {'ok' if clip else 'skipped'} ({target['away']} @ {target['home']})")
             except Exception as e:                          # noqa: BLE001 - cosmetic
                 log(f"  ! daily clip: {e}")
-        if gotd and (site.DOCS / "daily.mp4").exists():
-            caption = video.caption(gotd, writeups.get(gotd["game_key"]), site.predicted_score(gotd))
+        # the caption and the posting page describe the game the clip on file really shows
+        if made_for:
+            caption = video.caption(made_for, wu_of(made_for), site.predicted_score(made_for))
             (DATA / "caption.txt").write_text(caption + "\n", encoding="utf-8")
-        studio = site.studio_page(stamp, label, gotd, teams, writeups.get(gotd["game_key"]) if gotd else None, caption, yesterday)
+        shown = made_for or lead                            # no clip yet: the game the next one will be made for
+        on_site = bool(shown and lead and shown["game_key"] == lead["game_key"])
+        shown_wu = (feature["wu"] if feature and on_site else wu_of(shown)) if shown else None     # reads like the site's card
+        same = {"matches_site": bool(made_for) and on_site} \
+            if "matches_site" in site.studio_page.__code__.co_varnames else {}       # older webpage.py: no such argument
+        studio = site.studio_page(stamp, label, shown, teams, shown_wu, caption, yesterday, **same)
     # final scores for the graded bets on the Best Bets page ("83-54", away-home)
     finals = {(r["date"], str(r["away_id"]), str(r["home_id"])): f'{r["away_pts"]}-{r["home_pts"]}'
               for r in rows if r["away_pts"] != "" and r["date"] >= week_ago}

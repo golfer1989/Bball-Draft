@@ -545,6 +545,20 @@ def test_writeups_and_conference_filter():
     assert "spread value is on Army +12.5" in " ".join(writeup.game_writeup(row, rat, rk, {"fav": "Duke", "spread": 12.5, "total": 140}, scale=0.3)["lines"])
     assert writeup.game_writeup(dict(row, home_id="9"), rat, rk) is None
     assert "new to Division I" not in text
+    # the write-up says which of its sentences is about the spread and which about the over/under...
+    assert wu["lines"][wu["about"]["spread"]].startswith("The books have Duke by 12.5")
+    assert wu["lines"][wu["about"]["total"]].startswith("Projected total 150 vs an over/under of 140")
+    assert writeup.game_writeup(row, rat, rk)["about"] == {"spread": None, "total": None}       # no line: no such sentences
+    # ...so the Game of the day card, with room for five reasons, never drops the one behind its own bet
+    assert len(wu["lines"]) > 5 and wu["about"]["total"] >= 5                     # the first five alone would lose it
+    under = writeup.for_bet(wu, "Total")["lines"]
+    assert len(under) == 5 and under[-1].startswith("Projected total") and not any("spread value" in x for x in under)
+    side = writeup.for_bet(wu, "Spread")["lines"]
+    assert len(side) == 5 and side[-1].startswith("The books have") and not any("Projected total" in x for x in side)
+    assert writeup.for_bet(wu, "ML")["lines"] == side and under[:4] == side[:4] == wu["lines"][:4]
+    short = dict(wu, lines=wu["lines"][:3])
+    assert writeup.for_bet(short, "Total") is short and writeup.for_bet(None, "Total") is None   # fits already / unrated team
+    assert writeup.for_bet({"lines": list("abcdefg")}, "Total")["lines"] == list("abcde")       # no positions known: the first five
     rat[2].update(new_team=True, blend=0.25)                     # Army as a first-year D-I team
     newbie = " ".join(writeup.game_writeup(row, rat, rk)["lines"])
     assert "Army is new to Division I" in newbie and "last season\u2019s" not in newbie   # no "75% last season" claim for it
@@ -675,9 +689,15 @@ def test_game_of_the_day_is_the_days_top_bet():
     old = site.today_page([big, small], "x", "now", "note", teams, "2026-11-17", gotd=big,
                           bets_by_game={big["game_key"]: live, small["game_key"]: mine})
     assert "Home St ML" in old.split('<section class="gotd"')[1].split("</section>")[0]
-    # the private posting page shows the clip's matchup (the big game) with no bet box
-    studio = site.studio_page("now", "x", big, teams, None, "cap").split('<section class="gotd"')[1].split("</section>")[0]
-    assert "Today’s clip" in studio and "Kansas" in studio and "best bet" not in studio and "gbet" not in studio
+    # the private posting page shows the clip's game, which is this same game, with no bet box
+    page = site.studio_page("now", "x", small, teams, None, "cap", matches_site=True)
+    studio = page.split('<section class="gotd"')[1].split("</section>")[0]
+    assert '<span class="kicker">Game of the day clip</span>' in studio and "Away U" in studio
+    assert "best bet" not in studio and "gbet" not in studio and 'href="daily.mp4"' in page
+    plain = site.studio_page("now", "x", big, teams, None, "cap")                        # the build did not say it is the same game
+    assert '<span class="kicker">Today’s clip</span>' in plain and "Game of the day clip" not in plain
+    waiting = site.studio_page("now", "x", small, teams, None, "")                       # no clip rendered for today yet
+    assert "not ready yet" in waiting and 'href="daily.mp4"' not in waiting and "Copy caption" not in waiting
     assert "Game of the day</b>The game behind the day’s top bet" in html                # explained in "How to read this page"
 
 
@@ -1076,6 +1096,117 @@ def test_night_score_updates(tmp_path, monkeypatch):
     assert (tmp_path / "last_build.txt").read_text().strip() == "2026-11-10"
     assert (got["2026-11-09|600|500"]["home_pts"], got["2026-11-09|3|4"]["away_pts"], got["2026-11-09|5|6"]["home_pts"]) == ("75", "71", "70")
     assert 'data-date="2026-11-10"' in (docs / "index.html").read_text()
+
+
+def test_the_clip_shows_the_game_of_the_day(tmp_path, monkeypatch):
+    """The daily clip, its caption and the posting page are made for the same game as the card at the
+    top of the Today page. Two days on a scratch copy, with a stand-in for the renderer."""
+    import bets, video
+    from datetime import datetime
+    from pathlib import Path
+    build = _site_in(tmp_path, monkeypatch)
+    a, b = {"game_key": "a"}, {"game_key": "b"}
+    assert build.clip_target(a, True, None) is a and build.clip_target(a, True, b) is a      # a bet: the clip is for its game
+    assert build.clip_target(a, False, None) is a and build.clip_target(a, False, b) is b    # no bet: a clip that exists stays
+    assert build.clip_target(None, False, None) is None                                       # no games: no clip
+    stats = [stats_row(i, f"T{i}") for i in range(1, 321)]
+    stats.append(stats_row(500, "Tennessee", team=unit(320, 600, 160, 200, 110, 260, 90, 860)))
+    stats.append(stats_row(600, "Wofford"))
+    games = [
+        game(10, "2026-11-10T00:00:00Z", "Wofford", 600, "Tennessee", 500),      # Nov 9, 7:00 PM ET
+        game(11, "2026-11-10T02:30:00Z", "T3", 3, "T4", 4),                       # Nov 9, 9:30 PM ET: the two best-ranked teams left
+        game(20, "2026-11-10T17:00:00Z", "T7", 7, "T8", 8),                       # Nov 10, noon ET
+        game(21, "2026-11-11T02:00:00Z", "T9", 9, "T10", 10),                     # Nov 10, 9:00 PM ET
+    ]
+    WT, T34, T78 = "2026-11-09|600|500", "2026-11-09|3|4", "2026-11-10|7|8"
+    clock, feed, made, works = {}, {"lines": []}, [], {"yes": True}
+    monkeypatch.setattr(config, "now_et", lambda: clock["now"])
+    monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else [])
+    monkeypatch.setattr(fetch, "lines", lambda a, b: feed["lines"])
+    monkeypatch.setattr(fetch, "teams", lambda: [])
+    monkeypatch.setattr(fetch, "games", lambda a, b: [g for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()])
+
+    def render(path, label, row, wu, teams, pred, **kw):                # stands in for video.daily_video
+        made.append(row["game_key"])
+        if not works["yes"]:
+            return None                                                  # what a failed render returns: nothing written
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_bytes(("clip for " + row["game_key"]).encode())
+        return Path(path)
+    monkeypatch.setattr(video, "daily_video", render)
+
+    def run(when, *flags):
+        """One build at that Eastern time; returns the games a clip was rendered for (usually none or one)."""
+        clock["now"] = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=config.ET)
+        monkeypatch.setattr("sys.argv", ["build.py", *flags])
+        made.clear()
+        assert build.main() == 0
+        return list(made)
+    docs = tmp_path / "docs"
+
+    def card(page="index.html"):
+        return (docs / page).read_text().split('<section class="gotd"')[1].split("</section>")[0]
+
+    def clip_is_for(key, away, home):
+        return ((tmp_path / "clip_game.txt").read_text().strip() == key and (docs / "daily.mp4").read_text() == "clip for " + key
+                and (tmp_path / "caption.txt").read_text().startswith(f"{away} vs {home} prediction")
+                and f">{away}<" in card(config.STUDIO_PAGE) and f">{home}<" in card(config.STUDIO_PAGE))
+
+    # --- the overnight build, before any line is out: no bet yet, so the day's biggest matchup leads
+    assert run("2026-11-09 04:23") == [T34] and clip_is_for(T34, "T3", "T4")
+    assert ">T3<" in card() and "Not posted yet" in card()
+    studio = (docs / config.STUDIO_PAGE).read_text()
+    assert "Game of the day clip" in studio and 'href="daily.mp4"' in studio and "T3 vs T4 prediction" in studio
+    assert run("2026-11-09 08:40", "--refresh") == []                    # nothing new: the clip is left alone
+
+    # --- the lines come out and the model's best bet is in the other game (a total 18 points under its
+    #     own number): the card moves there, and so does the clip
+    feed["lines"] = [_gl(600, "Wofford", 500, "Tennessee", [{"provider": "consensus", "spread": -9.5, "overUnder": 140.5}])]
+    assert run("2026-11-09 09:45", "--refresh") == [WT] and clip_is_for(WT, "Wofford", "Tennessee")
+    assert ">Wofford<" in card() and "Today’s best bet" in card() and "Over 140.5" in card() and ">T3<" not in card()
+    # the game's page gives more reasons than the card has room for; the card keeps the one behind its bet
+    # (the over/under) and lets the one about the spread go
+    page = (docs / "games" / "2026-11-09" / "wofford-vs-tennessee.html").read_text()
+    assert page.count("<li>") > 5 and "The books have Tennessee by 9.5" in page and "the Over is the play." in page
+    assert card().count("<li>") == 5 and "the Over is the play." in card() and "The books have" not in card()
+    studio = (docs / config.STUDIO_PAGE).read_text()
+    assert "Game of the day clip" in studio and "Wofford vs Tennessee prediction" in studio
+    assert "best bet" not in card(config.STUDIO_PAGE) and video.flagged((tmp_path / "caption.txt").read_text()) == []
+    assert run("2026-11-09 11:45", "--refresh") == []                    # same game: not rendered again
+
+    # --- the day's bets lock with another game on top: the card follows the locked #1, and the clip with it
+    bets.save_book([_book_row(1, date="2026-11-09", away_id="3", home_id="4", away="T3", home="T4", label="T4 ML",
+                              when="Nov 9, 2026 9:30 PM ET")], tmp_path / "bets.csv")
+    assert run("2026-11-09 14:45", "--refresh") == [T34] and clip_is_for(T34, "T3", "T4")
+    assert ">T3<" in card() and "T4 ML" in card()
+    assert run("2026-11-09 17:45", "--refresh") == []
+
+    # --- at night a score update renders nothing and leaves the clip, the caption and the posting page as they are
+    games[0].update(status="final", awayPoints=60, homePoints=75)
+    before = [(docs / config.STUDIO_PAGE).read_bytes(), (tmp_path / "caption.txt").read_bytes(), (docs / "daily.mp4").read_bytes()]
+    assert run("2026-11-09 21:30", "--scores") == [] and "Wofford" in (docs / "results.html").read_text()
+    assert before == [(docs / config.STUDIO_PAGE).read_bytes(), (tmp_path / "caption.txt").read_bytes(), (docs / "daily.mp4").read_bytes()]
+    # ...and a run by hand makes the clip again, for the same game (how a new clip design gets onto the page)
+    assert run("2026-11-09 22:00") == [T34] and clip_is_for(T34, "T3", "T4")
+
+    # --- next morning the render fails: yesterday's clip is not offered as today's, and the next build tries again
+    feed["lines"] = []
+    works["yes"] = False
+    assert run("2026-11-10 04:23") == [T78]
+    assert (tmp_path / "clip_game.txt").read_text().strip() == T34 and ">T7<" in card()
+    studio = (docs / config.STUDIO_PAGE).read_text()
+    assert "not ready yet" in studio and 'href="daily.mp4"' not in studio and "Copy caption" not in studio and ">T7<" in studio
+    works["yes"] = True
+    assert run("2026-11-10 09:45", "--refresh") == [T78] and clip_is_for(T78, "T7", "T8")
+    assert "Game of the day clip" in (docs / config.STUDIO_PAGE).read_text()
+
+    # --- a day with no bet: once that game is over the card moves on to the biggest game still to play,
+    #     but the clip (already posted by then) stays on the game it was made for, and so does its caption
+    games[2].update(status="final", awayPoints=70, homePoints=60)
+    assert run("2026-11-10 17:45", "--refresh") == [] and clip_is_for(T78, "T7", "T8")
+    assert ">T9<" in card() and ">T7<" not in card()
+    studio = (docs / config.STUDIO_PAGE).read_text()
+    assert '<span class="kicker">Today’s clip</span>' in studio and "Game of the day clip" not in studio
 
 
 def test_score_update_skips_postponed_and_stale_games(tmp_path, monkeypatch):

@@ -759,20 +759,28 @@ def game_page(r, teams, wu, stamp, line_note=""):
                 root="../../", head_extra=head, canonical=game_path(r))
 
 
-def studio_page(stamp, date_label, gotd=None, teams=None, wu=None, caption="", yesterday=None):
-    """Private posting page: the day's clip, caption and share image in one place."""
+def studio_page(stamp, date_label, gotd=None, teams=None, wu=None, caption="", yesterday=None, matches_site=None):
+    """Private posting page: the day's clip, caption and share image in one place.
+    gotd = the game the clip shows, which is the site's Game of the day (matches_site: True when the
+    build confirms it is the same game as the card on the Today page). No caption = no clip has been
+    rendered for today yet, so there is nothing to download."""
     teams = teams or {}
     if gotd:
         pa, ph = predicted_score(gotd)
-        # the clip is made for the day's biggest matchup, which is not always the site's Game of the day
-        card = gotd_card(gotd, teams, wu, pa, ph, kicker="Today’s clip: the day’s biggest matchup", show_bet=False)
+        # no bet box on this page: it is about the post, and the clip and its caption never mention a bet
+        card = gotd_card(gotd, teams, wu, pa, ph, show_bet=False,
+                         kicker="Game of the day clip" if matches_site else "Today’s clip")
+        clip = clip_box(caption) or (
+            '<div class="clip"><div><b>Today’s clip is not ready yet</b><span>The next build makes it, for the game above. '
+            'Until then there is nothing to post: the video file on the site is an earlier one.</span></div></div>')
     else:
         card = '<div class="empty"><b>No games today</b>Nothing to post; the next clip renders overnight.</div>'
+        clip = ""
     rec = (f'<p class="note">Yesterday the picks went <b>{yesterday[0]}-{yesterday[1]}</b>; worth putting in the caption.</p>'
            if yesterday and sum(yesterday) else "")
     body = (f'<section class="hero"><div><h1>Posting studio</h1><p>{escape(date_label)}. This page is private: not linked, '
             'not indexed. Download, add a trending sound in the app, paste the caption, post.</p></div></section>'
-            + card + clip_box(caption) + rec +
+            + card + clip + rec +
             '<div class="clip"><div><b>Share image</b><span>The link preview picture for X, Reddit and Discord posts.</span></div>'
             '<div class="cb"><a class="btn ghost" href="og.png" download="tipoffedge-today.png">Download image</a></div></div>'
             '<p class="note">Routine: post the clip at the same time each day, an hour or two before the first tip-off. '

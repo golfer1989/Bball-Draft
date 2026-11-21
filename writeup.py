@@ -37,7 +37,9 @@ def _tier(rank, n):
 def game_writeup(row, rat, rk, line=None, scale=1.0):
     """row = ledger row / prediction with away_id, home_id, pick, differential, total, neutral.
     rat = ratings, rk = ranks(rat), line = {"fav", "spread", "total"} or None.
-    Returns {"headline", "lines": [...], "away_rank", "home_rank"} or None if a team is unrated."""
+    Returns {"headline", "lines": [...], "away_rank", "home_rank", "n", "facts", "about"} or None if
+    a team is unrated. "about" says which of the lines is the sentence on the spread and which the
+    one on the over/under (their positions in "lines", None when there is no such sentence)."""
     a, h = rat.get(_id(row["away_id"])), rat.get(_id(row["home_id"]))
     if not a or not h:
         return None
@@ -54,6 +56,7 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
         return None
     neutral = str(row.get("neutral") or "") in ("1", "True", "true")
     lines = []
+    about = {"spread": None, "total": None}
 
     # 1. the matchup in one line
     if margin < 3:
@@ -99,8 +102,9 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
     else:
         lines.append(f"{away} is picked on the road despite {home}’s {config.HOME_COURT_POINTS:g}-point home-court edge.")
 
-    # 5. the betting line
+    # 5. the betting line (one sentence, whichever case applies)
     if line and line.get("spread") is not None:
+        about["spread"] = len(lines)
         sp, fav = float(line["spread"]), line.get("fav") or ""
         if sp == 0 or not fav:
             lines.append(f"The betting line is a pick’em; the model leans {pick}.")
@@ -126,6 +130,7 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
     except (TypeError, ValueError):
         total = None
     if total is not None and line and line.get("total") is not None:
+        about["total"] = len(lines)
         ou = float(line["total"])
         d = total - ou
         if abs(d) >= config.OU_EDGE_POINTS:
@@ -151,7 +156,25 @@ def game_writeup(row, rat, rk, line=None, scale=1.0):
     elif blend < 1:
         lines.append(f"Early-season note: about {round((1 - blend) * 100)}% of these numbers are still last season\u2019s.")
     return {"headline": head, "lines": lines, "away_rank": ra["rank"], "home_rank": rh["rank"], "n": n,
-            "facts": facts}
+            "facts": facts, "about": about}
+
+
+def for_bet(wu, kind, limit=5):
+    """The write-up as the Game of the day card shows it beside the day's top bet. The card has room
+    for `limit` reasons, and the one behind the bet has to be among them: the over/under sentence
+    for a total (kind "Total"), the spread sentence for a side ("Spread" or "ML"). When something
+    has to go, the sentence about the other market goes first (it argues for a different bet), then
+    whatever comes last. A write-up that already fits is returned as it is."""
+    lines = list((wu or {}).get("lines") or [])
+    if len(lines) <= limit:
+        return wu
+    about = wu.get("about") or {}
+    mine, other = ("total", "spread") if kind == "Total" else ("spread", "total")
+    keep = [i for i in range(len(lines)) if i != about.get(other)]
+    shown = keep[:limit]
+    if about.get(mine) is not None and about[mine] not in shown:
+        shown = sorted(keep[:limit - 1] + [about[mine]])
+    return dict(wu, lines=[lines[i] for i in shown], about={})
 
 
 def _id(v):
