@@ -108,6 +108,6 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-22,1,Total,under,Under 167.5,-110,0.680,0.157,167.5,241,139,Rice,Lamar,"Nov 22, 2026 5:00 PM ET","Nov 22, 2026 03:23 AM CT",
 2026-11-22,2,Spread,away,UNC Asheville +9.5,-110,0.603,0.079,9.5,319,256,UNC Asheville,Samford,"Nov 22, 2026 5:00 PM ET","Nov 22, 2026 03:23 AM CT",
 2026-11-22,3,ML,home,Portland State ML,-198,0.739,0.075,,37,231,Cal State Fullerton,Portland State,"Nov 22, 2026 5:00 PM ET","Nov 22, 2026 03:23 AM CT",
-2026-11-22,4,ML,home,Utah Tech ML,-110,0.596,0.072,,269,330,South Dakota,Utah Tech,"Nov 22, 2026 2:00 PM ET","Nov 22, 2026 03:23 AM CT",
-2026-11-22,5,Spread,home,Northwestern +3.5,-110,0.595,0.071,3.5,64,212,Dayton,Northwestern,"Nov 22, 2026 1:00 PM ET","Nov 22, 2026 03:23 AM CT",
+2026-11-22,4,ML,home,Utah Tech ML,-110,0.596,0.072,,269,330,South Dakota,Utah Tech,"Nov 22, 2026 2:00 PM ET","Nov 22, 2026 03:23 AM CT",L
+2026-11-22,5,Spread,home,Northwestern +3.5,-110,0.595,0.071,3.5,64,212,Dayton,Northwestern,"Nov 22, 2026 1:00 PM ET","Nov 22, 2026 03:23 AM CT",W
 2026-11-22,6,Total,over,Over 130.5,-110,0.594,0.070,130.5,331,173,Utah,Minnesota,"Nov 22, 2026 6:00 PM ET","Nov 22, 2026 03:23 AM CT",
