@@ -908,6 +908,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-21|94|334,2026-11-21,"Nov 21, 2026 7:00 PM ET",94,Gardner-Webb,334,VMI,0.9411,0.9539,VMI,0.0364,,151.4,VMI,3.4,2026-27,2026-11-21T04:23-05:00,68,71,1,,-12.4,1,,VMI,8.5,149.5,Draft Kings
 2026-11-22|1073|265,2026-11-22,"Nov 22, 2026 3:00 PM ET",1073,West Florida,265,South Alabama,0.9777,0.9943,South Alabama,0.0402,,150.8,South Alabama,3.8,2026-27,2026-11-22T04:23-05:00,,,,,,,,South Alabama,6.5,140.5,Draft Kings
 2026-11-22|148|323,2026-11-22,"Nov 22, 2026 8:00 PM ET",148,Louisiana,323,USC,0.9444,1.0815,USC,0.1606,USC,144.6,USC,15.0,2026-27,2026-11-22T04:23-05:00,,,,,,,,USC,33.5,147.5,Draft Kings
+2026-11-22|159|115,2026-11-22,TBD,159,Maryland Eastern Shore,115,IU Indianapolis,0.9521,0.9668,IU Indianapolis,0.0148,,151.4,IU Indianapolis,1.4,2026-27,2026-11-22T14:45-05:00,,,,,,,1,IU Indianapolis,10.5,140.5,Draft Kings
 2026-11-22|162|297,2026-11-22,"Nov 22, 2026 3:30 PM ET",162,McNeese,297,Texas State,1.0468,1.0213,McNeese,0.0020,,149.0,McNeese,0.5,2026-27,2026-11-22T04:23-05:00,,,,,,,,Texas State,2.5,142.5,Draft Kings
 2026-11-22|186|26,2026-11-22,"Nov 22, 2026 5:00 PM ET",186,NJIT,26,Boston College,0.9218,1.0386,Boston College,0.1403,Boston College,137.2,Boston College,13.1,2026-27,2026-11-22T04:23-05:00,,,,,,,,Boston College,24.5,135.5,Draft Kings
 2026-11-22|240|305,2026-11-22,"Nov 22, 2026 7:00 PM ET",240,Rhode Island,305,UAB,1.0181,1.0191,UAB,0.0010,,146.6,UAB,0.5,2026-27,2026-11-22T04:23-05:00,,,,,,,1,Rhode Island,2.5,149.5,Draft Kings
@@ -930,7 +931,7 @@ game_key,date,when,away_id,away,home_id,home,away_rating,home_rating,pick,differ
 2026-11-22|331|173,2026-11-22,"Nov 22, 2026 6:00 PM ET",331,Utah,173,Minnesota,1.0375,1.0656,Minnesota,0.0281,,143.7,Minnesota,2.6,2026-27,2026-11-22T04:23-05:00,,,,,,,1,Minnesota,10.5,130.5,Draft Kings
 2026-11-22|340|218,2026-11-22,"Nov 22, 2026 3:30 PM ET",340,Virginia Tech,218,Oklahoma State,1.0635,1.0764,Oklahoma State,0.0129,,160.3,Oklahoma State,1.2,2026-27,2026-11-22T04:23-05:00,,,,,,,1,Virginia Tech,1.5,159.5,Draft Kings
 2026-11-22|349|42,2026-11-22,"Nov 22, 2026 1:00 PM ET",349,Western Illinois,42,Canisius,0.9375,0.9483,Canisius,0.0343,,141.2,Canisius,3.2,2026-27,2026-11-22T04:23-05:00,,,,,,,,Canisius,4.5,139.5,Draft Kings
-2026-11-22|34|188,2026-11-22,"Nov 22, 2026 12:00 PM ET",34,Butler,188,Nebraska,1.0528,1.1019,Nebraska,0.0490,,151.1,Nebraska,4.6,2026-27,2026-11-22T04:23-05:00,,,,,,,1,Nebraska,12.5,154.5,Draft Kings
+2026-11-22|34|188,2026-11-22,"Nov 22, 2026 12:00 PM ET",34,Butler,188,Nebraska,1.0528,1.1019,Nebraska,0.0490,,151.1,Nebraska,4.6,2026-27,2026-11-22T04:23-05:00,74,76,1,,-1.1,0,1,Nebraska,12.5,154.5,Draft Kings
 2026-11-22|353|361,2026-11-22,"Nov 22, 2026 2:00 PM ET",353,William & Mary,361,Youngstown State,1.0078,0.9724,William & Mary,0.0119,,156.6,William & Mary,1.1,2026-27,2026-11-22T04:23-05:00,,,,,,,,William & Mary,2.5,164.5,Draft Kings
 2026-11-22|358|73,2026-11-22,"Nov 22, 2026 2:00 PM ET",358,Wyoming,73,Duquesne,1.0581,1.0329,Wyoming,0.0252,,149.1,Wyoming,2.4,2026-27,2026-11-22T04:23-05:00,,,,,,,1,Wyoming,3.5,139.5,Draft Kings
 2026-11-22|365|295,2026-11-22,"Nov 22, 2026 3:00 PM ET",365,Southern Indiana,295,Texas,0.9514,1.1079,Texas,0.1800,Texas,151.0,Texas,16.8,2026-27,2026-11-22T04:23-05:00,,,,,,,,Texas,39.5,149.5,Draft Kings
