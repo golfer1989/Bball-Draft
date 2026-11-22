@@ -101,7 +101,7 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-20,6,ML,home,Jacksonville State ML,-130,0.644,0.079,,100,128,Georgia State,Jacksonville State,"Nov 20, 2026 7:00 PM ET","Nov 20, 2026 03:23 AM CT",W
 2026-11-21,1,Spread,home,Portland +5.5,-110,0.652,0.128,5.5,91,230,Fordham,Portland,"Nov 21, 2026 2:00 PM ET","Nov 21, 2026 03:23 AM CT",L
 2026-11-21,2,Total,under,Under 160.5,-110,0.632,0.108,160.5,227,137,Pennsylvania,La Salle,"Nov 21, 2026 4:00 PM ET","Nov 21, 2026 03:23 AM CT",W
-2026-11-21,3,Total,under,Under 164.5,-110,0.628,0.104,164.5,233,291,Presbyterian,Tennessee Tech,"Nov 21, 2026 7:30 PM ET","Nov 21, 2026 03:23 AM CT",
-2026-11-21,4,Spread,away,Michigan −3.5,-110,0.617,0.093,-3.5,170,338,Michigan,Villanova,"Nov 21, 2026 7:00 PM ET","Nov 21, 2026 03:23 AM CT",
+2026-11-21,3,Total,under,Under 164.5,-110,0.628,0.104,164.5,233,291,Presbyterian,Tennessee Tech,"Nov 21, 2026 7:30 PM ET","Nov 21, 2026 03:23 AM CT",L
+2026-11-21,4,Spread,away,Michigan −3.5,-110,0.617,0.093,-3.5,170,338,Michigan,Villanova,"Nov 21, 2026 7:00 PM ET","Nov 21, 2026 03:23 AM CT",L
 2026-11-21,5,Total,under,Under 154.5,-110,0.616,0.092,154.5,264,32,Siena,Bucknell,"Nov 21, 2026 11:00 AM ET","Nov 21, 2026 03:23 AM CT",L
 2026-11-21,6,ML,home,Bowling Green ML,-225,0.781,0.089,,208,28,Northern Illinois,Bowling Green,"Nov 21, 2026 2:00 PM ET","Nov 21, 2026 03:23 AM CT",L
