@@ -9,15 +9,24 @@ Three kinds of run (the workflow picks one):
                              final, adds nothing new, at most 1 call (none when nothing is due)
 
 Once the day's last game has tipped off, any of the three also adds an early look at the next
-day's games to the Today page (one more call, see early_look)."""
+day's games to the Today page (one more call, see early_look). The overnight build also makes the
+Rankings page, a page for every team and the method page (one more call for the coming week's
+schedule, see team_hub)."""
 import argparse
 import json
+import os
 import statistics
+import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import bets, config, fetch, ledger, model, share, video, webpage as site, writeup
+
+try:
+    import teamdata                 # the Rankings page and the team pages
+except ImportError:                 # that file is not in the repo (yet): everything else builds as before
+    teamdata = None
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -317,6 +326,194 @@ def early_look(day, rat, rk, season, now):
             "official": official.strftime("%-I:%M %p")}
 
 
+# ---- rankings, team pages, method page ----
+UPCOMING_DAYS = 7       # how far ahead the team pages look for "Coming up"
+
+
+def drop_departed(rat, teams):
+    """Take out ratings carried over from last season for schools that have left Division I. A
+    team with no games this season keeps last season's numbers (it may simply not have played yet),
+    but one the team list no longer puts in a conference is gone: left in, it would hold a place
+    in the rankings and could be "picked" against. Returns the ids removed.
+    Nothing is removed unless the team list is the full one (it lists 300+ Division I schools)."""
+    if sum(1 for t in teams.values() if t.get("conf")) < 300:
+        return []
+    gone = [t for t, r in rat.items() if r.get("blend") == 0.0 and not (teams.get(str(t)) or {}).get("conf")]
+    for t in gone:
+        del rat[t]
+    return gone
+
+
+def week_ahead(today, now, download=True):
+    """The schedule of the next UPCOMING_DAYS days, for "Coming up" on the team pages: one data call
+    in the overnight build, kept in data/raw/games_week.json for the rest of the day's builds (and
+    for a morning when the feed is down or the month's calls are being held back). A refresh or a
+    score update lives on what was kept; it downloads only when nothing was kept for today, and
+    never with download=False. Returns the feed's rows, possibly none."""
+    path = RAW / "games_week.json"
+    first = today + timedelta(days=1)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        kept = data["games"] if data["from"] == first.isoformat() else None
+    except (OSError, ValueError, KeyError, TypeError):
+        kept = None
+    if not download or (REFRESH and kept is not None):
+        return kept or []
+    left, held = calls_left_saved(), calls_held_back(now)
+    if left is not None and left < held:
+        return kept or []
+    try:
+        raw = fetch.games(first, today + timedelta(days=UPCOMING_DAYS))
+    except fetch.FetchError as e:
+        log(f"  ! coming week: {e}")
+        return kept or []
+    RAW.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"from": first.isoformat(), "games": raw}), encoding="utf-8")
+    return raw
+
+
+def team_hub(today, rat, rk, rows, raw_teams, teams, now, pages=True):
+    """What the Rankings page and the team pages show (teamdata.profiles), best team first, or None
+    when this season's team stats are not loaded. An overnight (or by-hand) build also adds the
+    day's ranks to data/rank_history.json, which is where the Move column comes from.
+    pages = whether this build is going to write those pages: only then is the coming week's
+    schedule worth a data call (the overnight build always makes it; a refresh or a score update
+    does only when it is the first build with these pages and nothing was kept for today)."""
+    s0 = config.season_for(today)
+    got = SEASON_STATS.get(s0)
+    if not got:
+        return None
+    team, opp, raw_stats = got
+    names = {t.get("id"): t.get("school") or "" for t in raw_teams or []}
+    try:
+        played = json.loads((RAW / f"season_games_{s0}.json").read_text(encoding="utf-8")).get("games") or []
+    except (OSError, ValueError):
+        played = []
+    week = fetch.parse_games(week_ahead(today, now, download=pages))
+    today_str = today.isoformat()
+    hist_path = DATA / "rank_history.json"
+    try:
+        history = json.loads(hist_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        history = {}
+    if not REFRESH:
+        teamdata.remember(history, today_str, {t: rk[t]["rank"] for t in rat})
+        hist_path.write_text(json.dumps(history, separators=(",", ":")), encoding="utf-8")
+    sched = teamdata.schedules(rat, played, rows, today_str, week, names)
+    return teamdata.profiles(rat, rk, team, opp, raw_stats, teams, sched, history, today_str)
+
+
+def model_facts(today, rat, rk, rows, n_teams):
+    """The day's numbers for the method page: how far into the season the typical team is, the
+    record so far by how confident the model was, and one real game for the worked example
+    (yesterday's biggest matchup, whichever way it went)."""
+    facts = {"n_teams": n_teams}
+    got = SEASON_STATS.get(config.season_for(today))
+    if got and got[0]:
+        facts["median_gp"] = statistics.median(t["GP"] for t in got[0].values())
+    graded = [r for r in rows if r["pick_correct"] in ("0", "1")]
+    if graded:
+        def margin(r):
+            return config.POINTS_PER_RATING * float(r["differential"])
+        bands = []
+        for label, lo, hi in (("Under 3 points", 0, 3), ("3 to 6", 3, 6), ("6 to 10", 6, 10), ("10 to 15", 10, 15),
+                              ("15 to 25", 15, 25), ("25 or more", 25, 1e9)):
+            g = [r for r in graded if lo <= margin(r) < hi]
+            w = sum(1 for r in g if r["pick_correct"] == "1")
+            bands.append((label, w, len(g) - w))
+        miss = []
+        for r in graded:
+            pa, ph = site.predicted_score(r)
+            miss.append(abs((ph - pa) - (int(r["home_pts"]) - int(r["away_pts"]))))
+        totals = [abs(float(r["total_error"])) for r in graded if r["total_error"]]
+        strong = [r for r in graded if r["strong_correct"] in ("0", "1")]
+        last = max(r["date"] for r in graded)
+        facts["record"] = {
+            "right": sum(1 for r in graded if r["pick_correct"] == "1"), "wrong": sum(1 for r in graded if r["pick_correct"] == "0"),
+            "bands": bands, "margin_miss": sum(miss) / len(miss), "total_miss": sum(totals) / len(totals) if totals else 0.0,
+            "strong": (sum(1 for r in strong if r["strong_correct"] == "1"), sum(1 for r in strong if r["strong_correct"] == "0")),
+            "last": date.fromisoformat(last).strftime("%b %-d, %Y")}
+        # the worked example: the best-ranked pairing of the last graded day
+        day = [r for r in graded if r["date"] == last and int(r["away_id"]) in rk and int(r["home_id"]) in rk
+               and r["away_rating"] and r["home_rating"]]
+        if day:
+            r = min(day, key=lambda r: rk[int(r["away_id"])]["rank"] + rk[int(r["home_id"])]["rank"])
+            pa, ph = site.predicted_score(r)
+            facts["example"] = {
+                "away": r["away"], "home": r["home"], "day": date.fromisoformat(r["date"]).strftime("%b %-d"),
+                "neutral": r.get("neutral") == "1", "away_rating": float(r["away_rating"]), "home_rating": float(r["home_rating"]),
+                "margin": margin(r), "total": float(r["total"]), "pa": pa, "ph": ph, "pick": r["pick"],
+                "final": (int(r["away_pts"]), int(r["home_pts"])), "path": site.game_path(r)}
+    return facts
+
+
+HUB_PAGES = ("rankings.html", "model.html", "teams")
+
+
+def stage_hub_pages():
+    """Hand the Rankings, the method page and the team pages to the workflow's commit step.
+    That step adds a fixed list of files, written before these pages existed, and commits whatever
+    is staged. So on a GitHub runner the build stages its newer pages itself and nothing in the
+    workflow file has to change. Anywhere else (a run on your own computer, the tests) this does
+    nothing. Returns the paths staged."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return []
+    paths = [p for p in HUB_PAGES if (site.DOCS / p).exists()]
+    if not paths:
+        return []
+    try:
+        done = subprocess.run(["git", "add", "--", *paths], cwd=site.DOCS, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"  ! the rankings and team pages could not be handed to the commit step: {e}")
+        return []
+    if done.returncode:
+        log(f"  ! the rankings and team pages could not be handed to the commit step: {done.stderr.strip()[:200]}")
+        return []
+    return paths
+
+
+def write_hub(hub, stamp, teams, facts):
+    """The Rankings page, the method page and a page for every team on the list. Every page is drawn
+    before any is written, so a page that cannot be drawn leaves the site as it was instead of half
+    updated. A page left over from a team that is no longer listed is removed, so nothing points at
+    a team the model has stopped rating. Returns the number of team pages."""
+    confs = teamdata.conferences(hub)
+    avgs = teamdata.averages({p["id"]: p["factors"] for p in hub if p.get("factors")})
+    pages = {"rankings.html": site.rankings_page(hub, confs, stamp, teams, facts),
+             "model.html": site.model_page(stamp, facts)}
+    keep = set()
+    for p in hub:
+        path = teamdata.team_path(p["name"])
+        if path in pages:                                   # two schools whose names come out the same: keep the first
+            log(f"  ! {p['name']} would share its page address with another team: no page written for it")
+            continue
+        pages[path] = site.team_page(p, hub, stamp, teams, avgs)
+        keep.add(Path(path).name)
+    folder = site.DOCS / "teams"
+    folder.mkdir(parents=True, exist_ok=True)
+    for path, html in pages.items():
+        (site.DOCS / path).write_text(html, encoding="utf-8")
+    for old in folder.glob("*.html"):
+        if old.name not in keep:
+            old.unlink()
+    return len(keep)
+
+
+def refresh_team_pages(hub, ids, stamp, teams):
+    """Draw again the pages of the teams whose game has just gone final, so the result (and whether
+    the model had it) is on the team's own page the same night, not the next morning. The rating and
+    the ranks on the page stay the morning's: those change with the overnight build. Only pages
+    that are already there are rewritten. Returns how many."""
+    avgs = teamdata.averages({p["id"]: p["factors"] for p in hub if p.get("factors")})
+    n = 0
+    for p in hub:
+        out = site.DOCS / teamdata.team_path(p["name"])
+        if p["id"] in ids and out.exists():
+            out.write_text(site.team_page(p, hub, stamp, teams, avgs), encoding="utf-8")
+            n += 1
+    return n
+
+
 def clip_mark():
     return DATA / "clip_game.txt"
 
@@ -361,6 +558,9 @@ def _cache(name, loader):
         return None, True
 
 
+SEASON_STATS = {}       # season -> (team, opp, the feed's rows) as loaded in this run, for the team pages
+
+
 def load_stats(season):
     """(label, team, opp) for one season, or None if the API has nothing usable for it."""
     rows, stale = _cache(f"stats_{season}", lambda: fetch.team_stats(season))
@@ -370,6 +570,7 @@ def load_stats(season):
     if len(team) < 300:
         log(f"  season {season}: only {len(team)} teams, ignored")
         return None
+    SEASON_STATS[season] = (team, opp, rows)
     return (label or str(season)) + (" (cached)" if stale else ""), team, opp
 
 
@@ -468,6 +669,7 @@ def main():
     SCORES = args.scores
     REFRESH = args.refresh or SCORES
     LIVE_FEEDS = ("games_today",) if SCORES else ("games_today", "lines_today")
+    SEASON_STATS.clear()
     now = config.now_et()
     # The site's day turns over at 3 AM Eastern (2 AM Central), not at midnight: a run started by hand
     # late at night still belongs to the evening's slate. Starting the next day is the overnight
@@ -522,8 +724,14 @@ def main():
             log(f"  graded {n} games for {d}")
 
     # 2) stats, today's picks (the first-half pick comes from the same projection)
+    # (team logos/colors are cosmetic: a failed download of the team list just means plain badges)
+    raw_teams, _ = _cache("teams", fetch.teams)
+    teams = fetch.parse_teams(raw_teams)
     rat, season, stats_note = current_ratings(today)
     log(f"  {stats_note}")
+    gone = drop_departed(rat, teams)
+    if gone:
+        log(f"  {len(gone)} carried-over rating{'s' if len(gone) != 1 else ''} dropped: no longer in Division I")
     stats_note += ", adjusted for schedule + home court"
     todays_games = [g for g in all_games if g["date"] == today_str]
     preds = [model.predict(g, rat, {}) for g in todays_games]
@@ -546,7 +754,9 @@ def main():
         log(f"  locked {added} new picks")
     # games already final today move to the Results page at the next refresh or score update
     # (whatever is left grades overnight)
+    final_before = {r["game_key"] for r in rows if r["date"] == today_str and r["away_pts"] != ""}
     n_final = ledger.grade(rows, today_str, todays_games)
+    just_final = [r for r in rows if r["date"] == today_str and r["away_pts"] != "" and r["game_key"] not in final_before]
     if n_final:
         log(f"  graded {n_final} finished games from today")
     if SCORES and not n_final:
@@ -560,9 +770,7 @@ def main():
     log(f"  betting lines found for {n_lines} games")
     ledger.save(rows)
 
-    # 4) website (team logos/colors are cosmetic: a failed download just means plain badges)
-    raw_teams, _ = _cache("teams", fetch.teams)
-    teams = fetch.parse_teams(raw_teams)
+    # 4) website
     def tip(r):
         try:
             return datetime.strptime(r["when"].replace(" ET", ""), "%b %d, %Y %I:%M %p")
@@ -602,14 +810,50 @@ def main():
     writeups = {r["game_key"]: writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"]) for r in todays}
     # a page of its own for every game of the last three days (today's get the result as it comes in)
     recent = [r for r in rows if (today - timedelta(days=2)).isoformat() <= r["date"] <= today_str]
+    # Rankings, a page for every team and the method page. They go first: every page written after
+    # them carries the Rankings tab and the link to the method page only if those files exist.
+    hub = None
+    if teamdata and not args.date and hasattr(site, "rankings_page"):
+        coming = getattr(site, "COMING", set())
+        # The ratings only change when the team stats are downloaded again, so the overnight build (or
+        # a run by hand) writes these pages; a refresh or a score update does only when they are not
+        # there yet, which is the first build after they were added. What those two do instead is put
+        # a result on the pages of the two teams when their game goes final.
+        pages = not REFRESH or not (site.DOCS / "rankings.html").exists()
+        try:
+            hub = team_hub(today, rat, rk, rows, raw_teams, teams, now, pages)
+            if hub and pages:
+                facts = model_facts(today, rat, rk, rows, len(hub))
+                facts["since"] = hub[0].get("move_since") or ""
+                # what this build is about to write counts as there: the two new pages link to each
+                # other, and a team's page links to the pages of today's games, written just below
+                coming.update(("rankings.html", "model.html"))
+                coming.update(site.game_path(r) for r in recent)
+                log(f"  wrote the rankings, the method page and {write_hub(hub, stamp, teams, facts)} team pages")
+            elif hub and just_final:
+                n_teams = refresh_team_pages(hub, {int(r[k]) for r in just_final for k in ("away_id", "home_id")}, stamp, teams)
+                log(f"  put today's results on {n_teams} team pages")
+        except Exception as e:                              # noqa: BLE001 - extra pages: never worth a failed build
+            log(f"  ! rankings and team pages: {e}")
+        coming.clear()                                      # from here on a page is linked only if its file is there
+    by_team = {p["id"]: p for p in hub} if hub else {}
+    with_teams = {"profiles": by_team} if by_team and "profiles" in site.game_page.__code__.co_varnames else {}
     n_pages = 0
     for r in recent:
         wu = writeups.get(r["game_key"]) or writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"])
         out = site.DOCS / site.game_path(r)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(site.game_page(r, teams, wu, stamp), encoding="utf-8")
+        out.write_text(site.game_page(r, teams, wu, stamp, **with_teams), encoding="utf-8")
         n_pages += 1
     log(f"  wrote {n_pages} game pages")
+    # game pages more than a week old are asked out of search results (they stay on the site): each
+    # build checks only the days that have just crossed that line, the first one checks them all
+    if hasattr(site, "retire_old_games") and not SCORES and not args.date:
+        mark = DATA / "games_retired.txt"
+        n_old = site.retire_old_games(site.DOCS, today_str, mark.read_text(encoding="utf-8").strip() if mark.exists() else "")
+        if n_old:
+            log(f"  {n_old} older game pages marked as not for search results")
+        mark.write_text(today_str + "\n", encoding="utf-8")
     # one-time: older game pages pointed search engines at the Today/Results tab instead of themselves
     fixed_mark = DATA / "canonical_fixed.txt"
     if not fixed_mark.exists() and hasattr(site, "fix_canonicals"):
@@ -706,6 +950,7 @@ def main():
                site.results_page(rows, stamp, teams), bets_html,
                stamp=stamp, studio_html=studio,
                live_html=site.live_page([r for r in rows if r["date"] == today_str], teams, stamp, today_str, label))
+    stage_hub_pages()
     (DATA / "last_build.txt").write_text(today_str + "\n", encoding="utf-8")
     save_calls_left(stamp)
     left = getattr(fetch, "CALLS_LEFT", None)

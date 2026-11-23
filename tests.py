@@ -243,6 +243,9 @@ def test_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(fetch, "teams", lambda: [{"id": 500, "mascot": "Volunteers", "primaryColor": "FF8200",
                                                    "abbreviation": "TENN", "logos": ["https://x/500/2633.png"]}])
     monkeypatch.setattr(fetch, "games", lambda a, b: [g for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()])
+    # the clock stands at that afternoon: the sitemap lists a game page only while its game is recent
+    from datetime import datetime
+    monkeypatch.setattr(config, "now_et", lambda: datetime(2026, 11, 9, 16, 0, tzinfo=config.ET))
     # day 1: Nov 8 picks get locked for T1@T2 ... (none of interest); run Nov 9
     monkeypatch.setattr("sys.argv", ["build.py", "--date", "2026-11-09"])
     build.main()
@@ -1507,3 +1510,728 @@ def test_tbd_game_gets_a_pick_before_it_tips(tmp_path, monkeypatch):
     rows = run("2026-11-18 20:45", "--refresh")
     assert set(rows) == {"2026-11-18|1|2", "2026-11-18|113|87"}                          # the caught-up feed row is the same game, not a second pick
     assert (rows["2026-11-18|113|87"]["away_pts"], rows["2026-11-18|113|87"]["home_pts"]) == ("70", "66")
+
+
+# ---------------- rankings, team pages, the method page ----------------
+def _league():
+    """Three rated teams, best first, with the season numbers behind them and the team list."""
+    rat = {1: {"name": "Alpha", "rating": 1.20, "offense": 0.62, "defense": 0.58, "sos": 0.02, "ppg": 78.0, "blend": 0.3},
+           2: {"name": "Beta State", "rating": 1.10, "offense": 0.56, "defense": 0.54, "sos": 0.0, "ppg": 74.0, "blend": 0.3},
+           3: {"name": "Gamma A&M", "rating": 1.00, "offense": 0.50, "defense": 0.50, "sos": -0.02, "ppg": 70.0, "blend": 0.3}}
+    team = {1: dict(T, name="Alpha", GP=6, **{"FG%": 0.50, "TOV": 9.0}),
+            2: dict(T, name="Beta State", GP=6, **{"FG%": 0.45, "TOV": 12.0}),
+            3: dict(T, name="Gamma A&M", GP=6, **{"FG%": 0.40, "TOV": 15.0})}
+    opp = {1: dict(O, **{"FG%": 0.38, "TOV": 15.0}), 2: dict(O, **{"FG%": 0.42, "TOV": 12.0}), 3: dict(O, **{"FG%": 0.46, "TOV": 9.0})}
+    teams = {"1": {"mascot": "Aces", "conf": "East", "color": "112233", "logo": "", "abbr": "ALP", "espn": "11"},
+             "2": {"mascot": "Bears", "conf": "East", "color": "223344", "logo": "", "abbr": "BETA", "espn": "22"},
+             "3": {"mascot": "Goats", "conf": "West", "color": "334455", "logo": "", "abbr": "GAM", "espn": "33"}}
+    feed = [{"teamId": 1, "wins": 5, "losses": 1, "pace": 70.2}, {"teamId": 2, "wins": 3, "losses": 3, "pace": 68.0},
+            {"teamId": 3, "wins": 1, "losses": 5, "pace": 66.0}]
+    return rat, team, opp, teams, feed
+
+
+def _pick(day, aid, away, hid, home, pick, diff="0.0500", total="150.0", **kw):
+    row = {k: "" for k in ledger.FIELDS}
+    row.update(game_key=ledger.key(day, aid, hid), date=day, when="Nov 10, 2026 7:00 PM ET", away_id=str(aid), away=away,
+               home_id=str(hid), home=home, pick=pick, differential=diff, total=total)
+    row.update(kw)
+    return row
+
+
+TODAY = "2026-11-21"
+
+
+def _league_schedule(rat):
+    """Every kind of game a team page has to show, for the three teams of _league()."""
+    import teamdata
+    played = [["2026-11-10", 2, 1, 61, 80, 0],          # Beta State at Alpha (the feed later corrected Beta's 60 to 61)
+              ["2026-11-12", 1, 3, 70, 71, 1],          # Alpha vs Gamma A&M on a neutral floor, listed the other way round from its pick
+              ["2026-11-14", 3, 9, 50, 90, 0]]          # Gamma A&M at a school the model does not rate
+    picks = [_pick("2026-11-10", 2, "Beta State", 1, "Alpha", "Alpha", "0.1000", away_pts="60", home_pts="80", pick_correct="1"),
+             _pick("2026-11-12", 3, "Gamma A&M", 1, "Alpha", "Alpha", "0.0200", away_pts="71", home_pts="70", pick_correct="0", neutral="1"),
+             _pick(TODAY, 2, "Beta State", 3, "Gamma A&M", "Beta State", "0.0400", when="Nov 21, 2026 8:00 PM ET")]
+    week = [{"date": "2026-11-23", "when": "Nov 23, 2026 7:00 PM ET", "away_id": 3, "away": "Gamma A&M", "home_id": 1, "home": "Alpha",
+             "neutral": False, "away_pts": None, "home_pts": None},
+            {"date": "2026-11-25", "when": "TBD", "away_id": 1543, "away": "TBD", "home_id": 2, "home": "Beta State",
+             "neutral": True, "away_pts": None, "home_pts": None},
+            {"date": "2026-11-26", "when": "TBD", "away_id": None, "away": "", "home_id": 2, "home": "Beta State",
+             "neutral": True, "away_pts": None, "home_pts": None}]
+    names = {1: "Alpha", 2: "Beta State", 3: "Gamma A&M", 9: "Tiny College", 1543: "TBD"}
+    return teamdata.schedules(rat, played, picks, TODAY, week, names), picks
+
+
+def _profiles(history=None):
+    import teamdata, writeup
+    rat, team, opp, teams, feed = _league()
+    sched, _ = _league_schedule(rat)
+    return teamdata.profiles(rat, writeup.ranks(rat), team, opp, feed, teams, sched, history or {}, TODAY), teams
+
+
+def test_team_page_addresses():
+    import teamdata
+    for name, slug in (("San José State", "san-jose-state"), ("Texas A&M", "texas-am"), ("Saint Mary's", "saint-marys"),
+                       ("William & Mary", "william-mary"), ("Miami (OH)", "miami-oh"), ("Hawai'i", "hawaii"),
+                       ("Texas A&M-Corpus Christi", "texas-am-corpus-christi"), ("St. John's", "st-johns"), ("", "team")):
+        assert teamdata.slug(name) == slug
+    assert teamdata.team_path("North Carolina A&T") == "teams/north-carolina-at.html"
+
+
+def test_rating_in_points_is_the_models_margin():
+    import teamdata
+    rat = _league()[0]
+    pts = teamdata.points(rat)
+    assert [round(pts[t], 1) for t in (1, 2, 3)] == [17.0, 0.0, -17.0]          # 170 points per rating point, around the average
+    g = {"away_id": 3, "home_id": 1, "away": "Gamma A&M", "home": "Alpha", "neutral": False}
+    assert model.predict(g, rat, {})["margin"] == pytest.approx(pts[1] - pts[3] + config.HOME_COURT_POINTS)
+    assert model.predict(dict(g, neutral=True), rat, {})["margin"] == pytest.approx(pts[1] - pts[3])
+    assert teamdata.points({}) == {}
+
+
+def test_factor_ranks_point_the_right_way():
+    import teamdata
+    _, team, opp, _, _ = _league()
+    fac, n = teamdata.factors(team, opp)
+    assert n == 3
+    # Alpha shoots best, turns it over least, allows the lowest shooting and forces the most turnovers: first in all four
+    assert [fac[1][k][1] for k in ("fg", "tov", "opp_fg", "opp_tov")] == [1, 1, 1, 1]
+    assert [fac[3][k][1] for k in ("fg", "tov", "opp_fg", "opp_tov")] == [3, 3, 3, 3]
+    assert fac[1]["fg"][0] == 0.50 and fac[1]["tov"][0] == pytest.approx(model.tov_pct(team[1]))
+    assert fac[2]["orb"][0] == pytest.approx(model.team_rating(team[2], opp[2])["reb_pct"])
+    assert teamdata.averages(fac)["fg"] == pytest.approx(0.45) and teamdata.averages({}) == {}
+    # a team whose numbers cannot be worked out is left out instead of stopping the page
+    fac, n = teamdata.factors({**team, 4: dict(T, **{"FGA": 0.0, "FTA": 0.0, "TOV": 0.0})}, {**opp, 4: dict(O)})
+    assert n == 3 and 4 not in fac
+
+
+def test_a_teams_games_carry_the_models_pick():
+    import teamdata
+    rat = _league()[0]
+    sched, picks = _league_schedule(rat)
+    alpha, beta, gamma = sched[1], sched[2], sched[3]
+    assert [(g["date"], g["opp"], g["where"], g["state"]) for g in alpha] == [
+        ("2026-11-10", "Beta State", "home", "final"), ("2026-11-12", "Gamma A&M", "neutral", "final"),
+        ("2026-11-23", "Gamma A&M", "home", "ahead")]
+    won, lost, ahead = alpha
+    # the score is the one the pick was graded on (the same as on the Results page), not the feed's later correction
+    assert (won["pts"], won["opp_pts"], won["won"]) == (80, 60, True) and (beta[0]["pts"], beta[0]["opp_pts"]) == (60, 80)
+    pa, ph = site.predicted_score(picks[0])
+    assert won["pick"] == {"own": True, "pf": ph, "pa": pa, "official": True, "hit": True,
+                           "path": "games/2026-11-10/beta-state-vs-alpha.html"}
+    assert beta[0]["pick"]["own"] is False and (beta[0]["pick"]["pf"], beta[0]["pick"]["pa"]) == (pa, ph)
+    # the game the feed lists the other way round still finds its pick, from the right side
+    pa, ph = site.predicted_score(picks[1])              # Gamma A&M (away in the pick), Alpha (home)
+    assert (lost["pts"], lost["opp_pts"], lost["won"]) == (70, 71, False)
+    assert (lost["pick"]["own"], lost["pick"]["hit"], lost["pick"]["pf"], lost["pick"]["pa"]) == (True, False, ph, pa)
+    assert (gamma[0]["pick"]["own"], gamma[0]["pick"]["pf"], gamma[0]["pick"]["pa"], gamma[0]["where"]) == (False, pa, ph, "neutral")
+    # a game still ahead: the model's projection as of today, marked as not official
+    proj = model.predict({"away_id": 3, "home_id": 1, "away": "Gamma A&M", "home": "Alpha", "neutral": False}, rat, {})
+    assert ahead["pick"]["official"] is False and ahead["pick"]["own"] and ahead["pick"]["hit"] is None and ahead["pick"]["path"] == ""
+    assert (ahead["pick"]["pa"], ahead["pick"]["pf"]) == teamdata._score(proj["total"], proj["differential"], True)
+    # today's game is on the list once, with its locked pick and no result yet
+    assert [(g["date"], g["state"], g["pick"]["official"], g["pick"]["hit"]) for g in beta if g["date"] == TODAY] == [(TODAY, "today", True, None)]
+    # an opponent the model does not rate gets no pick; a bracket game waits for its opponent
+    tiny = [g for g in gamma if g["opp"] == "Tiny College"][0]
+    assert tiny["rated"] is False and "pick" not in tiny and (tiny["pts"], tiny["opp_pts"], tiny["won"]) == (50, 90, False)
+    tbd = [g for g in beta if g["date"] == "2026-11-25"][0]
+    assert tbd["opp"] == "TBD" and "pick" not in tbd and tbd["where"] == "neutral"
+    assert not [g for g in beta if g["date"] == "2026-11-26"]            # a row with no team on one side is skipped
+    assert teamdata.record(alpha) == (1, 1) and teamdata.model_record(alpha) == (1, 1) and teamdata.model_record(gamma) == (0, 1)
+
+
+def test_team_page_score_is_the_game_cards_score():
+    import teamdata
+    for total in ("120.0", "139.5", "150.0", "161.3", "187.9"):
+        for diff in ("0.0000", "0.0010", "0.0294", "0.0500", "0.0880", "0.1503", "0.3"):
+            for home in (True, False):
+                r = _r(total=total, differential=diff, pick="Home St" if home else "Away U")
+                assert teamdata._score(total, diff, home) == site.predicted_score(r)
+
+
+def test_places_moved_and_the_rank_history():
+    import teamdata
+    ranks = {1: 1, 2: 2, 3: 3}
+    hist = {"2026-11-13": {"1": 2, "2": 1, "3": 3}, "2026-11-20": {"1": 1, "2": 2, "3": 3}}
+    assert teamdata.moves(hist, TODAY, ranks) == ({1: 1, 2: -1, 3: 0}, "2026-11-13")       # the snapshot about a week back
+    assert teamdata.moves({"2026-11-20": hist["2026-11-20"]}, TODAY, ranks) == ({1: 0, 2: 0, 3: 0}, "2026-11-20")   # younger site: the oldest there is
+    assert teamdata.moves({TODAY: hist["2026-11-13"]}, TODAY, ranks) == ({}, "") and teamdata.moves({}, TODAY, ranks) == ({}, "")
+    assert teamdata.moves(hist, TODAY, {1: 1, 4: 2})[0] == {1: 1}                             # a team with no earlier rank has no move
+    kept = teamdata.remember({"2026-01-01": {"1": 3}, "2026-11-20": {"1": 2}}, TODAY, ranks)
+    assert sorted(kept) == ["2026-11-20", TODAY] and kept[TODAY] == {"1": 1, "2": 2, "3": 3}
+
+
+def test_team_profiles_and_conferences():
+    import teamdata, writeup
+    profs, _ = _profiles({"2026-11-13": {"1": 2, "2": 1, "3": 3}})
+    assert [(p["name"], p["place"], p["slug"], p["conf"]) for p in profs] == [
+        ("Alpha", 1, "alpha", "East"), ("Beta State", 2, "beta-state", "East"), ("Gamma A&M", 3, "gamma-am", "West")]
+    a = profs[0]
+    assert (a["wins"], a["losses"]) == (5, 1)                 # the feed's own record, which counts games it lists nowhere else
+    assert (a["move"], a["move_since"], a["gp"], a["pace"], a["blend"], a["new_team"]) == (1, "2026-11-13", 6, 70.2, 0.3, False)
+    assert round(a["points"], 1) == 17.0 and (a["off_rank"], a["def_rank"], a["sos_rank"]) == (1, 1, 1) and a["model_record"] == (1, 1)
+    assert a["factors"]["fg"] == (0.50, 1) and a["n_factors"] == 3
+    confs = teamdata.conferences(profs)
+    assert [(c["conf"], c["n"], round(c["avg"], 1), c["best"]["name"], c["top25"]) for c in confs] == [
+        ("East", 2, 8.5, "Alpha", 2), ("West", 1, -17.0, "Gamma A&M", 1)]
+    # a rating carried over for a school the team list no longer puts in a conference gets no page
+    rat, team, opp, teams, feed = _league()
+    rat[4] = {"name": "Old Tech", "rating": 1.05, "offense": 0.5, "defense": 0.55, "sos": 0.0, "ppg": 70.0, "blend": 0.0}
+    profs = teamdata.profiles(rat, writeup.ranks(rat), team, opp, feed, teams, {}, {}, TODAY)
+    assert [p["name"] for p in profs] == ["Alpha", "Beta State", "Gamma A&M"] and [p["place"] for p in profs] == [1, 2, 3]
+    assert profs[2]["rank"] == 4                              # ranked behind Old Tech by the model, third on the page
+    # with fewer games in the feed's count than on the list, the list is what is shown
+    profs = teamdata.profiles(_league()[0], writeup.ranks(_league()[0]), team, opp, [{"teamId": 1, "wins": 0, "losses": 0}],
+                              teams, _league_schedule(_league()[0])[0], {}, TODAY)
+    assert (profs[0]["wins"], profs[0]["losses"]) == (1, 1)
+
+
+def test_departed_schools_leave_the_ratings():
+    import build
+    full = {str(i): {"conf": "East"} for i in range(1, 321)}
+    rat = {1: {"blend": 0.4}, 2: {"blend": 0.0}, 900: {"blend": 0.0}, 901: {"blend": 0.3}}
+    assert build.drop_departed(rat, dict(full, **{"900": {"conf": ""}, "901": {"conf": ""}})) == [900]
+    assert sorted(rat) == [1, 2, 901]              # a team that has not played yet stays; so does one with games and no conference
+    # a team list that did not load in full says nothing about who has left
+    rat = {1: {"blend": 0.4}, 900: {"blend": 0.0}}
+    assert build.drop_departed(rat, {"1": {"conf": "East"}}) == [] and sorted(rat) == [1, 900]
+    assert build.drop_departed({900: {"blend": 0.0}}, {}) == []
+
+
+def test_rankings_page(tmp_path, monkeypatch):
+    import teamdata
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    profs, teams = _profiles()
+    confs = teamdata.conferences(profs)
+    html = site.rankings_page(profs, confs, "Nov 21, 2026 03:24 AM CT", teams, {"median_gp": 6})
+    assert "<title>College Basketball Power Rankings: All 3 Division I Teams | " in html
+    assert f'<link rel="canonical" href="{config.SITE_URL}/rankings.html">' in html
+    assert '<a href="rankings.html" class="on">Rankings</a>' in html             # its own tab, lit
+    for p in profs:
+        assert f'<a href="teams/{p["slug"]}.html">{site.escape(p["name"])}</a>' in html and f'data-tid="{p["id"]}"' in html
+    assert html.index("teams/alpha.html") < html.index("teams/beta-state.html") < html.index("teams/gamma-am.html")
+    assert 'data-pts="17.00"' in html and ">+17.0<" in html and ">−17.0<" in html and 'data-conf="West"' in html
+    assert '<option value="East">East</option>' in html and 'data-conf="East">East</a>' in html and "Conference strength" in html
+    assert "the typical team has played 6 games, so about 70% of a typical rating still comes from last season" in html
+    assert f"projects to win by about {12 + config.HOME_COURT_POINTS:g}" in html
+    # no earlier day to compare with: no Move column; with one, it shows who went up and who went down
+    assert 'data-k="move"' not in html and "c-mv" not in html.split("</style>")[1]
+    profs, teams = _profiles({"2026-11-13": {"1": 2, "2": 1, "3": 3}})
+    html = site.rankings_page(profs, teamdata.conferences(profs), "now", teams, {"median_gp": 25, "since": "2026-11-13"})
+    assert 'title="Places moved since Nov 13"' in html and '<td class="c-mv up">▲1</td>' in html and '<td class="c-mv dn">▼1</td>' in html
+    assert '<td class="c-mv">–</td>' in html and "Early-season note" not in html
+    # the link to the method page only once that page exists
+    assert 'href="model.html"' not in html
+    (tmp_path / "model.html").write_text("x")
+    assert 'href="model.html">How the model works</a>' in site.rankings_page(profs, [], "now", teams)
+    assert "No teams" in site.rankings_page([], [], "now")                        # nothing rated: an empty table, not an error
+    # the page's own script opens on a league when the address says so (rankings.html#conf=..., the link on every
+    # team page), on arrival and when only that part of the address changes; a browser run checks the behaviour
+    assert "addEventListener('hashchange',fromHash)" in site.RANK_JS and "apply();fromHash();" in site.RANK_JS
+    assert site.RANK_JS in html and "decodeURIComponent" in site.RANK_JS
+
+
+def test_new_styles_leave_the_old_pages_alone():
+    """The new pages' styles are scoped to their own tables: a bare .up, .sc or .res rule would recolor
+    the Upset pick flag and turn the score box and the W/L pills of the game rows inside out."""
+    import re
+    block = site.CSS[site.CSS.index("/* rankings, team pages, method page */"):site.CSS.index("@media (prefers-reduced-motion:no-preference){.g{")]
+    css = re.sub(r"/\*.*?\*/", "", block, flags=re.S)
+    rules = [r for r in re.findall(r"([^{}]+)\{", css) if not r.strip().startswith("@")]
+    assert len(rules) > 60
+    for rule in rules:
+        for sel in rule.split(","):
+            assert not re.fullmatch(r"\s*\.(up|dn|sc|res|n|t|d|m|k|g|flag|stat|chip|fav|disc|rk)\s*", sel), sel
+    profs, teams = _profiles()
+    page = site.team_page(profs[0], profs, "now", teams, {})
+    assert 'class="rt sc"' not in page and 'class="res"' not in page
+
+
+def test_team_page(tmp_path, monkeypatch):
+    import teamdata
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    profs, teams = _profiles({"2026-11-13": {"1": 2, "2": 1, "3": 3}})
+    avgs = teamdata.averages({p["id"]: p["factors"] for p in profs})
+    (tmp_path / "games" / "2026-11-10").mkdir(parents=True)
+    (tmp_path / "games" / "2026-11-10" / "beta-state-vs-alpha.html").write_text("x")      # the Nov 12 game never got a page
+    html = site.team_page(profs[0], profs, "Nov 21, 2026 03:24 AM CT", teams, avgs)
+    assert "<title>Alpha Aces Basketball: Model Rating, Schedule and Predictions | " in html
+    assert f'<link rel="canonical" href="{config.SITE_URL}/teams/alpha.html">' in html
+    assert '<a href="../rankings.html" class="on">Rankings</a>' in html and 'href="../index.html"' in html
+    assert '<a href="../rankings.html#conf=East">East</a>' in html
+    odd = dict(profs[0], conf="Big 12 & More")                      # a league name goes into the address encoded
+    assert '<a href="../rankings.html#conf=Big%2012%20%26%20More">Big 12 &amp; More</a>' in site.team_page(odd, profs, "now", teams, avgs)
+    assert "Alpha rates <b>1st of 3</b> Division I teams" in html and "the Aces <b>17.0 points better</b>" in html
+    assert "That is up 1 place since Nov 13." in html
+    assert "after 6 games, about 30% of this rating comes from this season and 70% from last season" in html
+    assert "<b>#1</b><span>of 3 teams</span>" in html and "<b>+17.0</b><span>rating, in points</span>" in html
+    assert "<b>1-1</b><span>model’s picks in their games</span>" in html and "5-1 this season. The model has had the winner in 1 of the 2 it picked." in html
+    # results: newest first, the model's call linked to the game's page when that page exists
+    assert html.index("Thu, Nov 12") < html.index("Tue, Nov 10")
+    assert '<b class="up">W</b> 80–60' in html and '<b class="dn">L</b> 71–70' in html
+    pa, ph = site.predicted_score(_league_schedule(_league()[0])[1][0])
+    assert f'<a href="../games/2026-11-10/beta-state-vs-alpha.html">Alpha {ph}–{pa}</a> <span class="okx W">✓</span>' in html
+    assert "games/2026-11-12" not in html and '<span class="okx L">✗</span>' in html
+    assert 'vs <a href="../teams/gamma-am.html">Gamma A&amp;M</a> <i class="rk">#3</i> <i class="rk">neutral</i>' in html
+    # coming up: an early projection, plainly not a locked pick
+    assert "Coming up" in html and '<span class="soon">Early look</span> Alpha ' in html and "Mon, Nov 23<small>6:00 PM</small>" in html
+    # the eight numbers behind the rating, with the Division I average and the rank
+    assert "The numbers behind the rating" in html and "<b>Field goal %</b><small>40% of the offense rating</small>" in html
+    assert '<td class="pts">50.0%<small>avg 45.0%</small></td>' in html and "<b>Turnover rate</b><small>25% · lower is better</small>" in html
+    assert "at a pace of 70 possessions a game" in html and 'style="--p:100%"></span>1st' in html
+    # league mates, each linked, this team marked
+    assert '<a class="me" href="../teams/alpha.html"><i>#1</i> Alpha</a>' in html and '<a class="" href="../teams/beta-state.html">' in html
+    assert "gamma-am.html\"><i>#3</i>" not in html.split('class="mates"')[1]              # another league
+    ld = json.loads(html.split('<script type="application/ld+json">')[1].split("</script>")[0])
+    assert ld[0]["@type"] == "SportsTeam" and ld[0]["name"] == "Alpha Aces" and ld[0]["memberOf"]["name"] == "East"
+    assert ld[1]["itemListElement"][1]["item"] == f"{config.SITE_URL}/teams/alpha.html"
+    # the other kinds of row: today's game, an unrated opponent, a bracket game without an opponent
+    beta = site.team_page(profs[1], profs, "now", teams, avgs)
+    assert '<span class="soon">Today</span>' in beta and "Opponent not set yet" in beta and "vs TBD" in beta
+    gamma = site.team_page(profs[2], profs, "now", teams, avgs)
+    assert 'at Tiny College <i class="rk">not D-I</i>' in gamma and "No pick: opponent not in Division I" in gamma
+    assert "the Goats <b>17.0 points worse</b>" in gamma and "That is " not in gamma            # it has not moved: nothing to say
+    # a team new to Division I says so instead of quoting a last season it never had
+    new = dict(profs[2], new_team=True, mascot="", games=[], factors=None, move=None)
+    page = site.team_page(new, profs, "now", teams, avgs)
+    assert "is new to Division I" in page and "The model makes them" in page and "Coming up" not in page and "The numbers behind" not in page
+
+
+def test_game_page_compares_the_two_teams(tmp_path, monkeypatch):
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    profs, teams = _profiles()
+    by_id = {p["id"]: p for p in profs}
+    r = dict(_r(away="Gamma A&M", away_id="3", home="Alpha", home_id="1", pick="Alpha", line_fav="", line_spread="", line_total=""),
+             date=TODAY, game_key="k",
+             when="Nov 21, 2026 8:00 PM ET", start="2026-11-21T20:00:00-05:00")
+    wu = {"headline": "Alpha by 20", "lines": ["reason one"], "away_rank": 3, "home_rank": 1}
+    html = site.game_page(r, teams, wu, "now", profiles=by_id)
+    assert "How the two teams compare" in html and '<th>Gamma A&amp;M</th><th class="k"></th><th>Alpha</th>' in html
+    assert '<tr><td class="">#3</td><td class="k">Model rank</td><td class="best">#1</td></tr>' in html
+    assert '<tr><td class="">−17.0</td><td class="k">Rating, in points</td><td class="best">+17.0</td></tr>' in html
+    assert '<tr><td class="">1-5</td><td class="k">Record</td><td class="">5-1</td></tr>' in html
+    assert '<tr><td class="">40.0%</td><td class="k">Field goal %</td><td class="best">50.0%</td></tr>' in html
+    # lower is better for turnovers and for what the opponents shoot
+    tov = [f'{100 * by_id[t]["factors"]["tov"][0]:.1f}%' for t in (3, 1)]
+    assert f'<tr><td class="">{tov[0]}</td><td class="k">Turnover rate</td><td class="best">{tov[1]}</td></tr>' in html
+    assert '<tr><td class="">46.0%</td><td class="k">Opponents’ field goal %</td><td class="best">38.0%</td></tr>' in html
+    # no profiles (an older build.py, or a team without one): the page is the one it always was
+    assert "How the two teams compare" not in site.game_page(r, teams, wu, "now")
+    assert "How the two teams compare" not in site.game_page(r, teams, wu, "now", profiles={1: by_id[1]})
+    # a profile that is missing something leaves the table out; the game's page is still written
+    broken = {1: by_id[1], 3: {k: v for k, v in by_id[3].items() if k != "points"}}
+    page = site.game_page(r, teams, wu, "now", profiles=broken)
+    assert "How the two teams compare" not in page and "Gamma A&amp;M vs Alpha prediction" in page and "reason one" in page
+    assert "How the two teams compare" not in site.game_page(dict(r, away_id="x"), teams, wu, "now", profiles=by_id)
+    # the team names link to the team pages once those exist (never to a page that is not there), from wherever the row sits
+    assert 'class="tl"' not in html and "teams/" not in html
+    (tmp_path / "teams").mkdir()
+    (tmp_path / "teams" / "alpha.html").write_text("x")
+    html = site.game_page(r, teams, wu, "now", profiles=by_id)
+    assert '<b><a class="tl" href="../../teams/alpha.html">Alpha</a>' in html and "<b>Gamma A&amp;M<" in html
+    assert '<th>Gamma A&amp;M</th><th class="k"></th><th><a class="tl" href="../../teams/alpha.html">Alpha</a></th>' in html
+    today = site.today_page([r], "Saturday, Nov 21", "now", "note", teams, TODAY)
+    assert '<b><a class="tl" href="teams/alpha.html">Alpha</a>' in today
+    monkeypatch.setattr(site, "teamdata", None)                 # teamdata.py was not uploaded with this file
+    html = site.game_page(r, teams, wu, "now", profiles=by_id)
+    assert "How the two teams compare" not in html and 'class="tl"' not in html and "Gamma A&amp;M vs Alpha" in html
+
+
+def _facts():
+    return {"n_teams": 365, "median_gp": 5,
+            "record": {"right": 651, "wrong": 202, "strong": (308, 18), "margin_miss": 11.7, "total_miss": 13.7, "last": "Nov 20, 2026",
+                       "bands": [("Under 3 points", 84, 83), ("3 to 6", 106, 52), ("25 or more", 22, 1), ("Empty band", 0, 0)]},
+            "example": {"away": "UCF", "home": "Vanderbilt", "day": "Nov 20", "neutral": False, "away_rating": 1.0709,
+                        "home_rating": 1.1171, "margin": 11.87, "total": 159.1, "pa": 74, "ph": 85, "pick": "Vanderbilt",
+                        "final": (74, 82), "path": "games/2026-11-20/ucf-vs-vanderbilt.html"}}
+
+
+def test_method_page_reads_its_numbers_from_the_settings(tmp_path, monkeypatch):
+    import bets
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    monkeypatch.setattr(config, "SHOW_RESULTS_STATS", True)
+    html = site.model_page("Nov 21, 2026 03:24 AM CT", _facts())
+    assert "<title>How the College Basketball Model Works | " in html and f'<link rel="canonical" href="{config.SITE_URL}/model.html">' in html
+    assert "Every Division I team (all 365 of them)" in html
+    for part in (f">{100 * config.W_SHOOT:.0f}%<", f">{100 * config.W_TOV:.0f}%<", f">{100 * config.W_REB:.0f}%<", f">{100 * config.W_FT:.0f}%<",
+                 f"worth {config.POINTS_PER_RATING} points of margin", f"gets {config.HOME_COURT_POINTS:g} points",
+                 f"from game {config.BLEND_GAMES} on last season is gone", f"{100 * config.FIRST_HALF_SHARE:.0f}% of the projected final margin",
+                 f"projects by {config.STRONG_PICK_GAP * config.POINTS_PER_RATING:.0f} points or more",
+                 f"at least {config.OU_EDGE_POINTS} points away", f"moves {100 * bets.MODEL_WEIGHT:.0f}% of the way",
+                 f"at least a {100 * bets.MIN_CHANCE:.0f}% chance", f"by {100 * bets.MIN_EDGE:.0f} percentage points or more",
+                 f"spreads of {bets.MAX_SPREAD:g} points or more", f"shorter than {bets.fmt_odds(bets.MAX_FAV_ML)}",
+                 f"more than {bets.MAX_DISAGREE:g} points apart", f"top {bets.SINGLES} single bets"):
+        assert part in html, part
+    assert "typical team has played 5 games, so about 25% of a typical rating is this season and 75% is last season" in html
+    # a setting changed in config.py changes the page with it
+    monkeypatch.setattr(config, "HOME_COURT_POINTS", 3.5)
+    monkeypatch.setattr(config, "BLEND_GAMES", 16)
+    changed = site.model_page("now", _facts())
+    assert "plus about 3.5 points for the home team" in changed and "after 4 games a quarter of the rating is new" in changed
+    monkeypatch.undo()
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    monkeypatch.setattr(config, "SHOW_RESULTS_STATS", True)
+    # the worked example adds up on the page: gap x 170, plus home court, is the margin shown
+    assert "UCF 1.0709, Vanderbilt 1.1171. Vanderbilt is ahead by 0.0462." in html
+    gap = round(config.POINTS_PER_RATING * 0.0462, 1)
+    assert f"0.0462 × {config.POINTS_PER_RATING} = {gap} points better than UCF on a neutral floor" in html
+    assert f"which adds {config.HOME_COURT_POINTS:g} points to that gap" in html
+    assert f"<b>Projected margin:</b> Vanderbilt by {gap + config.HOME_COURT_POINTS:.1f}." in html
+    assert "UCF 74, Vanderbilt 85." in html and "Vanderbilt won 82–74. The pick was right, and the margin missed by 3 points." in html
+    assert "This game’s own page" not in html                                  # that page is not on the site (yet)
+    (tmp_path / "games" / "2026-11-20").mkdir(parents=True)
+    (tmp_path / "games" / "2026-11-20" / "ucf-vs-vanderbilt.html").write_text("x")
+    assert '<a href="games/2026-11-20/ucf-vs-vanderbilt.html">This game’s own page</a>' in site.model_page("now", _facts())
+    away_fav = dict(_facts()["example"], away_rating=1.13, home_rating=1.12, pick="Vanderbilt", neutral=False)
+    page = site.model_page("now", dict(_facts(), example=away_fav))
+    assert f"which takes {config.HOME_COURT_POINTS:g} points off that gap" in page
+    assert f"Vanderbilt by {abs(round(170 * 0.01, 1) - config.HOME_COURT_POINTS):.1f}." in page
+    assert "Neutral floor, so nobody gets a home-court edge." in site.model_page("now", dict(_facts(), example=dict(away_fav, neutral=True)))
+    # the record, split by how sure the model was; a band with no games is left out
+    assert "picked the winner in <b>651 of 853 games (76%)</b>, and in 308 of 326 strong picks (94%)" in html
+    assert '<td class="t">Under 3 points</td><td>167</td><td class="nw">84-83</td><td class="pts">50%</td>' in html
+    assert "by 11.7 points on average, and the projected total by 13.7" in html and "Empty band" not in html
+    # the switch that hides the record on the Results page hides it here too
+    monkeypatch.setattr(config, "SHOW_RESULTS_STATS", False)
+    hidden = site.model_page("now", _facts())
+    assert "651 of 853" not in hidden and "Under 3 points" not in hidden and 'href="results.html">Results</a> page' in hidden
+    # the questions are marked up for search engines exactly as they read on the page
+    ld = json.loads(html.split('<script type="application/ld+json">')[1].split("</script>")[0])
+    assert ld["@type"] == "FAQPage" and len(ld["mainEntity"]) == len(site.MODEL_FAQ) >= 6
+    for q in ld["mainEntity"]:
+        assert f"<h3>{site.escape(q['name'])}</h3><p>{q['acceptedAnswer']['text']}</p>" in html
+    # with nothing from the build (no facts) it is still a whole page
+    plain = site.model_page("now")
+    assert "The short version" in plain and "Worked example" not in plain and "Right now the typical team" not in plain
+    assert "Start from the" not in plain                                        # no Rankings on the site yet
+    (tmp_path / "rankings.html").write_text("x")
+    assert 'Start from the <a href="rankings.html">Rankings</a>' in site.model_page("now")
+
+
+def test_about_page_shows_only_what_the_settings_give(tmp_path, monkeypatch):
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    for name in ("OWNER_NAME", "CONTACT_EMAIL"):
+        monkeypatch.setattr(config, name, "", raising=False)
+    monkeypatch.setattr(config, "SOCIAL_LINKS", {}, raising=False)
+    html = site.about_page("now")
+    assert f"<title>About {config.SITE_NAME}: Who Runs It and How It Works</title>" in html and '<h2 id="contact">Contact</h2>' in html
+    assert "mailto:" not in html and "built and run by" not in html and "@" not in html.split("<main")[1].split("</main>")[0]
+    assert "one-person project. It started" in html and "GitHub repository" in html
+    # the pages the build has not made are not linked: not in the text, not in the tabs, not in the footer
+    assert "model.html" not in html and "rankings.html" not in html and '<a href="about.html">About the model</a>' in html
+    assert "along with power rankings" not in html and "team pages are recalculated" not in html
+    for f in ("model.html", "rankings.html"):
+        (tmp_path / f).write_text("x")
+    html = site.about_page("now")
+    assert 'is on <a href="model.html">How the model works</a>, and every team’s numbers are on the <a href="rankings.html">Rankings</a>.' in html
+    assert ('<a href="model.html">How the model works</a><a href="about.html">About</a><a href="about.html#contact">Contact</a>'
+            '<a href="privacy.html">Privacy</a>') in html
+    assert '<a href="rankings.html" class="">Rankings</a>' in html and "along with power rankings for every team" in html
+    # a name and an address appear only when config.py has them; the address goes on the Privacy page too
+    monkeypatch.setattr(config, "OWNER_NAME", "Pat <Example>")
+    monkeypatch.setattr(config, "CONTACT_EMAIL", " hello@example.com ")
+    monkeypatch.setattr(config, "SOCIAL_LINKS", {"TikTok": "https://www.tiktok.com/@example", "Empty": ""})
+    html = site.about_page("now")
+    assert "built and run by Pat &lt;Example&gt;." in html
+    assert '<a href="mailto:hello@example.com">hello@example.com</a>. You can also follow along on ' in html
+    assert '<a href="https://www.tiktok.com/@example" rel="me noopener">TikTok</a>.' in html and "Empty" not in html
+    assert '<a href="mailto:hello@example.com">hello@example.com</a>' in site.privacy_page("now")
+    monkeypatch.setattr(config, "CONTACT_EMAIL", "")
+    assert "Follow along on <a href=\"https://www.tiktok.com/@example\"" in site.about_page("now")
+    assert "GitHub repository" in site.privacy_page("now")
+    # a config.py from before these settings existed behaves like empty ones
+    for name in ("OWNER_NAME", "CONTACT_EMAIL", "SOCIAL_LINKS"):
+        monkeypatch.delattr(config, name)
+    assert "GitHub repository" in site.about_page("now") and "mailto:" not in site.privacy_page("now")
+
+
+def test_tabs_and_links_follow_the_pages_that_exist(tmp_path, monkeypatch):
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    monkeypatch.setattr(site, "COMING", set())
+    plain = site.page("t", "index.html", "body", "now")
+    assert "rankings.html" not in plain and "model.html" not in plain
+    # pages the running build is about to write count as there (each of the new pages links to the other)
+    site.COMING.update(("rankings.html", "model.html"))
+    both = site.page("t", "index.html", "body", "now", root="../")
+    assert '<a href="../rankings.html" class="">Rankings</a>' in both and '<a href="../model.html">How the model works</a>' in both
+    site.COMING.clear()
+    assert "rankings.html" not in site.page("t", "index.html", "body", "now")
+    # a page always carries its own tab
+    assert '<a href="rankings.html" class="on">Rankings</a>' in site.page("t", "rankings.html", "body", "now")
+    assert 'href="model.html">How the model works</a>' in site.page("t", "model.html", "body", "now")
+    # five tabs fit on a phone because the header goes to two lines there
+    assert ".top{top:-42px}" in site.CSS and "nav a{padding:7px 9px;font-size:14px;white-space:nowrap}" in site.CSS
+
+
+def test_sitemap_lists_what_matters_and_old_game_pages_step_back(tmp_path, monkeypatch):
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    stamp = "Nov 21, 2026 03:24 AM CT"
+    head = f'<!doctype html><html><head><title>t</title></head><body><div>Updated {stamp}</div></body></html>'
+    for day in ("2026-11-02", "2026-11-13", "2026-11-14", "2026-11-20", "2026-11-21"):
+        (tmp_path / "games" / day).mkdir(parents=True)
+        (tmp_path / "games" / day / "a-vs-b.html").write_text(head, encoding="utf-8")
+    (tmp_path / "teams").mkdir()
+    (tmp_path / "teams" / "alpha.html").write_text(head, encoding="utf-8")
+    (tmp_path / "rankings.html").write_text(head, encoding="utf-8")
+    (tmp_path / "model.html").write_text(head, encoding="utf-8")
+    site.write("i", "r", "b", docs=tmp_path, stamp=stamp, live_html="l")
+    sm = (tmp_path / "sitemap.xml").read_text()
+    locs = [u.split("</loc>")[0] for u in sm.split("<loc>")[1:]]
+    assert locs[:4] == [f"{config.SITE_URL}/", f"{config.SITE_URL}/live.html", f"{config.SITE_URL}/bets.html", f"{config.SITE_URL}/results.html"]
+    assert f"<loc>{config.SITE_URL}/rankings.html</loc><lastmod>2026-11-21</lastmod>" in sm
+    assert f"<loc>{config.SITE_URL}/teams/alpha.html</loc><lastmod>2026-11-21</lastmod>" in sm
+    assert f"<loc>{config.SITE_URL}/model.html</loc></url>" in sm and f"<loc>{config.SITE_URL}/about.html</loc></url>" in sm
+    # game pages: the last seven days only (Nov 14 on), each dated the day after its game but never in the future
+    assert [u for u in locs if "/games/" in u] == [f"{config.SITE_URL}/games/{d}/a-vs-b.html" for d in ("2026-11-14", "2026-11-20", "2026-11-21")]
+    assert "games/2026-11-20/a-vs-b.html</loc><lastmod>2026-11-21</lastmod>" in sm and "games/2026-11-21/a-vs-b.html</loc><lastmod>2026-11-21</lastmod>" in sm
+    assert config.STUDIO_PAGE not in sm
+    # write() never makes the method page itself: only build.py does, which also gets it committed
+    (tmp_path / "model.html").unlink()
+    site.write("i", "r", "b", docs=tmp_path, stamp=stamp, live_html="l")
+    assert not (tmp_path / "model.html").exists() and "model.html" not in (tmp_path / "sitemap.xml").read_text()
+    assert "model.html" not in (tmp_path / "about.html").read_text()
+    # the older game pages are asked out of search results, once, and stay as they are otherwise
+    old, edge, new = (tmp_path / "games" / d / "a-vs-b.html" for d in ("2026-11-13", "2026-11-14", "2026-11-21"))
+    assert site.retire_old_games(tmp_path, "2026-11-21") == 2
+    assert old.read_text() == head.replace("<head>", '<head><meta name="robots" content="noindex,follow">')
+    assert edge.read_text() == head and new.read_text() == head
+    assert site.retire_old_games(tmp_path, "2026-11-21") == 0
+    # the next morning only the day that has just crossed the line is opened
+    assert site.retire_old_games(tmp_path, "2026-11-22", "2026-11-21") == 1 and "noindex,follow" in edge.read_text()
+    (tmp_path / "games" / "2026-11-02" / "late.html").write_text(head, encoding="utf-8")
+    assert site.retire_old_games(tmp_path, "2026-11-23", "2026-11-22") == 0          # Nov 2 was dealt with long ago: not opened again
+    assert site.retire_old_games(tmp_path, "2026-11-23") == 1                          # ...unless everything is checked (no date given)
+    assert site.retire_old_games(tmp_path, "") == 0 and site.retire_old_games(tmp_path, "not a date") == 0
+    # the window is a setting
+    monkeypatch.setattr(config, "GAME_PAGE_DAYS", 1, raising=False)
+    site.write("i", "r", "b", docs=tmp_path, stamp=stamp, live_html="l")
+    assert [u.split("/games/")[1][:10] for u in (tmp_path / "sitemap.xml").read_text().split("<loc>")[1:] if "/games/" in u] == ["2026-11-20", "2026-11-21"]
+
+
+def _hub_world(tmp_path, monkeypatch):
+    """A scratch site with a full Division I: 322 teams this season, one more last season (it has
+    since left), a few finished games, one game today and two in the coming week."""
+    from datetime import datetime
+    build = _site_in(tmp_path, monkeypatch)
+    stats = [stats_row(i, f"T{i}") for i in range(1, 321)]
+    stats.append(stats_row(500, "Tennessee", team=unit(320, 600, 160, 200, 110, 260, 90, 860)))
+    stats.append(stats_row(600, "Wofford"))
+    last = [dict(r, season=2026, seasonLabel="2025-26", games=30) for r in stats + [stats_row(700, "Old Tech")]]
+    team_list = [{"id": i, "school": f"T{i}", "mascot": "Owls", "conference": "East" if i % 2 else "West"} for i in range(1, 321)]
+    team_list += [{"id": 500, "school": "Tennessee", "mascot": "Volunteers", "conference": "SEC", "primaryColor": "FF8200", "abbreviation": "TENN"},
+                  {"id": 600, "school": "Wofford", "mascot": "Terriers", "conference": "SoCon"},
+                  {"id": 700, "school": "Old Tech", "mascot": "Ghosts", "conference": None},
+                  {"id": 1543, "sourceId": "-1", "school": "TBD", "mascot": "TBD", "conference": None}]
+    games = [
+        game(2, "2026-11-09T00:00:00Z", "T1", 1, "T2", 2, "final", 60, 70, [25, 35], [40, 30]),      # Nov 8
+        game(3, "2026-11-08T00:00:00Z", "Wofford", 600, "T3", 3, "final", 70, 60, [33, 37], [30, 30]),  # Nov 7
+        game(1, "2026-11-10T00:00:00Z", "Wofford", 600, "Tennessee", 500),                            # Nov 9, 7 PM Eastern: today
+        game(30, "2026-11-12T00:00:00Z", "Tennessee", 500, "T4", 4),                                  # Nov 11
+        dict(game(31, "2026-11-13T00:30:00Z", "TBD", 1543, "Wofford", 600), neutralSite=True),        # Nov 12, opponent not set
+    ]
+    calls = []
+
+    def get_games(a, b):
+        calls.append((a.isoformat(), b.isoformat()))
+        return [dict(g) for g in games if a.isoformat() <= fetch.parse_games([g])[0]["date"] <= b.isoformat()]
+    monkeypatch.setattr(fetch, "team_stats", lambda s: stats if s == 2027 else last)
+    monkeypatch.setattr(fetch, "lines", lambda a, b: [])
+    monkeypatch.setattr(fetch, "teams", lambda: team_list)
+    monkeypatch.setattr(fetch, "games", get_games)
+    monkeypatch.setattr(fetch, "espn_matchups", lambda day: {})
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    clock = {}
+    monkeypatch.setattr(config, "now_et", lambda: clock["now"])
+
+    def run(when, *flags):
+        clock["now"] = datetime.strptime(when, "%Y-%m-%d %H:%M").replace(tzinfo=config.ET)
+        monkeypatch.setattr("sys.argv", ["build.py", *flags])
+        del calls[:]
+        return build.main()
+    return build, run, calls, games
+
+
+def test_rankings_and_team_pages_come_out_of_the_build(tmp_path, monkeypatch):
+    build, run, calls, games = _hub_world(tmp_path, monkeypatch)
+    docs = tmp_path / "docs"
+    run("2026-11-09 04:23")                                               # the overnight build
+    week = ("2026-11-10", "2026-11-16")
+    assert calls.count(week) == 1                                         # one data call for the coming week
+    assert json.loads((tmp_path / "raw" / "games_week.json").read_text())["from"] == "2026-11-10"
+    assert list(json.loads((tmp_path / "rank_history.json").read_text())) == ["2026-11-09"]
+    ranks = (docs / "rankings.html").read_text()
+    assert "All 322 Division I Teams" in ranks and "Old Tech" not in ranks                     # the school that left is gone
+    assert len(list((docs / "teams").glob("*.html"))) == 322 and not (docs / "teams" / "old-tech.html").exists()
+    assert 'href="teams/tennessee.html">Tennessee</a>' in ranks and 'data-k="move"' not in ranks
+    assert "the typical team has played 10 games, so about 50% of a typical rating" in ranks
+    # every page of the build knows the new pages: the tab, the footer, the links between the two
+    home = (docs / "index.html").read_text()
+    assert '<a href="rankings.html" class="">Rankings</a>' in home and '<a href="model.html">How the model works</a>' in home
+    assert '<a class="tl" href="teams/tennessee.html">Tennessee</a>' in home
+    method = (docs / "model.html").read_text()
+    assert '<a href="rankings.html" class="">Rankings</a>' in method and "(all 322 of them)" in method
+    assert 'href="model.html">How the model works</a>' in ranks and "Worked example" not in method      # nothing graded yet
+    assert 'href="model.html"' in (docs / "about.html").read_text()
+    # the team pages: today's locked pick, the early look, the bracket game, a result from before the picks began
+    tenn = (docs / "teams" / "tennessee.html").read_text()
+    assert '<span class="soon">Today</span>' in tenn and 'href="../games/2026-11-09/wofford-vs-tennessee.html">Tennessee ' in tenn
+    assert '<span class="soon">Early look</span> ' in tenn and 'at <a href="../teams/t4.html">T4</a>' in tenn
+    assert "Volunteers · SEC · 5-5" in tenn and "about 50% of this rating comes from this season" in tenn
+    woff = (docs / "teams" / "wofford.html").read_text()
+    assert "vs TBD" in woff and "Opponent not set yet" in woff and '<b class="up">W</b> 70–60' in woff and "No pick</span>" in woff
+    game_page = (docs / "games" / "2026-11-09" / "wofford-vs-tennessee.html").read_text()
+    assert "How the two teams compare" in game_page and '<th><a class="tl" href="../../teams/wofford.html">Wofford</a></th>' in game_page
+    sm = (docs / "sitemap.xml").read_text()
+    for path in ("rankings.html", "model.html", "teams/tennessee.html", "teams/t320.html", "games/2026-11-09/wofford-vs-tennessee.html"):
+        assert f"<loc>{config.SITE_URL}/{path}</loc>" in sm
+    assert (tmp_path / "games_retired.txt").read_text().strip() == "2026-11-09"
+    # a refresh: no call for the week, the rankings and team pages left exactly as the morning made them,
+    # the pages it does rewrite still carry the tab and the comparison
+    before = {p.name: p.read_bytes() for p in [docs / "rankings.html", docs / "model.html", docs / "teams" / "tennessee.html"]}
+    run("2026-11-09 14:45", "--refresh")
+    assert week not in calls and len(calls) == 1
+    assert before == {p.name: p.read_bytes() for p in [docs / "rankings.html", docs / "model.html", docs / "teams" / "tennessee.html"]}
+    assert '<a href="rankings.html" class="">Rankings</a>' in (docs / "index.html").read_text()
+    assert "How the two teams compare" in (docs / "games" / "2026-11-09" / "wofford-vs-tennessee.html").read_text()
+    assert list(json.loads((tmp_path / "rank_history.json").read_text())) == ["2026-11-09"]
+    # a refresh on a site that has no rankings yet (the first build after these pages were added) writes them
+    for p in list((docs / "teams").glob("*.html")) + [docs / "rankings.html", docs / "model.html"]:
+        p.unlink()
+    run("2026-11-09 16:45", "--refresh")
+    assert (docs / "rankings.html").exists() and (docs / "model.html").exists() and len(list((docs / "teams").glob("*.html"))) == 322
+    assert '<a href="rankings.html" class="">Rankings</a>' in (docs / "index.html").read_text()
+    assert '<span class="soon">Early look</span>' in (docs / "teams" / "tennessee.html").read_text()   # from the week kept this morning
+    # the game goes final at night: the score update grades it, the game page keeps its comparison, and the two
+    # teams' own pages show the result the same night (nobody else's page is touched, nor are the rankings)
+    others = {p.name: p.read_bytes() for p in [docs / "rankings.html", docs / "model.html", docs / "teams" / "t4.html"]}
+    assert '<span class="soon">Today</span>' in (docs / "teams" / "tennessee.html").read_text()
+    games[2].update(status="final", awayPoints=60, homePoints=75)
+    run("2026-11-09 22:45", "--scores")
+    assert week not in calls
+    assert "Tennessee won 75-60" in (docs / "games" / "2026-11-09" / "wofford-vs-tennessee.html").read_text()
+    tenn = (docs / "teams" / "tennessee.html").read_text()
+    assert '<span class="soon">Today</span>' not in tenn and '<b class="up">W</b> 75–60' in tenn and '<span class="okx W">✓</span>' in tenn
+    assert 'href="../games/2026-11-09/wofford-vs-tennessee.html">Tennessee ' in tenn and "Volunteers · SEC · 5-5" in tenn
+    assert '<b class="dn">L</b> 75–60' in (docs / "teams" / "wofford.html").read_text()
+    assert others == {p.name: p.read_bytes() for p in [docs / "rankings.html", docs / "model.html", docs / "teams" / "t4.html"]}
+    # an hour later there is nothing new: no page is written twice for the same result
+    after = (docs / "teams" / "tennessee.html").read_bytes()
+    run("2026-11-09 23:45", "--scores")
+    assert (docs / "teams" / "tennessee.html").read_bytes() == after
+    # the next morning: the result is on both team pages with the model's call, the method page has its worked example
+    # and its record, and the Move column has a day to compare with
+    monkeypatch.setattr(config, "SHOW_RESULTS_STATS", True)
+    run("2026-11-10 04:23")
+    assert calls.count(("2026-11-11", "2026-11-17")) == 1
+    tenn = (docs / "teams" / "tennessee.html").read_text()
+    assert '<b class="up">W</b> 75–60' in tenn and '<span class="okx W">✓</span>' in tenn and "The model has had the winner in 1 of the 1 it picked." in tenn
+    assert '<b class="dn">L</b> 75–60' in (docs / "teams" / "wofford.html").read_text()
+    method = (docs / "model.html").read_text()
+    assert "Worked example" in method and "Wofford at Tennessee, Nov 9" in method and "picked the winner in <b>1 of 1 games (100%)</b>" in method
+    assert '<a href="games/2026-11-09/wofford-vs-tennessee.html">This game’s own page</a>' in method
+    assert sorted(json.loads((tmp_path / "rank_history.json").read_text())) == ["2026-11-09", "2026-11-10"]
+    assert 'title="Places moved since Nov 9"' in (docs / "rankings.html").read_text()
+    # a re-run of an earlier day by hand never touches the rankings (they are today's)
+    before = (docs / "rankings.html").read_bytes()
+    monkeypatch.setattr("sys.argv", ["build.py", "--date", "2026-11-09"])
+    build.main()
+    assert (docs / "rankings.html").read_bytes() == before
+
+
+def test_coming_week_is_one_call_and_never_a_reason_to_fail(tmp_path, monkeypatch):
+    from datetime import datetime
+    build = _site_in(tmp_path, monkeypatch)
+    now = datetime(2026, 11, 9, 4, 23, tzinfo=config.ET)
+    today = date(2026, 11, 9)
+    asked = []
+
+    def get_games(a, b):
+        asked.append((a.isoformat(), b.isoformat()))
+        return [game(30, "2026-11-12T00:00:00Z", "Tennessee", 500, "T4", 4)]
+    monkeypatch.setattr(fetch, "games", get_games)
+    monkeypatch.setattr(build, "REFRESH", False)
+    assert len(build.week_ahead(today, now)) == 1 and asked == [("2026-11-10", "2026-11-16")]
+    kept = tmp_path / "raw" / "games_week.json"
+    assert json.loads(kept.read_text())["from"] == "2026-11-10"
+    # a refresh reads what the morning kept; so does a morning when the feed is down or the calls are being held back
+    monkeypatch.setattr(build, "REFRESH", True)
+    assert len(build.week_ahead(today, now)) == 1 and len(asked) == 1
+    monkeypatch.setattr(build, "REFRESH", False)
+
+    def down(a, b):
+        raise fetch.FetchError("feed is down")
+    monkeypatch.setattr(fetch, "games", down)
+    assert len(build.week_ahead(today, now)) == 1
+    (tmp_path / "api_calls_left.txt").write_text("5 at x\n")
+    monkeypatch.setattr(fetch, "games", get_games)
+    assert len(build.week_ahead(today, now)) == 1 and len(asked) == 1                # held back: no call
+    # what was kept for another day is not shown as this week's
+    assert build.week_ahead(date(2026, 11, 10), now) == []
+    kept.write_text("not json")
+    assert build.week_ahead(today, now) == []
+    # a refresh with nothing kept for today (the first build with the team pages, uploaded during the day)
+    # may make the call once, when it is the build that writes those pages, and then lives on what it kept
+    (tmp_path / "api_calls_left.txt").unlink()
+    monkeypatch.setattr(build, "REFRESH", True)
+    assert build.week_ahead(today, now, download=False) == [] and len(asked) == 1
+    assert len(build.week_ahead(today, now)) == 1 and len(asked) == 2
+    assert len(build.week_ahead(today, now)) == 1 and len(asked) == 2
+
+
+def test_site_builds_as_before_when_the_new_files_are_only_half_there(tmp_path, monkeypatch):
+    build, run, calls, games = _hub_world(tmp_path, monkeypatch)
+    docs = tmp_path / "docs"
+    # build.py without teamdata.py: no rankings, no team pages, and no page points at them
+    monkeypatch.setattr(build, "teamdata", None)
+    assert run("2026-11-09 04:23") == 0
+    assert not (docs / "rankings.html").exists() and not (docs / "model.html").exists() and not (docs / "teams").exists()
+    for page in ("index.html", "results.html", "bets.html", "live.html", "about.html", "privacy.html", "games/2026-11-09/wofford-vs-tennessee.html"):
+        html = (docs / page).read_text()
+        assert "rankings.html" not in html and "model.html" not in html and "teams/" not in html, page
+    assert "About the model" in (docs / "index.html").read_text()
+    sm = (docs / "sitemap.xml").read_text()
+    assert "rankings.html" not in sm and "model.html" not in sm and "/teams/" not in sm
+    assert ("2026-11-10", "2026-11-16") not in calls                    # and no data call spent on a page that is not made
+    # a team page that cannot be drawn costs the build nothing: the day's picks and pages still go out
+    monkeypatch.undo()
+    build, run, calls, games = _hub_world(tmp_path, monkeypatch)
+
+    def broken(*a, **k):
+        raise KeyError("factors")
+    monkeypatch.setattr(site, "team_page", broken)
+    assert run("2026-11-09 05:23") == 0
+    assert not (docs / "rankings.html").exists()                        # nothing half-written: all the new pages or none
+    home = (docs / "index.html").read_text()
+    assert "Tennessee" in home and "rankings.html" not in home and "model.html" not in home
+
+
+def test_new_pages_are_handed_to_the_commit_step(tmp_path, monkeypatch):
+    """The workflow commits a fixed list of files plus whatever is already staged, so on a GitHub
+    runner the build stages the pages that list has never heard of."""
+    import shutil
+    import subprocess
+    import build
+    if shutil.which("git") is None:
+        pytest.skip("git is not installed here")
+    docs = tmp_path / "site"
+    (docs / "teams").mkdir(parents=True)
+    for f in ("index.html", "rankings.html", "model.html", "teams/duke.html"):
+        (docs / f).write_text("x")
+    monkeypatch.setattr(site, "DOCS", docs)
+
+    def git(*args):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args], cwd=docs,
+                              capture_output=True, text=True, check=True).stdout.split()
+    git("init", "-q")
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    assert build.stage_hub_pages() == [] and git("diff", "--cached", "--name-only") == []      # your own computer: nothing is touched
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert build.stage_hub_pages() == ["rankings.html", "model.html", "teams"]
+    assert git("diff", "--cached", "--name-only") == ["model.html", "rankings.html", "teams/duke.html"]   # index.html is the workflow's to add
+    git("commit", "-q", "-m", "one")
+    # a team page the next build removed is staged as a removal, a new one as an addition
+    (docs / "teams" / "duke.html").unlink()
+    (docs / "teams" / "unc.html").write_text("y")
+    build.stage_hub_pages()
+    assert git("diff", "--cached", "--name-status") == ["D", "teams/duke.html", "A", "teams/unc.html"]
+    # outside a repository it reports and carries on
+    monkeypatch.setattr(site, "DOCS", tmp_path / "nowhere")
+    assert build.stage_hub_pages() == []

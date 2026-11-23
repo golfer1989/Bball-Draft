@@ -26,9 +26,11 @@ STRONG_PICK_GAP = 0.088
 # above (Over) or below (Under) the betting line's over/under.
 OU_EDGE_POINTS = 10
 
-# Season record totals at the top of the Results page. Hidden early in the season while the
-# sample is small; set to True to show them again (the per-game results always show).
-SHOW_RESULTS_STATS = False
+# Season record totals: the tiles at the top of the Results page, the record on the share image
+# and the record table on the "How the model works" page. They were hidden for the first weeks of
+# the season while the sample was small; back on from Nov 21, 2026 with 850+ graded games.
+# Set to False to hide them again (the per-game results always show).
+SHOW_RESULTS_STATS = True
 
 # First-half pick = the full-game pick, and the projected halftime lead = this share of the
 # projected final margin. (The old method, each team's first-half scoring over its last three
@@ -90,3 +92,19 @@ CF_ANALYTICS_TOKEN = "4eb81b5e8fd14715934e936b8fccbc87"
 # Your private posting page (download the daily clip, copy the caption). Not linked from the
 # site, not in the sitemap, marked no-index. Change the name to anything you like.
 STUDIO_PAGE = "studio-95ea9e.html"
+
+# ---- About page: who runs the site and how to reach it ----
+# Whatever is typed between these quotes is published on the site, so use a name and an address
+# you are happy to make public. Left empty, nothing is shown.
+OWNER_NAME = ""          # e.g. "Cory" or a full name: "built and run by ..."
+CONTACT_EMAIL = ""       # e.g. "contact@tipoffedge.com": shown on the About and Privacy pages
+# Accounts the About page links to. Remove a line to drop the link, add one in the same shape.
+SOCIAL_LINKS = {
+    "TikTok": "https://www.tiktok.com/@tipoffedge",
+}
+
+# A game's own page is listed for search engines for this many days after the game. Older game
+# pages stay on the site (Results and the team pages link to them) but are marked "noindex":
+# hundreds of one-game pages are not what the site should be judged by. The rankings, the team
+# pages and the current games are.
+GAME_PAGE_DAYS = 7
