@@ -26,8 +26,31 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="
          'href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?'
          'family=Barlow:wght@400;500;600&family=Big+Shoulders+Display:wght@600;800;900&display=swap" rel="stylesheet">')
 
+# The same two families served from the site itself (fonts/, six small files, 110 KB in all, the
+# Latin set Google serves). A page then needs no connection to Google's two font servers before it
+# can show text in its own type: the stylesheet above blocks the first paint until it arrives.
+# The two files nearly every page opens with are fetched early; the rest load when first used.
+FONT_FILES = (("Barlow", 400, "barlow-latin-400-normal"), ("Barlow", 500, "barlow-latin-500-normal"),
+              ("Barlow", 600, "barlow-latin-600-normal"),
+              ("Big Shoulders Display", 600, "big-shoulders-display-latin-600-normal"),
+              ("Big Shoulders Display", 800, "big-shoulders-display-latin-800-normal"),
+              ("Big Shoulders Display", 900, "big-shoulders-display-latin-900-normal"))
+FONT_PRELOAD = ("barlow-latin-400-normal", "big-shoulders-display-latin-800-normal")
+
+
+def _fonts(root=""):
+    """The <head> lines that load the site's two typefaces: from the site's own fonts/ folder when
+    the files are there, from Google Fonts otherwise (a copy of the site without that folder)."""
+    if not all((DOCS / "fonts" / f"{name}.woff2").exists() for _, _, name in FONT_FILES):
+        return FONTS
+    faces = "".join(f"@font-face{{font-family:'{family}';font-style:normal;font-weight:{weight};font-display:swap;"
+                    f"src:url({root}fonts/{name}.woff2) format('woff2')}}" for family, weight, name in FONT_FILES)
+    preload = "".join(f'<link rel="preload" href="{root}fonts/{name}.woff2" as="font" type="font/woff2" crossorigin>'
+                      for name in FONT_PRELOAD)
+    return f"{preload}<style>{faces}</style>"
+
 CSS = """
-:root{--bg:#000;--panel:#0c0c0e;--panel2:#141418;--line:#222228;--ink:#f3f3f1;--mute:#8d8f97;--dim:#5c5e66;
+:root{--bg:#000;--panel:#0c0c0e;--panel2:#141418;--line:#222228;--ink:#f3f3f1;--mute:#8d8f97;--dim:#7b7d86;
 --amber:#f2a541;--win:#45d48a;--loss:#ff6161;--r:14px}
 *{box-sizing:border-box}[hidden]{display:none!important}html{background:var(--bg)}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -300,7 +323,7 @@ table.rt{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .rt .t{text-align:left}.rt th.n,.rt td.n{text-align:left}
 .rt td.n{font:800 20px/1 'Big Shoulders Display',sans-serif;color:var(--mute);width:46px}
 .rt td.pts{font:800 20px/1 'Big Shoulders Display',sans-serif;color:var(--ink)}
-.rt td.pts small{font:400 12px/1.2 Barlow,sans-serif;margin-top:4px}
+.rt td.pts small{font:400 12px/1.2 Barlow,sans-serif;margin-top:4px;white-space:nowrap}
 .rt tbody tr:hover td{background:var(--panel)}
 .rt a{text-decoration:none;font-weight:700;color:var(--ink)}.rt a:hover{color:var(--amber)}
 .rt small{display:block;color:var(--mute);font-size:12px;font-weight:400}.rt .rec{display:none}
@@ -353,6 +376,17 @@ table.rt{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
  .tale th{font-size:17px}.tale td.k{font-size:12px}
 }
 @media (max-width:379px){.rt .tm .fav{display:none}}
+/* a meter list: one row per item with its name, a bar for the share and the figure (weeks on Results, margins on the method page) */
+.mlist{display:grid;gap:2px;margin:8px 0 6px}
+.mrow{display:grid;grid-template-columns:minmax(150px,1fr) 2fr minmax(118px,auto);gap:6px 16px;align-items:center;padding:10px 12px;border-radius:10px;color:var(--ink);text-decoration:none}
+a.mrow:hover{background:var(--panel)}a.mrow:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.mrow.cur{background:var(--panel)}.mrow .mn{font-weight:600}.mrow .mn small{color:var(--mute);font-weight:500;font-size:12px;margin-left:8px}
+.mrow .mb{height:8px;border-radius:4px;background:rgba(242,165,65,.16);overflow:hidden}.mrow .mb i{display:block;height:100%;border-radius:4px;background:var(--amber)}
+.mrow .mv{font-variant-numeric:tabular-nums;color:var(--mute);font-size:13px;white-space:nowrap;text-align:right}.mrow .mv b{color:var(--ink);font-size:15px;margin-right:8px}
+a.mrow .mn:after{content:"\\203A";color:var(--dim);margin-left:8px}
+.pager{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:26px 0 4px}
+.pager a{color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;padding:9px 16px;border:1px solid var(--line);border-radius:999px}.pager a:hover{border-color:var(--mute)}
+@media (max-width:560px){.mrow{grid-template-columns:1fr auto;padding:10px 4px}.mrow .mb{grid-column:1/-1;grid-row:2}}
 @media (prefers-reduced-motion:no-preference){.g{animation:in .35s ease-out both}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
 """
 
@@ -416,10 +450,13 @@ if(isToday){ // open on the block that's on now, or the next one with games
 apply();
 if(!isToday&&!lateNight)return;
 const liveChip=document.querySelector('.chip[data-s=live]');
+let busy=false,over=false;
 async function poll(){
+ // not while the tab is in the background, not while the last request is still out, not once every game is final
+ if(busy||over||document.hidden)return;busy=true;
  try{
   const d=box.dataset.date.replace(/-/g,'');
-  const j=await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=500&dates='+d,{cache:'no-store'}).then(r=>r.json());
+  const j=await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=50&limit=500&dates='+d,{cache:'no-store',...(AbortSignal.timeout?{signal:AbortSignal.timeout(20000)}:{})}).then(r=>r.json());
   const map={};
   for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};
    c.competitors.forEach(p=>sc[p.team.id]=p.score);const st=(c.status||e.status).type;
@@ -454,10 +491,11 @@ async function poll(){
   });
   if(liveChip){liveChip.querySelector('.n').textContent=live;liveChip.classList.toggle('has',live>0)}
   apply();
-  if(!open)clearInterval(timer);
- }catch(e){}
+  if(!open){over=true;clearInterval(timer)}
+ }catch(e){}finally{busy=false}
 }
 const timer=setInterval(poll,60000);poll();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 })();
 </script>"""
 
@@ -653,9 +691,11 @@ def _named(t, root=""):
 
 
 def _row(r, teams, final=False, wu=None, link=True, bet=None, root=""):
-    """root = the way back to the top of the site from the page the row is on (for the team links)."""
+    """root = the way back to the top of the site from the page the row is on (for the team links
+    and the link to the game's own page). A finished game links to its page only when that page
+    exists: the season's first two games (Nov 1) were played before game pages did."""
     a, h = _team(teams, r["away_id"], r["away"]), _team(teams, r["home_id"], r["home"])
-    href = game_path(r) if link and r.get("date") else ""
+    href = root + game_path(r) if link and r.get("date") else ""
     if wu:
         a["rank"], h["rank"] = wu["away_rank"], wu["home_rank"]
     pa, ph = predicted_score(r)
@@ -708,7 +748,7 @@ def _row(r, teams, final=False, wu=None, link=True, bet=None, root=""):
             f'<div class="team a{" lose" if lose_a else ""}">{_disc(a)}<div class="nm"><b>{_named(a, root)}{_rk(a)}{_star(r["away_id"], a["name"])}</b><span>{escape(a["mascot"])}</span></div></div>'
             f'{center}'
             f'<div class="team h{" lose" if lose_h else ""}">{_disc(h)}<div class="nm"><b>{_named(h, root)}{_rk(h)}{_star(r["home_id"], h["name"])}</b><span>{escape(h["mascot"])}</span></div></div>'
-            f'<div class="side">{side}</div>{_why(wu, r["pick"], href) if wu else (f"<a class=gl href={href}>Breakdown &rarr;</a>" if final and href else "")}</article>')
+            f'<div class="side">{side}</div>{_why(wu, r["pick"], href) if wu else (f"<a class=gl href={href}>Breakdown &rarr;</a>" if final and href and _there(game_path(r)) else "")}</article>')
 
 
 def _star(tid, name):
@@ -824,7 +864,7 @@ def page(title, active, body, stamp, description="", root="", head_extra="", og_
             f'<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
             f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{escape(title)}">'
             f'<meta name="twitter:description" content="{escape(desc)}"><meta name="twitter:image" content="{og_image}">'
-            f'<link rel="icon" href="{FAVICON}">{FONTS}{ads}{head_extra}<style>{CSS}</style></head><body>'
+            f'<link rel="icon" href="{FAVICON}">{_fonts(root)}{ads}{head_extra}<style>{CSS}</style></head><body>'
             f'<header class="top"><div class="wrap"><a class="brand" href="{root}index.html"><i></i>{escape(config.SITE_NAME)}</a>'
             f'<nav>{nav}</nav></div></header><main class="wrap">{body}{ad_slot()}</main>'
             f'<footer class="wrap"><div>Updated {escape(stamp)}</div>'
@@ -866,14 +906,16 @@ def _tale_html(r, profiles, root):
             line("Offense rank", f'#{a["off_rank"]}', f'#{h["off_rank"]}', low(a["off_rank"], h["off_rank"])),
             line("Defense rank", f'#{a["def_rank"]}', f'#{h["def_rank"]}', low(a["def_rank"], h["def_rank"])),
             line("Schedule strength", f'#{a["sos_rank"]}', f'#{h["sos_rank"]}', low(a["sos_rank"], h["sos_rank"]))]
-    for key, label, good in (("fg", "Field goal %", 1), ("opp_fg", "Opponents’ field goal %", -1), ("tov", "Turnover rate", -1),
+    for key, label, good in (("fg", "Effective FG %", 1), ("opp_fg", "Opponents’ effective FG %", -1), ("tov", "Turnover rate", -1),
                              ("opp_tov", "Turnovers forced", 1), ("orb", "Own misses rebounded", 1),
-                             ("opp_orb", "Opponents’ misses they get", -1), ("ft", "Free throw %", 1),
+                             ("opp_orb", "Opponents’ misses they get", -1), ("ft", "Free throws made per 100 shots", 1),
+                             ("opp_ft", "Free throws allowed per 100 shots", -1),
                              ("ppg", "Points per game", 1), ("opp_ppg", "Points allowed", -1)):
         x, y = a["factors"][key][0], h["factors"][key][0]
-        fmt = (lambda v: f"{v:.1f}") if key in ("ppg", "opp_ppg") else _pct1
+        fmt = (lambda v: f"{v:.1f}") if key in ("ppg", "opp_ppg") else (lambda v, k=key: _factor_value(k, v))
         rows.append(line(label, fmt(x), fmt(y), -good * low(x, y)))
-    return ('<div class="sect st"><h2>How the two teams compare</h2><span>the model’s ratings today and this season’s numbers</span></div>'
+    return ('<div class="sect st"><h2>How the two teams compare</h2><span>the model’s ratings today and this season’s numbers; '
+            'effective FG % counts a made three as one and a half makes</span></div>'
             '<div class="tw"><table class="rt ft tale narrow"><thead><tr>'
             f'<th>{_named(a, root)}</th><th class="k"></th><th>{_named(h, root)}</th></tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
@@ -974,6 +1016,12 @@ def _signed(x, digits=1):
 
 def _pct1(x):
     return f"{100 * x:.1f}%"
+
+
+def _factor_value(key, x):
+    """One of the model's eight inputs as the pages write it: free throws are a count per 100 shot
+    attempts (no % sign: it is a rate, not a share), everything else a percentage."""
+    return f"{100 * x:.1f}" if key in ("ft", "opp_ft") else _pct1(x)
 
 
 def team_href(name, root=""):
@@ -1153,7 +1201,7 @@ def _factor_rows(p, avgs, side, part):
         val, rank = p["factors"][key]
         share = f'{100 * getattr(config, weight):.0f}%' + (f' of the {part} rating' if i == 0 else "")
         out.append(f'<tr><td class="t"><b>{label}</b><small>{share}{" · lower is better" if good < 0 else ""}</small></td>'
-                   f'<td class="pts">{_pct1(val)}<small>avg {_pct1(avgs[key])}</small></td>'
+                   f'<td class="pts">{_factor_value(key, val)}<small>avg {_factor_value(key, avgs[key])}</small></td>'
                    f'<td class="rkc"><span class="rkbar2" style="--p:{100 * (n - rank + 1) / n:.0f}%"></span>{_ord(rank)}</td></tr>')
     return "".join(out)
 
@@ -1203,7 +1251,8 @@ def team_page(p, profs, stamp, teams=None, avgs=None):
             + f'<tbody>{_factor_rows(p, avgs, teamdata.DEFENSE, "defense")}</tbody></table></div></div>'
             f'<p class="note">Scoring {ppg[0]:.1f} points a game ({_ord(ppg[1])}) and allowing {opp_ppg[0]:.1f} ({_ord(opp_ppg[1])})'
             + (f', at a pace of {p["pace"]:.0f} possessions a game' if p.get("pace") else "")
-            + '. These eight numbers are everything the model knows about a team before it adjusts for the schedule.'
+            + '. These eight numbers are everything the model knows about a team before it adjusts for the schedule. '
+              'Effective field goal % counts a made three as one and a half makes.'
             + (f' <a href="{root}model.html">How the rating is built</a>.' if _there("model.html") else "") + '</p>')
     games = p["games"]
     done = [g for g in games if g["state"] == "final"]
@@ -1292,16 +1341,15 @@ def _record_block(rec):
         return ('<p>Every graded game, with the projected and the actual score side by side, is on the '
                 '<a href="results.html">Results</a> page. Nothing is ever removed from it.</p>')
     games = rec["right"] + rec["wrong"]
-    rows = "".join(
-        f'<tr><td class="t">{escape(label)}</td><td>{w + l}</td><td class="nw">{w}-{l}</td>'
-        f'<td class="pts">{(100 * w / (w + l)):.0f}%</td></tr>' for label, w, l in rec["bands"] if w + l)
+    # one bar per band: the share of those picks that won, with the record beside it
+    bars = _meters([(f'{escape(label)}<small>{w + l} game{"s" if w + l != 1 else ""}</small>', w / (w + l),
+                     f'<b>{100 * w / (w + l):.0f}%</b>{w}-{l}', "", "") for label, w, l in rec["bands"] if w + l])
     sw, sl = rec.get("strong") or (0, 0)
     return (f'<p>Through {escape(rec["last"])} the model has picked the winner in <b>{rec["right"]} of {games} games '
             f'({100 * rec["right"] / games:.0f}%)</b>' + (f', and in {sw} of {sw + sl} strong picks ({100 * sw / (sw + sl):.0f}%)' if sw + sl else "")
             + '. The honest way to read a model is by how sure it was, so here is the same record split by the size of the '
-            'projected margin:</p>'
-            '<div class="tw"><table class="rt ft narrow"><thead><tr><th class="t">Projected margin</th><th>Games</th><th>Record</th>'
-            f'<th>Right</th></tr></thead><tbody>{rows}</tbody></table></div>'
+            'projected margin. Each bar is the share of those picks that won:</p>'
+            + bars +
             f'<p>A game projected inside three points is close to a coin flip, and the record shows it. The projected '
             f'margin has missed the real one by {rec["margin_miss"]:.1f} points on average, and the projected total by '
             f'{rec["total_miss"]:.1f}. Every one of those games is on the <a href="results.html">Results</a> page, '
@@ -1361,18 +1409,24 @@ def model_page(stamp, facts=None):
 
         '<h2>Step 1: Rate every team from four things</h2>'
         '<p>Basketball games are decided by a short list of things: making shots, keeping the ball, rebounding your own misses '
-        'and making free throws. Coaches and analysts call them the four factors. The model scores each team on all four, for '
+        'and getting to the free throw line. Coaches and analysts call them the four factors. The model scores each team on all four, for '
         'its own offense and for what its opponents manage against its defense, and weights them like this:</p>'
         '<div class="tw"><table class="rt ft narrow"><thead><tr><th class="t">Factor</th><th>Weight</th><th class="t">On offense</th>'
         '<th class="t">On defense</th></tr></thead><tbody>'
-        f'<tr><td class="t"><b>Shooting</b></td><td class="pts">{w[0]}%</td><td class="t">field goal %</td><td class="t">opponents’ field goal %</td></tr>'
+        f'<tr><td class="t"><b>Shooting</b></td><td class="pts">{w[0]}%</td><td class="t">effective field goal %</td><td class="t">opponents’ effective field goal %</td></tr>'
         f'<tr><td class="t"><b>Turnovers</b></td><td class="pts">{w[1]}%</td><td class="t">share of possessions not turned over</td><td class="t">turnovers forced</td></tr>'
         f'<tr><td class="t"><b>Rebounding</b></td><td class="pts">{w[2]}%</td><td class="t">own misses rebounded</td><td class="t">opponents’ misses kept off the glass</td></tr>'
-        f'<tr><td class="t"><b>Free throws</b></td><td class="pts">{w[3]}%</td><td class="t">free throw %</td><td class="t">opponents’ free throw %</td></tr>'
+        f'<tr><td class="t"><b>Free throws</b></td><td class="pts">{w[3]}%</td><td class="t">free throws made per shot attempt</td><td class="t">free throws opponents make per shot attempt</td></tr>'
         '</tbody></table></div>'
-        '<p>A turnover rate is turnovers divided by the possessions that could have ended in one (shots, trips to the line and '
-        'turnovers). A rebound rate is offensive rebounds divided by the misses that were there to get. The four offense scores '
-        'add up to an offense rating, the four defense scores to a defense rating, and the two together are the team’s rating.</p>'
+        '<p>Effective field goal % counts a made three as one and a half makes, because it is worth one and a half times the '
+        'points. Free throws are counted per shot attempt, so a team is rewarded for getting to the line as well as for making '
+        'them, and a defense for keeping opponents off it. A turnover rate is turnovers divided by the possessions that could '
+        'have ended in one (shots, trips to the line and turnovers). A rebound rate is offensive rebounds divided by the misses '
+        'that were there to get. The four offense scores add up to an offense rating, the four defense scores to a defense '
+        'rating, and the two together are the team’s rating.</p>'
+        '<p>The weights are not a guess. They were fitted to the results of all 5,752 games between Division I teams last '
+        'season, and they say that taking care of the ball matters almost as much as shooting, and that both matter far more '
+        'than rebounding or free throws.</p>'
         + ('<p>Every team page lists these eight numbers with their national ranks, so you can see exactly why a team rates '
            'where it does. Start from the <a href="rankings.html">Rankings</a>.</p>' if _there("rankings.html") else "") +
 
@@ -1438,8 +1492,10 @@ def model_page(stamp, facts=None):
         '<h2>It keeps learning</h2>'
         '<p>Every final score goes back into the ratings the next morning. The settings are checked against results too: the '
         'home-court value, for example, was raised from 2.7 to 4 points in mid-November 2026 after two weeks of games showed home '
-        'teams doing better than the model expected. When a setting changes, picks already on the record stay exactly as they '
-        'were posted.</p>'
+        'teams doing better than the model expected. A week later the four factors themselves were re-measured (effective '
+        'field goal % in place of plain field goal %, free throws per shot in place of free throw %) and re-weighted, after a '
+        'replay of every game of the season showed the new version picking more winners and missing the margin by less. When a '
+        'setting changes, picks already on the record stay exactly as they were posted.</p>'
 
         '<h2>Questions people ask</h2>' + faq_html +
 
@@ -1819,9 +1875,84 @@ RESULTS_DESC = ("Every college basketball prediction graded against the final sc
                 "and what actually happened, day by day. Nothing is ever removed.")
 
 
-def results_page(rows, stamp, teams=None):
-    teams = teams or {}
-    graded = [r for r in rows if r["pick_correct"] in ("0", "1")]
+RESULTS_DAYS = 3        # game days listed on results.html itself (about 130 games); every day also lives for good on its week's page
+RESULT_CHIPS = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
+                '<button class="chip favchip" data-f="fav">★ My teams<span class="n">0</span></button>'
+                '<button class="chip" data-f="strong">Strong picks only</button>'
+                '<button class="chip" data-f="ou">O/U plays</button>'
+                '<button class="chip" data-f="upset">Upset picks</button></div>'
+                '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>No graded strong picks yet.</div>'
+                '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>No graded upset picks yet.</div>'
+                '<div class="empty" data-empty="fav" hidden><b>No results for your teams yet</b>Tap the ☆ next to any team to add it to My teams.</div>'
+                '<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No graded over/under plays yet.</div>')
+
+
+def week_start(date_iso):
+    """The Monday of the week a date falls in, as 'YYYY-MM-DD'."""
+    d = datetime.fromisoformat(date_iso).date()
+    return (d - timedelta(days=d.weekday())).isoformat()
+
+
+def week_path(monday_iso):
+    """Where a week of results lives for good: results/<its Monday>.html."""
+    return f"results/{monday_iso}.html"
+
+
+def _week_label(monday_iso):
+    a = datetime.fromisoformat(monday_iso)
+    return f'{a.strftime("%b %-d")} to {(a + timedelta(days=6)).strftime("%b %-d")}'
+
+
+def _meters(items):
+    """A meter list: one row per item with its name, a bar for the share and the figure beside it.
+    items = [(name html, share 0..1, figure html, link or "", extra class)]. A row with a link is one
+    big link (the weeks on the Results page); the bar drops under the name on a narrow screen."""
+    rows = []
+    for name, share, figure, href, cls in items:
+        inner = (f'<span class="mn">{name}</span><span class="mb"><i style="width:{100 * max(0.0, min(1.0, share)):.0f}%"></i></span>'
+                 f'<span class="mv">{figure}</span>')
+        rows.append(f'<a class="mrow{cls}" href="{escape(href)}">{inner}</a>' if href else f'<div class="mrow{cls}">{inner}</div>')
+    return f'<div class="mlist">{"".join(rows)}</div>'
+
+
+def _by_week(graded):
+    weeks = {}
+    for r in graded:
+        weeks.setdefault(week_start(r["date"]), []).append(r)
+    return weeks
+
+
+def _week_meters(graded, root="", current=""):
+    """Every week of the season, newest first: how often the pick won, as a bar, with the record.
+    A week links to its own page when that page exists; the week being shown is marked instead."""
+    weeks = _by_week(graded)
+    items = []
+    for wk in sorted(weeks, reverse=True):
+        w, l = _record(weeks[wk], "pick_correct")
+        path = week_path(wk)
+        items.append((f'{_week_label(wk)}<small>{w + l} game{"s" if w + l != 1 else ""}</small>', w / (w + l),
+                      f'<b>{100 * w / (w + l):.0f}%</b>{w}-{l}', root + path if wk != current and _there(path) else "",
+                      " cur" if wk == current else ""))
+    return _meters(items)
+
+
+def _day_blocks(by_date, dates, teams, root=""):
+    from datetime import date as _d
+    far = datetime.max.replace(tzinfo=config.CT)
+    parts = []
+    for d in dates:
+        day = sorted(by_date[d], key=lambda r: tip_ct(r["when"]) or far, reverse=True)   # latest tip first
+        dw, dl = _record(day, "pick_correct")
+        label = _d.fromisoformat(d).strftime("%A, %b %-d")
+        parts.append(f'<div class="day"><h2>{label}</h2><span>{dw}-{dl}</span></div>'
+                     f'<div class="games">{"".join(_row(r, teams, final=True, root=root) for r in day)}</div>')
+    return "".join(parts)
+
+
+def _result_tiles(graded, season=True):
+    """The record tiles above a list of results ('' while config.SHOW_RESULTS_STATS is off)."""
+    if not config.SHOW_RESULTS_STATS or not graded:
+        return ""
     pw, pl = _record(graded, "pick_correct")
     sw, sl = _record(graded, "strong_correct")
     hw, hl = _record(graded, "fh_correct")
@@ -1835,17 +1966,25 @@ def results_page(rows, stamp, teams=None):
 
     def pct(w, l):
         return f"{100 * w / (w + l):.0f}%" if w + l else "—"
-
-    hero = (f'<section class="hero"><div><h1>Season results</h1><p>Every pick is locked before tip-off and graded from the final score.</p></div>'
-            f'<div class="stats"><div class="stat"><b>{pw}-{pl}</b><span>all picks, {pct(pw, pl)}</span></div>'
+    return (f'<div class="stats"><div class="stat"><b>{pw}-{pl}</b><span>all picks, {pct(pw, pl)}</span></div>'
             f'<div class="stat am"><b>{sw}-{sl}</b><span>strong, {pct(sw, sl)}</span></div>'
             f'<div class="stat am"><b>{ow}-{ol}</b><span>O/U plays, {pct(ow, ol)}</span></div>'
             f'<div class="stat up"><b>{uw}-{ul}</b><span>upset picks, {pct(uw, ul)}</span></div>'
             f'<div class="stat up"><b>{xw}-{xl}</b><span>ultra upsets, {pct(xw, xl)}</span></div>'
             f'<div class="stat"><b>{hw}-{hl}</b><span>first half, {pct(hw, hl)}</span></div>'
-            f'<div class="stat"><b>{mae}</b><span>avg total miss</span></div></div></section>')
-    if not config.SHOW_RESULTS_STATS:          # record totals switched off in config.py for now
-        hero = re.sub(r'<div class="stats">.*</div></section>$', '</section>', hero)
+            f'<div class="stat"><b>{mae}</b><span>avg total miss</span></div></div>')
+
+
+def results_page(rows, stamp, teams=None):
+    """results.html: the season's record, the last RESULTS_DAYS game days in full, and every week of
+    the season as one row (how often the pick won) linking to that week's own page.
+    The page used to list every graded game of the season: 1.7 MB and 37,000 page elements three
+    weeks in, on its way past 10 MB by March. Each game still has a permanent home, on its week's
+    page (write_result_weeks). On a site that has no week pages yet every day stays listed here."""
+    teams = teams or {}
+    graded = [r for r in rows if r["pick_correct"] in ("0", "1")]
+    hero = (f'<section class="hero"><div><h1>Season results</h1><p>Every pick is locked before tip-off and graded from the final score.</p></div>'
+            f'{_result_tiles(graded)}</section>')
     if not graded:
         return page(RESULTS_TITLE, "results.html",
                     hero + '<div class="empty"><b>No graded games yet</b>Results appear the morning after each game day.</div>', stamp,
@@ -1853,25 +1992,76 @@ def results_page(rows, stamp, teams=None):
     by_date = {}
     for r in graded:
         by_date.setdefault(r["date"], []).append(r)
-    chips = ('<div class="bar"><button class="chip on" data-f="all">All games</button>'
-             '<button class="chip favchip" data-f="fav">\u2605 My teams<span class="n">0</span></button>'
-             '<button class="chip" data-f="strong">Strong picks only</button>'
-             '<button class="chip" data-f="ou">O/U plays</button>'
-             '<button class="chip" data-f="upset">Upset picks</button></div>'
-             '<div class="empty" data-empty="strong" hidden><b>No strong picks</b>No graded strong picks yet.</div>'
-             '<div class="empty" data-empty="upset" hidden><b>No upset picks</b>No graded upset picks yet.</div>'
-             '<div class="empty" data-empty="fav" hidden><b>No results for your teams yet</b>Tap the \u2606 next to any team to add it to My teams.</div>'
-             '<div class="empty" data-empty="ou" hidden><b>No O/U plays</b>No graded over/under plays yet.</div>')
-    parts = []
-    from datetime import date as _d
-    far = datetime.max.replace(tzinfo=config.CT)
-    for d in sorted(by_date, reverse=True):
-        day = sorted(by_date[d], key=lambda r: tip_ct(r["when"]) or far, reverse=True)   # latest tip first
-        dw, dl = _record(day, "pick_correct")
-        label = _d.fromisoformat(d).strftime("%A, %b %-d")
-        parts.append(f'<div class="day"><h2>{label}</h2><span>{dw}-{dl}</span></div>'
-                     f'<div class="games">{"".join(_row(r, teams, final=True) for r in day)}</div>')
-    return page(RESULTS_TITLE, "results.html", hero + chips + "".join(parts), stamp, RESULTS_DESC)
+    dates = sorted(by_date, reverse=True)
+    weeks = note = ""
+    if any(_there(week_path(w)) for w in _by_week(graded)):
+        older = len(dates) - RESULTS_DAYS
+        dates = dates[:RESULTS_DAYS]
+        weeks = ('<div class="sect st" id="weeks"><h2>Week by week</h2><span>how often the pick won; tap a week for every game in it</span></div>'
+                 + _week_meters(graded))
+        if older > 0:
+            note = (f'<p class="note">Showing the last {len(dates)} game days. Every earlier game is on its week’s page: '
+                    '<a href="#weeks">week by week</a>.</p>')
+    return page(RESULTS_TITLE, "results.html", hero + note + RESULT_CHIPS + _day_blocks(by_date, dates, teams) + weeks, stamp, RESULTS_DESC)
+
+
+def results_week_page(monday, week_rows, teams=None, season=None, prev="", nxt=""):
+    """One week of results at results/<monday>.html: every graded game of that week, for good.
+    season = every graded row (for the week-by-week list under the games); prev / nxt = the Mondays
+    of the weeks before and after that have a page. The "Updated" line carries the day after the
+    week's last graded game, not the build time, so a finished week's page comes out byte for byte
+    the same every morning and is not saved again."""
+    teams = teams or {}
+    root = "../"
+    label = _week_label(monday)
+    year = monday[:4]
+    by_date = {}
+    for r in week_rows:
+        by_date.setdefault(r["date"], []).append(r)
+    dates = sorted(by_date, reverse=True)
+    w, l = _record(week_rows, "pick_correct")
+    stamp = (datetime.fromisoformat(dates[0]) + timedelta(days=1)).strftime("%b %d, %Y")
+    hero = (f'<section class="hero"><div><p class="crumb"><a href="{root}results.html">Results</a> &rsaquo; {escape(label)}</p>'
+            f'<h1>Results, {escape(label)}</h1><p>Every pick of the week, locked before tip-off and '
+            f'graded from the final score.</p></div>{_result_tiles(week_rows)}</section>')
+    pager = ('<div class="pager">'
+             + (f'<a href="{root}{week_path(prev)}">&lsaquo; {escape(_week_label(prev))}</a>' if prev else "<span></span>")
+             + f'<a href="{root}results.html#weeks">All weeks</a>'
+             + (f'<a href="{root}{week_path(nxt)}">{escape(_week_label(nxt))} &rsaquo;</a>' if nxt else "<span></span>") + '</div>')
+    return page(f"College Basketball Results, {label}, {year} | {config.SITE_NAME}", "results.html",
+                hero + RESULT_CHIPS + _day_blocks(by_date, dates, teams, root) + pager, stamp,
+                f"Every college basketball prediction from {label}, {year}, graded against the final score: "
+                f"the model had the winner in {w} of {w + l} games.",
+                root=root, canonical=week_path(monday))
+
+
+def write_result_weeks(rows, teams=None, docs=None):
+    """Write the page of every week that has graded games. A page whose content has not changed is
+    left alone (a finished week never changes again), so a build touches one or two files here.
+    Returns the number of pages written."""
+    docs = docs or DOCS
+    weeks = _by_week([r for r in rows if r["pick_correct"] in ("0", "1")])
+    order = sorted(weeks)
+    paths = {week_path(w) for w in order}
+    fresh = paths - COMING
+    COMING.update(fresh)                       # the week pages link to each other: all of them are on the way
+    n = 0
+    try:
+        for i, wk in enumerate(order):
+            html = results_week_page(wk, weeks[wk], teams, prev=order[i - 1] if i else "",
+                                     nxt=order[i + 1] if i + 1 < len(order) else "")
+            p = docs / week_path(wk)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                same = p.read_text(encoding="utf-8") == html
+            except (OSError, UnicodeError):
+                same = False
+            if not same:
+                p.write_text(html, encoding="utf-8")
+                n += 1
+    finally:
+        COMING.difference_update(fresh)
+    return n
 
 
 def _bet_disc(b, teams, mini=False):
@@ -1951,10 +2141,13 @@ function tally(){let w=0,l=0,p=0,open=0;
  rows.forEach(r=>{const x=r.dataset.res;if(x==='W')w++;else if(x==='L')l++;else if(x==='P')p++;else open++});
  if(sub&&w+l+p){const rec=w+'-'+l+(p?'-'+p:'');sub.textContent=open?rec+' so far, '+open+' still to play':'final: '+rec}
  return open}
+let busy=false,over=false;
 async function poll(){
- if(!current()){clearInterval(timer);return}
+ if(busy||over||document.hidden)return;
+ if(!current()){over=true;clearInterval(timer);return}
+ busy=true;
  try{
-  const j=await fetch(API+day.replace(/-/g,''),{cache:'no-store'}).then(r=>r.json());
+  const j=await fetch(API+day.replace(/-/g,''),{cache:'no-store',...(AbortSignal.timeout?{signal:AbortSignal.timeout(20000)}:{})}).then(r=>r.json());
   const map={};
   for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};
    c.competitors.forEach(p=>sc[p.team.id]=+p.score||0);const t=(c.status||e.status||{}).type||{};
@@ -1973,17 +2166,34 @@ async function poll(){
    else if(!pc.querySelector('.off')){   // postponed or canceled: no result, say why
     const s=document.createElement('small');s.className='off';s.textContent=m.detail;pc.appendChild(s)}
   });
-  if(!tally())clearInterval(timer);
- }catch(e){}
+  if(!tally()){over=true;clearInterval(timer)}
+ }catch(e){}finally{busy=false}
 }
 const timer=setInterval(poll,60000);poll();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 })();
 </script>"""
 
 
-def bets_page(best, date_label, stamp, teams=None, book=None, date_iso="", finals=None):
+CLV_MIN_BETS = 20        # the closing-line sentence appears once this many graded bets have a closing line
+
+
+def _clv_note(clv):
+    """One sentence on whether the lines moved the bets' way after they were posted, once there are
+    enough bets for it to mean something. Beating the closing line is the earliest sign of a real
+    edge; a record needs hundreds of bets to say the same thing."""
+    if not clv or clv["n"] < CLV_MIN_BETS:
+        return ""
+    pts = clv["points"]
+    way = "in the bets\u2019 favor" if pts > 0.005 else "against the bets" if pts < -0.005 else "either way"
+    return (f' Closing lines: of {clv["n"]} graded spread and total bets, the line moved the bet\u2019s way after it was posted in '
+            f'{clv["beat"]}, against it in {clv["worse"]} and not at all in {clv["same"]}, an average of {abs(pts):.1f} points {way}.')
+
+
+def bets_page(best, date_label, stamp, teams=None, book=None, date_iso="", finals=None, clv=None):
     """finals = {(date, away_id, home_id): "83-54"} final scores (away-home) for graded games, shown
-    under each graded bet's W / L."""
+    under each graded bet's W / L. clv = bets.closing_value(...): how the lines moved after the bets
+    were posted, or None."""
     import bets as B
     teams = teams or {}
     book = book or []
@@ -2007,9 +2217,15 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso="", final
     if sw + sl + sp:
         ylabel = "yesterday" if yday and date_iso and (datetime.fromisoformat(date_iso) - datetime.fromisoformat(yday)).days == 1 \
             else datetime.fromisoformat(yday).strftime("%a %b %-d").replace(" 0", " ") if yday else "last day"
+        # the record alone flatters: at -110 a bet has to win 52.4% of the time to break even, so the
+        # season's profit or loss in units (one unit a bet, at each bet's own price) sits beside it
+        u = B.units(book)
+        u_txt = ("+" if u > 0 else "\u2212" if u < 0 else "") + f"{abs(u):.1f}"
         stats = (f'<div class="stats"><div class="stat {"win" if yw > yl else "loss" if yl > yw else ""}"><b>{rec(yw, yl, yp)}</b>'
                  f'<span>top bets {escape(ylabel)}</span></div>'
-                 f'<div class="stat am"><b>{rec(sw, sl, sp)}</b><span>season, {pct(sw, sl)}</span></div></div>')
+                 f'<div class="stat am"><b>{rec(sw, sl, sp)}</b><span>season, {pct(sw, sl)}</span></div>'
+                 f'<div class="stat {"win" if u > 0.05 else "loss" if u < -0.05 else ""}"><b>{u_txt}</b>'
+                 f'<span>units, 1 a bet</span></div></div>')
     hero = ('<section class="hero"><div><h1>Best Bets</h1>'
             f'<p>{escape(date_label)}. The model\u2019s projections against the current lines. The top single bets lock in '
             f'each morning; each one shows the live score while its game is on and is graded the minute it ends. '
@@ -2058,7 +2274,10 @@ def bets_page(best, date_label, stamp, teams=None, book=None, date_iso="", final
             f'model\u2019s chance of winning them, based on how far off its projections usually are. A bet needs at least a '
             f'{B.MIN_CHANCE * 100:.0f}% model chance and has to beat its price by {B.MIN_EDGE * 100:.0f}+ points; each game\u2019s best one makes the list, ranked by edge '
             f'(model chance minus the chance the odds imply). Spread and total bets assume the usual {B.fmt_odds(B.STD_ODDS)} odds, '
-            'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>')
+            'so check your book\u2019s price. Parlay chances treat the games as independent. These are model estimates, not sure things.</p>'
+            f'<p class="note">Reading the record: at {B.fmt_odds(B.STD_ODDS)} a bet has to win {100 * B.break_even():.1f}% of the time just to break '
+            'even, so a winning record can still lose money. The units figure counts one unit on every graded bet at its listed price.'
+            + _clv_note(clv) + '</p>')
     short = _short_date(date_iso)
     return page(f'College Basketball Best Bets Today{", " + short if short else ""} | {config.SITE_NAME}', "bets.html",
                 hero + single_html + parlay_html + note + (BETS_JS if today_book else ""), stamp,
@@ -2101,9 +2320,11 @@ function render(list){
    <div class="call">${tags}</div><div class="why2">${x.why}</div>
    <div class="meta2">Model now: ${g.home} ${fmt(x.projM)} \u00b7 projected total ${x.projT.toFixed(0)} \u00b7 ${x.min.toFixed(0)} of 40 min played</div></div>`}).join('');
 }
+let busy=false;
 async function poll(){
+ if(busy||document.hidden)return;busy=true;      // not in a background tab, and one request at a time
  try{
-  const d=G.date.replace(/-/g,'');const j=await fetch(API+d,{cache:'no-store'}).then(r=>r.json());
+  const d=G.date.replace(/-/g,'');const j=await fetch(API+d,{cache:'no-store',...(AbortSignal.timeout?{signal:AbortSignal.timeout(20000)}:{})}).then(r=>r.json());
   const map={};for(const e of j.events||[]){const c=(e.competitions||[])[0];if(!c)continue;const sc={};c.competitors.forEach(p=>sc[p.team.id]=+p.score||0);
    const st=c.status||e.status;map[c.competitors.map(p=>p.team.id).sort().join('-')]={sc,state:st.type.state,detail:st.type.shortDetail||'',period:st.period,displayClock:st.displayClock}}
   const out=[];let live=0;
@@ -2132,9 +2353,10 @@ async function poll(){
   out.sort((a,b)=>b.score-a.score||Math.abs(b.projM)-Math.abs(a.projM));
   state.textContent=live?`${live} game${live===1?'':'s'} in progress \u00b7 scores from ESPN, refreshed every minute`:'No games in progress right now.';
   render(out);
- }catch(e){state.textContent='Could not reach the live score feed. Will retry.'}
+ }catch(e){state.textContent='Could not reach the live score feed. Will retry.'}finally{busy=false}
 }
 poll();setInterval(poll,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 })();
 </script>"""
 
@@ -2204,6 +2426,8 @@ def write(index_html, results_html, bets_html="", docs=DOCS, stamp="", studio_ht
     urls += [(site_url(p), "") for p in ("model.html", "about.html", "privacy.html") if (docs / p).exists()]
     for p in sorted((docs / "teams").glob("*.html")):
         urls.append((site_url("teams/" + p.name), _file_date(p)))
+    for p in sorted((docs / "results").glob("*.html")):          # one page per week of graded games
+        urls.append((site_url("results/" + p.name), _file_date(p)))
     floor = _games_floor(today)
     for p in sorted((docs / "games").glob("*/*.html")):
         if floor and p.parent.name < floor:

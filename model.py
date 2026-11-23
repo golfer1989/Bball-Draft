@@ -9,10 +9,23 @@ with the formula mistakes fixed:
   4. Teams are matched exactly by RealGM team id
      (sheet's lookup ranges stopped at row 362 of 366)
 
-Everything else is the spreadsheet's logic:
-  Offense = .4*FG% + .25*(1-TOV%) + .2*ORB% + .15*FT%
-  Defense = .4*(1-oppFG%) + .25*oppTOV% + .2*(1-oppORB%) + .15*(1-oppFT%)
+Everything else is the spreadsheet's logic, a four-factor rating:
+  Offense = shooting + ball security + offensive rebounding + free throws
+  Defense = the same four things, as the opponents managed them against this team
   Rating  = Offense + Defense
+
+Nov 2026 audit: the four factors are now measured the way they are defined, and weighted by a
+fit to results instead of the 40/25/20/15 rule of thumb:
+  Shooting    = effective field goal % (a made three counts as 1.5 makes); was plain FG%
+  Free throws = free throws made per field goal attempt (how often a team gets to the line and
+                converts, and how often a defense sends opponents there); was FT%, which on
+                defense rewarded a team for its opponents missing free throws (luck, not skill)
+  Weights     = 42 / 37 / 14 / 7 (config.W_SHOOT, W_TOV, W_REB, W_FT), fitted on the 5,752 games
+                between Division I teams in 2025-26
+  Offense = .42*eFG% + .37*(1-TOV%) + .14*ORB% + .07*FTR
+  Defense = .42*(1-opp eFG%) + .37*opp TOV% + .14*(1-opp ORB%) + .07*(1-opp FTR)
+Replayed on every game of Nov 2-22, 2026 with only that morning's data: 728-202 (78.3%) against
+715-215 for the old inputs, and the average miss on the margin fell from 10.53 to 10.37 points.
 
 Added on top of the spreadsheet (Oct 2026):
   Strength of schedule: the rating is credited (or docked) for how strong the opponents
@@ -26,6 +39,8 @@ Added on top of the spreadsheet (Oct 2026):
     (Nov 2026: replaced "higher first-half scoring over the last 3 games", which was right
     64% of the time against 73% for the full-game pick on the same games)
 """
+import numpy as np
+
 import config
 
 
@@ -38,12 +53,13 @@ def team_rating(team, opp):
     orb = team["ORB"] / (team["ORB"] + opp["DRB"])          # Rebound %
     opp_orb = opp["ORB"] / (opp["ORB"] + team["DRB"])       # Opp Rebound %
     tov, opp_tov = tov_pct(team), tov_pct(opp)
-    offense = (config.W_SHOOT * team["FG%"] + config.W_TOV * (1 - tov)
-               + config.W_REB * orb + config.W_FT * team["FT%"])
-    defense = (config.W_SHOOT * (1 - opp["FG%"]) + config.W_TOV * opp_tov
-               + config.W_REB * (1 - opp_orb) + config.W_FT * (1 - opp["FT%"]))
+    offense = (config.W_SHOOT * team["eFG%"] + config.W_TOV * (1 - tov)
+               + config.W_REB * orb + config.W_FT * team["FTR"])
+    defense = (config.W_SHOOT * (1 - opp["eFG%"]) + config.W_TOV * opp_tov
+               + config.W_REB * (1 - opp_orb) + config.W_FT * (1 - opp["FTR"]))
     return {
         "reb_pct": orb, "tov_pct": tov, "opp_reb_pct": opp_orb, "opp_tov_pct": opp_tov,
+        "efg": team["eFG%"], "opp_efg": opp["eFG%"], "ftr": team["FTR"], "opp_ftr": opp["FTR"],
         "ppg": (team["PPG"] + opp["PPG"]) / 2,
         "offense": offense, "defense": defense, "rating": offense + defense,
     }
@@ -69,34 +85,34 @@ def results_ratings(games, cap=25, ridge=1.0, iters=400):
     home margin = r_home - r_away + home court (none at neutral sites).
     games = [(away_id, home_id, away_pts, home_pts, neutral), ...]; blowouts capped at `cap`
     points so running up the score doesn't count; a small `ridge` keeps teams with few games
-    near average. Returns {team_id: rating}, centered on 0."""
-    r = {}
+    near average. Returns {team_id: rating}, centered on 0.
+
+    Each round re-estimates home court from the current ratings, then every team's rating from its
+    games (its capped margins plus its opponents' ratings), then re-centers. The rounds run on
+    arrays: the same arithmetic as the game-by-game loop this replaced, about 50 times faster
+    (a season of 6,300 games took 2.3 seconds of every build; it now takes 0.04)."""
+    index = {}
     for a, h, *_ in games:
-        r[a] = r.get(a, 0.0)
-        r[h] = r.get(h, 0.0)
-    if not r:
+        index.setdefault(a, len(index))
+        index.setdefault(h, len(index))
+    if not index:
         return {}
-    clip = lambda m: max(-cap, min(cap, m))  # noqa: E731
-    hca = 3.0
+    n = len(index)
+    away = np.fromiter((index[g[0]] for g in games), dtype=np.int64, count=len(games))
+    home = np.fromiter((index[g[1]] for g in games), dtype=np.int64, count=len(games))
+    margin = np.clip(np.fromiter((g[3] - g[2] for g in games), dtype=float, count=len(games)), -cap, cap)
+    at_home = np.fromiter((not g[4] for g in games), dtype=bool, count=len(games))
+    played = np.bincount(home, minlength=n) + np.bincount(away, minlength=n) + ridge
+    n_home = int(at_home.sum())
+    r = np.zeros(n)
     for _ in range(iters):
-        num = {t: 0.0 for t in r}
-        den = {t: ridge for t in r}
-        hs = hn = 0
-        for a, h, ap, hp, neutral in games:
-            if not neutral:
-                hs += clip(hp - ap) - (r[h] - r[a])
-                hn += 1
-        hca = hs / hn if hn else 0.0
-        for a, h, ap, hp, neutral in games:
-            m = clip(hp - ap) - (0.0 if neutral else hca)
-            num[h] += m + r[a]
-            den[h] += 1
-            num[a] += -m + r[h]
-            den[a] += 1
-        r = {t: num[t] / den[t] for t in r}
-        mean = sum(r.values()) / len(r)
-        r = {t: v - mean for t, v in r.items()}
-    return r
+        hca = float((margin[at_home] - (r[home[at_home]] - r[away[at_home]])).sum() / n_home) if n_home else 0.0
+        m = margin - hca * at_home
+        total = (np.bincount(home, weights=m + r[away], minlength=n)
+                 + np.bincount(away, weights=r[home] - m, minlength=n))
+        r = total / played
+        r = r - r.mean()
+    return {t: float(r[i]) for t, i in index.items()}
 
 
 def schedule_adjust(rat, games, weight=None):

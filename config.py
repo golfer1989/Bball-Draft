@@ -2,25 +2,30 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-ET = ZoneInfo("America/New_York")   # RealGM lists tip times in Eastern
+ET = ZoneInfo("America/New_York")   # the game day and the tip times in the ledger are Eastern
 CT = ZoneInfo("America/Chicago")    # site timestamps
 
-# --- data sources (same pages the spreadsheet's Power Query pulled) ---
-REALGM_TEAM = "https://basketball.realgm.com/ncaa/team-stats/{season}/Averages/Team_Totals/0?pace_adjustment="
-REALGM_OPP = "https://basketball.realgm.com/ncaa/team-stats/{season}/Averages/Opponent_Totals/0?pace_adjustment="
-REALGM_SCHEDULE = "https://basketball.realgm.com/ncaa/schedules/{date}"          # date = YYYY-MM-DD
-TR_FIRST_HALF = "https://www.teamrankings.com/ncaa-basketball/stat/1st-half-points-per-game?date={date}"
-
 # --- model knobs ---
-# Four-factor weights (Dean Oliver). Same as the spreadsheet, with the offense
-# rebounding weight fixed from 2 to 0.2 so it matches defense.
-W_SHOOT, W_TOV, W_REB, W_FT = 0.40, 0.25, 0.20, 0.15
+# Four-factor weights: shooting (effective field goal %), turnovers, offensive rebounding and
+# free throws (made per shot attempt), the same on offense and defense. See model.py.
+# Until Nov 22, 2026 these were the 40/25/20/15 rule of thumb on plain field goal % and free
+# throw %. Fitted on the 5,752 games between Division I teams in 2025-26 they come out
+# 42/37/14/7: turnovers count for more than the rule of thumb says, rebounding and free throws
+# for less (five different slices of that season gave the same weights within 3 points).
+# Replay of every game of Nov 2-22, 2026 from that morning's data: 728-202 (78.3%) and an average
+# miss of 10.37 points on the margin, against 715-215 and 10.53 for the old inputs and weights.
+W_SHOOT, W_TOV, W_REB, W_FT = 0.42, 0.37, 0.14, 0.07
+# The ratings changed scale with the formula above. Anything saved from an older formula that
+# compares ratings across days (the Rankings page's "moved up / down") starts over when this
+# number changes.
+MODEL_VERSION = 2
 
 # "Strong Pick" when the projected edge (rating gap incl. home court, in rating units) is
-# bigger than this. 0.088 = a 15-point projected margin (15 / POINTS_PER_RATING).
-# Replay of Nov 2-16, 2026 with the settings below: 269-7 on those picks, 42% of games
-# (the old 0.06 line, about 10 points, went 251-16 as the site ran).
-STRONG_PICK_GAP = 0.088
+# bigger than this. 0.10 = a 17-point projected margin (17 / POINTS_PER_RATING).
+# Replay of Nov 2-22, 2026 with the formula above: 303-7 (97.7%) on those picks, a third of all
+# games. (The line was 15 points, 0.088, with the old formula: 336-8 in the same replay. At 15
+# points the new formula goes 339-15, so the line moved to keep a Strong Pick as safe as it was.)
+STRONG_PICK_GAP = 0.10
 
 # Over/under play: flagged when the model's projected total is at least this many points
 # above (Over) or below (Under) the betting line's over/under.
@@ -63,6 +68,9 @@ def now_et():
 # HOME_COURT_POINTS was 2.7 until Nov 17, 2026. Replaying every game of Nov 2-16, 2026 with
 # only the data available each morning, home teams did about 4 points better than their
 # ratings. Worth re-checking once conference play starts.
+# Nov 22, 2026 audit (replay of 930 games with the four-factor formula above): the average miss
+# is the same to a tenth of a point for any scale from 150 to 190, and home court fits 3.4 to 3.9,
+# so both stay where they are.
 POINTS_PER_RATING = 170
 HOME_COURT_POINTS = 4.0
 
@@ -75,6 +83,9 @@ SOS_WEIGHT = 1.0
 # In the Nov 2-16, 2026 replay this took the average miss on the margin from 11.9 points to
 # 10.5 and stopped mismatches from being projected too close (a "12-point" pick was winning
 # by 19). It fades out by itself as this season's games replace last season's.
+# Nov 22, 2026 audit: 2.0 is still the best value (average miss 10.35 points, against 10.57 at
+# 1.5 and 10.49 at 2.5). This season's own weight (SOS_WEIGHT) makes no measurable difference
+# yet, with six games a team; test both again in January.
 SOS_WEIGHT_PREV = 2.0
 
 # ---------------- website ----------------

@@ -8,7 +8,9 @@ FIELDS = ["game_key", "date", "when", "away_id", "away", "home_id", "home",
           "away_rating", "home_rating", "pick", "differential", "strong_pick", "total",
           "fh_pick", "fh_margin", "stats_season", "locked_at",
           "away_pts", "home_pts", "pick_correct", "strong_correct", "total_error", "fh_correct", "neutral",
-          "line_fav", "line_spread", "line_total", "line_book"]
+          "line_fav", "line_spread", "line_total", "line_book",
+          # the last line seen before tip-off (the first one, at pick time, stays in the columns above)
+          "close_fav", "close_spread", "close_total"]
 
 
 def key(date, away_id, home_id):
@@ -19,7 +21,12 @@ def load(path=LEDGER):
     if not path.exists():
         return []
     with open(path, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+        rows = list(csv.DictReader(f))
+    for r in rows:                                  # a ledger written before a column existed: the column is empty
+        for k in FIELDS:
+            if r.get(k) is None:
+                r[k] = ""
+    return rows
 
 
 def save(rows, path=LEDGER):
@@ -60,6 +67,7 @@ def lock(rows, date, preds, season, stamp):
             "away_pts": "", "home_pts": "", "pick_correct": "", "strong_correct": "", "total_error": "",
             "fh_correct": "", "neutral": "1" if p.get("neutral") else "",
             "line_fav": "", "line_spread": "", "line_total": "", "line_book": "",
+            "close_fav": "", "close_spread": "", "close_total": "",
         })
         have.add(k)
         added += 1
@@ -81,6 +89,34 @@ def attach_lines(rows, date, line_map):
         r["line_total"] = "" if ln["total"] is None else f"{ln['total']:g}"
         r["line_book"] = ln["book"]
         n += 1
+    return n
+
+
+def track_close(rows, date, line_map):
+    """Keep the latest line seen for each of that day's games beside the first one. line_map holds
+    only games that have not tipped off, so what is left when a game starts is the last line seen
+    before it: the closing line, as near as the build times get (the last refresh runs 5 to 20
+    minutes before each tip-off block). A value the feed stops sending is kept, never blanked.
+    Whether lines move toward the model's side after a pick is posted is the quickest honest test
+    of a betting edge, long before a win-loss record means anything. Returns how many games changed."""
+    n = 0
+    for r in rows:
+        if r["date"] != date:
+            continue
+        ln = line_map.get((int(r["away_id"]), int(r["home_id"])))
+        if not ln:
+            continue
+        new = {"close_fav": ln.get("fav") or "",
+               "close_spread": "" if ln.get("spread") is None else f"{ln['spread']:g}",
+               "close_total": "" if ln.get("total") is None else f"{ln['total']:g}"}
+        if new["close_spread"] == "":
+            new.pop("close_spread")
+            new.pop("close_fav")                    # a favorite means nothing without its spread
+        if new["close_total"] == "":
+            new.pop("close_total")
+        if any(r.get(k, "") != v for k, v in new.items()):
+            r.update(new)
+            n += 1
     return n
 
 

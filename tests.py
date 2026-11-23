@@ -41,6 +41,12 @@ def test_parse_team_stats_per_game():
     assert a["PPG"] == 80 and a["FGA"] == 60 and a["FG%"] == 0.5 and a["FTA"] == 20
     assert a["FT%"] == 0.75 and a["ORB"] == 10 and a["DRB"] == 25 and a["TOV"] == 11
     assert opp[1]["PPG"] == 76
+    # the two inputs the rating uses since Nov 2026: free throws made per shot attempt, and effective
+    # field goal % (a made three counts as 1.5 makes; a feed row without the three-point split counts none)
+    assert a["FTR"] == pytest.approx(150 / 600) and opp[1]["FTR"] == pytest.approx(120 / 620)
+    assert a["eFG%"] == a["FG%"] == 0.5
+    threes = dict(stats_row(4, "C", team={"threePointFieldGoals": {"made": 60, "attempted": 180, "pct": 33.3}}))
+    assert fetch.parse_team_stats([threes])[0][4]["eFG%"] == pytest.approx((300 + 30) / 600)
 
 
 def test_parse_games_times_and_finals():
@@ -112,17 +118,29 @@ def test_predicted_score_matches_pick():
 
 
 # ---------------- model math ----------------
-T = {"name": "A", "PPG": 80.0, "FGA": 60.0, "FTA": 20.0, "TOV": 10.0, "FG%": 0.48, "FT%": 0.75, "ORB": 10.0, "DRB": 25.0}
-O = {"name": "A", "PPG": 70.0, "FGA": 58.0, "FTA": 18.0, "TOV": 12.0, "FG%": 0.42, "FT%": 0.70, "ORB": 9.0, "DRB": 24.0}
+T = {"name": "A", "PPG": 80.0, "FGA": 60.0, "FTA": 20.0, "TOV": 10.0, "FG%": 0.48, "eFG%": 0.52, "FT%": 0.75, "FTR": 0.25,
+     "ORB": 10.0, "DRB": 25.0}
+O = {"name": "A", "PPG": 70.0, "FGA": 58.0, "FTA": 18.0, "TOV": 12.0, "FG%": 0.42, "eFG%": 0.47, "FT%": 0.70, "FTR": 0.21,
+     "ORB": 9.0, "DRB": 24.0}
 
 
 def test_rating_by_hand():
     r = model.team_rating(T, O)
     tov = 10 / (60 + 0.44 * 20 + 10)
     otov = 12 / (58 + 0.44 * 18 + 12)
-    off = 0.4 * 0.48 + 0.25 * (1 - tov) + 0.2 * (10 / 34) + 0.15 * 0.75
-    de = 0.4 * 0.58 + 0.25 * otov + 0.2 * (1 - 9 / 34) + 0.15 * 0.30
+    off = 0.42 * 0.52 + 0.37 * (1 - tov) + 0.14 * (10 / 34) + 0.07 * 0.25
+    de = 0.42 * (1 - 0.47) + 0.37 * otov + 0.14 * (1 - 9 / 34) + 0.07 * (1 - 0.21)
     assert r["rating"] == pytest.approx(off + de) and r["ppg"] == pytest.approx(75.0)
+    assert r["offense"] == pytest.approx(off) and r["defense"] == pytest.approx(de)
+    assert (config.W_SHOOT, config.W_TOV, config.W_REB, config.W_FT) == (0.42, 0.37, 0.14, 0.07)
+    assert sum((config.W_SHOOT, config.W_TOV, config.W_REB, config.W_FT)) == pytest.approx(1.0)
+    # what the rating no longer reads: plain field goal % and free throw %. In particular a team gets
+    # no credit on defense for its opponents missing free throws.
+    lucky = dict(O, **{"FT%": 0.55, "FG%": 0.30})
+    assert model.team_rating(dict(T, **{"FT%": 0.95, "FG%": 0.60}), lucky)["rating"] == pytest.approx(r["rating"])
+    # what it does read: threes (through effective FG%) and trips to the line (free throws per shot)
+    assert model.team_rating(dict(T, **{"eFG%": 0.56}), O)["rating"] == pytest.approx(r["rating"] + 0.42 * 0.04)
+    assert model.team_rating(T, dict(O, FTR=0.31))["rating"] == pytest.approx(r["rating"] - 0.07 * 0.10)
 
 
 def test_predict_rules_with_home_court():
@@ -171,6 +189,53 @@ def test_results_ratings():
     # home court is learned from home games and removed from team strength
     home = model.results_ratings([("P", "Q", 70, 74, False), ("Q", "P", 70, 74, False)] * 3)
     assert home["P"] == pytest.approx(home["Q"], abs=1e-6)       # each won at home by 4: equal teams
+    assert model.results_ratings([]) == {}
+
+
+def _results_ratings_game_by_game(games, cap=25, ridge=1.0, iters=400):
+    """The loop model.results_ratings ran until Nov 2026, one game at a time (kept as the reference)."""
+    r = {}
+    for a, h, *_ in games:
+        r[a] = r.get(a, 0.0)
+        r[h] = r.get(h, 0.0)
+    clip = lambda m: max(-cap, min(cap, m))  # noqa: E731
+    for _ in range(iters):
+        num = {t: 0.0 for t in r}
+        den = {t: ridge for t in r}
+        hs = hn = 0
+        for a, h, ap, hp, neutral in games:
+            if not neutral:
+                hs += clip(hp - ap) - (r[h] - r[a])
+                hn += 1
+        hca = hs / hn if hn else 0.0
+        for a, h, ap, hp, neutral in games:
+            m = clip(hp - ap) - (0.0 if neutral else hca)
+            num[h] += m + r[a]
+            den[h] += 1
+            num[a] += -m + r[h]
+            den[a] += 1
+        r = {t: num[t] / den[t] for t in r}
+        mean = sum(r.values()) / len(r)
+        r = {t: v - mean for t, v in r.items()}
+    return r
+
+
+def test_results_ratings_on_arrays_match_the_game_by_game_loop():
+    import random
+    rng = random.Random(7)
+    teams = list(range(100, 160))
+    games = []
+    for _ in range(700):                                        # blowouts, neutral floors, a team with one game
+        a, h = rng.sample(teams, 2)
+        games.append((a, h, rng.randint(45, 110), rng.randint(45, 110), rng.random() < 0.2))
+    games.append((999, 100, 50, 95, False))
+    games = [g for g in games if g[2] != g[3]]
+    fast, slow = model.results_ratings(games), _results_ratings_game_by_game(games)
+    assert set(fast) == set(slow) and len(fast) == 61
+    assert max(abs(fast[t] - slow[t]) for t in fast) < 1e-9
+    only_neutral = [(a, h, ap, hp, True) for a, h, ap, hp, _ in games[:80]]
+    f2, s2 = model.results_ratings(only_neutral), _results_ratings_game_by_game(only_neutral)
+    assert max(abs(f2[t] - s2[t]) for t in f2) < 1e-9
 
 
 def test_schedule_adjust():
@@ -1518,10 +1583,11 @@ def _league():
     rat = {1: {"name": "Alpha", "rating": 1.20, "offense": 0.62, "defense": 0.58, "sos": 0.02, "ppg": 78.0, "blend": 0.3},
            2: {"name": "Beta State", "rating": 1.10, "offense": 0.56, "defense": 0.54, "sos": 0.0, "ppg": 74.0, "blend": 0.3},
            3: {"name": "Gamma A&M", "rating": 1.00, "offense": 0.50, "defense": 0.50, "sos": -0.02, "ppg": 70.0, "blend": 0.3}}
-    team = {1: dict(T, name="Alpha", GP=6, **{"FG%": 0.50, "TOV": 9.0}),
-            2: dict(T, name="Beta State", GP=6, **{"FG%": 0.45, "TOV": 12.0}),
-            3: dict(T, name="Gamma A&M", GP=6, **{"FG%": 0.40, "TOV": 15.0})}
-    opp = {1: dict(O, **{"FG%": 0.38, "TOV": 15.0}), 2: dict(O, **{"FG%": 0.42, "TOV": 12.0}), 3: dict(O, **{"FG%": 0.46, "TOV": 9.0})}
+    team = {1: dict(T, name="Alpha", GP=6, **{"eFG%": 0.50, "TOV": 9.0, "FTR": 0.30}),
+            2: dict(T, name="Beta State", GP=6, **{"eFG%": 0.45, "TOV": 12.0, "FTR": 0.25}),
+            3: dict(T, name="Gamma A&M", GP=6, **{"eFG%": 0.40, "TOV": 15.0, "FTR": 0.20})}
+    opp = {1: dict(O, **{"eFG%": 0.38, "TOV": 15.0, "FTR": 0.18}), 2: dict(O, **{"eFG%": 0.42, "TOV": 12.0, "FTR": 0.21}),
+           3: dict(O, **{"eFG%": 0.46, "TOV": 9.0, "FTR": 0.24})}
     teams = {"1": {"mascot": "Aces", "conf": "East", "color": "112233", "logo": "", "abbr": "ALP", "espn": "11"},
              "2": {"mascot": "Bears", "conf": "East", "color": "223344", "logo": "", "abbr": "BETA", "espn": "22"},
              "3": {"mascot": "Goats", "conf": "West", "color": "334455", "logo": "", "abbr": "GAM", "espn": "33"}}
@@ -1774,8 +1840,12 @@ def test_team_page(tmp_path, monkeypatch):
     # coming up: an early projection, plainly not a locked pick
     assert "Coming up" in html and '<span class="soon">Early look</span> Alpha ' in html and "Mon, Nov 23<small>6:00 PM</small>" in html
     # the eight numbers behind the rating, with the Division I average and the rank
-    assert "The numbers behind the rating" in html and "<b>Field goal %</b><small>40% of the offense rating</small>" in html
-    assert '<td class="pts">50.0%<small>avg 45.0%</small></td>' in html and "<b>Turnover rate</b><small>25% · lower is better</small>" in html
+    assert "The numbers behind the rating" in html and "<b>Effective field goal %</b><small>42% of the offense rating</small>" in html
+    assert '<td class="pts">50.0%<small>avg 45.0%</small></td>' in html and "<b>Turnover rate</b><small>37% · lower is better</small>" in html
+    # free throws are a rate per 100 shot attempts, written without a % sign; on defense fewer is better
+    assert '<b>Free throws made per 100 shots</b><small>7%</small></td><td class="pts">30.0<small>avg 25.0</small></td>' in html
+    assert '<b>Free throws made per 100 shots</b><small>7% · lower is better</small></td><td class="pts">18.0<small>avg 21.0</small></td>' in html
+    assert "Effective field goal % counts a made three as one and a half makes." in html and "Free throw %" not in html
     assert "at a pace of 70 possessions a game" in html and 'style="--p:100%"></span>1st' in html
     # league mates, each linked, this team marked
     assert '<a class="me" href="../teams/alpha.html"><i>#1</i> Alpha</a>' in html and '<a class="" href="../teams/beta-state.html">' in html
@@ -1808,11 +1878,14 @@ def test_game_page_compares_the_two_teams(tmp_path, monkeypatch):
     assert '<tr><td class="">#3</td><td class="k">Model rank</td><td class="best">#1</td></tr>' in html
     assert '<tr><td class="">−17.0</td><td class="k">Rating, in points</td><td class="best">+17.0</td></tr>' in html
     assert '<tr><td class="">1-5</td><td class="k">Record</td><td class="">5-1</td></tr>' in html
-    assert '<tr><td class="">40.0%</td><td class="k">Field goal %</td><td class="best">50.0%</td></tr>' in html
+    assert '<tr><td class="">40.0%</td><td class="k">Effective FG %</td><td class="best">50.0%</td></tr>' in html
+    assert '<tr><td class="">20.0</td><td class="k">Free throws made per 100 shots</td><td class="best">30.0</td></tr>' in html
+    assert '<tr><td class="">24.0</td><td class="k">Free throws allowed per 100 shots</td><td class="best">18.0</td></tr>' in html
+    assert "effective FG % counts a made three as one and a half makes" in html and "Free throw %" not in html
     # lower is better for turnovers and for what the opponents shoot
     tov = [f'{100 * by_id[t]["factors"]["tov"][0]:.1f}%' for t in (3, 1)]
     assert f'<tr><td class="">{tov[0]}</td><td class="k">Turnover rate</td><td class="best">{tov[1]}</td></tr>' in html
-    assert '<tr><td class="">46.0%</td><td class="k">Opponents’ field goal %</td><td class="best">38.0%</td></tr>' in html
+    assert '<tr><td class="">46.0%</td><td class="k">Opponents’ effective FG %</td><td class="best">38.0%</td></tr>' in html
     # no profiles (an older build.py, or a team without one): the page is the one it always was
     assert "How the two teams compare" not in site.game_page(r, teams, wu, "now")
     assert "How the two teams compare" not in site.game_page(r, teams, wu, "now", profiles={1: by_id[1]})
@@ -1887,7 +1960,11 @@ def test_method_page_reads_its_numbers_from_the_settings(tmp_path, monkeypatch):
     assert "Neutral floor, so nobody gets a home-court edge." in site.model_page("now", dict(_facts(), example=dict(away_fav, neutral=True)))
     # the record, split by how sure the model was; a band with no games is left out
     assert "picked the winner in <b>651 of 853 games (76%)</b>, and in 308 of 326 strong picks (94%)" in html
-    assert '<td class="t">Under 3 points</td><td>167</td><td class="nw">84-83</td><td class="pts">50%</td>' in html
+    # the record by projected margin is drawn: one bar per band (the share that won) with the record beside it
+    assert ('<div class="mrow"><span class="mn">Under 3 points<small>167 games</small></span><span class="mb"><i style="width:50%"></i></span>'
+            '<span class="mv"><b>50%</b>84-83</span></div>') in html
+    assert '<span class="mn">25 or more<small>23 games</small></span><span class="mb"><i style="width:96%"></i></span>' in html
+    assert "Empty band" not in html and html.count('class="mrow"') == 3
     assert "by 11.7 points on average, and the projected total by 13.7" in html and "Empty band" not in html
     # the switch that hides the record on the Results page hides it here too
     monkeypatch.setattr(config, "SHOW_RESULTS_STATS", False)
@@ -2056,7 +2133,7 @@ def test_rankings_and_team_pages_come_out_of_the_build(tmp_path, monkeypatch):
     week = ("2026-11-10", "2026-11-16")
     assert calls.count(week) == 1                                         # one data call for the coming week
     assert json.loads((tmp_path / "raw" / "games_week.json").read_text())["from"] == "2026-11-10"
-    assert list(json.loads((tmp_path / "rank_history.json").read_text())) == ["2026-11-09"]
+    assert json.loads((tmp_path / "rank_history.json").read_text()).keys() == {"2026-11-09", "_model"}
     ranks = (docs / "rankings.html").read_text()
     assert "All 322 Division I Teams" in ranks and "Old Tech" not in ranks                     # the school that left is gone
     assert len(list((docs / "teams").glob("*.html"))) == 322 and not (docs / "teams" / "old-tech.html").exists()
@@ -2091,7 +2168,7 @@ def test_rankings_and_team_pages_come_out_of_the_build(tmp_path, monkeypatch):
     assert before == {p.name: p.read_bytes() for p in [docs / "rankings.html", docs / "model.html", docs / "teams" / "tennessee.html"]}
     assert '<a href="rankings.html" class="">Rankings</a>' in (docs / "index.html").read_text()
     assert "How the two teams compare" in (docs / "games" / "2026-11-09" / "wofford-vs-tennessee.html").read_text()
-    assert list(json.loads((tmp_path / "rank_history.json").read_text())) == ["2026-11-09"]
+    assert json.loads((tmp_path / "rank_history.json").read_text()).keys() == {"2026-11-09", "_model"}
     # a refresh on a site that has no rankings yet (the first build after these pages were added) writes them
     for p in list((docs / "teams").glob("*.html")) + [docs / "rankings.html", docs / "model.html"]:
         p.unlink()
@@ -2127,8 +2204,16 @@ def test_rankings_and_team_pages_come_out_of_the_build(tmp_path, monkeypatch):
     method = (docs / "model.html").read_text()
     assert "Worked example" in method and "Wofford at Tennessee, Nov 9" in method and "picked the winner in <b>1 of 1 games (100%)</b>" in method
     assert '<a href="games/2026-11-09/wofford-vs-tennessee.html">This game’s own page</a>' in method
-    assert sorted(json.loads((tmp_path / "rank_history.json").read_text())) == ["2026-11-09", "2026-11-10"]
+    saved = json.loads((tmp_path / "rank_history.json").read_text())
+    assert sorted(saved) == ["2026-11-09", "2026-11-10", "_model"] and saved["_model"] == config.MODEL_VERSION
     assert 'title="Places moved since Nov 9"' in (docs / "rankings.html").read_text()
+    # ranks saved under another rating formula are not comparable: the history starts over, so no
+    # team seems to jump dozens of places the morning the formula changes
+    (tmp_path / "rank_history.json").write_text(json.dumps(dict({k: v for k, v in saved.items() if k != "_model"}, _model=1)))
+    run("2026-11-11 04:23")
+    again = json.loads((tmp_path / "rank_history.json").read_text())
+    assert sorted(again) == ["2026-11-11", "_model"] and again["_model"] == config.MODEL_VERSION
+    assert "Places moved since" not in (docs / "rankings.html").read_text()
     # a re-run of an earlier day by hand never touches the rankings (they are today's)
     before = (docs / "rankings.html").read_bytes()
     monkeypatch.setattr("sys.argv", ["build.py", "--date", "2026-11-09"])
@@ -2235,3 +2320,236 @@ def test_new_pages_are_handed_to_the_commit_step(tmp_path, monkeypatch):
     # outside a repository it reports and carries on
     monkeypatch.setattr(site, "DOCS", tmp_path / "nowhere")
     assert build.stage_hub_pages() == []
+
+
+# ---------------- Nov 2026 audit: closing lines, units ----------------
+def test_closing_line_is_tracked_beside_the_first_line(tmp_path):
+    import csv
+    row = {k: "" for k in ledger.FIELDS}
+    row.update(game_key="2026-11-23|2|3", date="2026-11-23", away_id="2", home_id="3", away="Away1", home="Home1")
+    other = dict(row, game_key="2026-11-23|4|5", away_id="4", home_id="5", away="Away2", home="Home2")
+    rows = [row, other]
+    first = {(2, 3): {"fav": "Home1", "spread": 3.5, "total": 140.5, "book": "X"}}
+    assert ledger.attach_lines(rows, "2026-11-23", first) == 1 and ledger.track_close(rows, "2026-11-23", first) == 1
+    assert (row["line_spread"], row["close_spread"], row["close_total"], row["close_fav"]) == ("3.5", "3.5", "140.5", "Home1")
+    assert ledger.track_close(rows, "2026-11-23", first) == 0                   # nothing moved: nothing rewritten
+    later = {(2, 3): {"fav": "Home1", "spread": 5, "total": 138.5, "book": "X"},
+             (4, 5): {"fav": "Away2", "spread": 2.5, "total": None, "book": "X"}}
+    assert ledger.attach_lines(rows, "2026-11-23", later) == 1                  # the second game's first line
+    assert ledger.track_close(rows, "2026-11-23", later) == 2
+    assert (row["line_spread"], row["line_total"]) == ("3.5", "140.5")          # the line at pick time never changes
+    assert (row["close_spread"], row["close_total"]) == ("5", "138.5")
+    assert (other["close_fav"], other["close_spread"], other["close_total"]) == ("Away2", "2.5", "")
+    # a number the feed stops sending is kept; a game that has tipped off is no longer in the map at all
+    gone = {(2, 3): {"fav": None, "spread": None, "total": 137.5, "book": "X"}}
+    assert ledger.track_close(rows, "2026-11-23", gone) == 1
+    assert (row["close_fav"], row["close_spread"], row["close_total"]) == ("Home1", "5", "137.5")
+    assert ledger.track_close(rows, "2026-11-24", later) == 0                   # another day's lines touch nothing
+    assert ledger.track_close(rows, "2026-11-23", {}) == 0
+    # the columns survive a save and a load, and a ledger written before they existed loads with them empty
+    ledger.save(rows, tmp_path / "l.csv")
+    assert ledger.load(tmp_path / "l.csv")[0]["close_spread"] == "5"
+    old_fields = [f for f in ledger.FIELDS if not f.startswith("close_")]
+    with open(tmp_path / "old.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=old_fields, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(rows)
+    loaded = ledger.load(tmp_path / "old.csv")
+    assert set(loaded[0]) == set(ledger.FIELDS) and loaded[0]["close_spread"] == "" and loaded[0]["line_spread"] == "3.5"
+    # a new pick is written with the columns too
+    fresh = []
+    ledger.lock(fresh, "2026-11-23", [{"pick": "Home1", "away_id": 2, "home_id": 3, "away": "Away1", "home": "Home1", "when": "x",
+                                       "away_rating": 1.0, "home_rating": 1.1, "differential": 0.1, "strong_pick": "", "total": 140.0}],
+                "2026-27", "now")
+    assert set(fresh[0]) == set(ledger.FIELDS) and fresh[0]["close_total"] == ""
+
+
+def _audit_bet(kind, side, num, odds, result, aid="2", hid="3", date="2026-11-23"):
+    return {"date": date, "rank": "1", "kind": kind, "side": side, "label": "x", "odds": str(odds), "chance": "0.6", "edge": "0.08",
+            "num": "" if num is None else f"{num:g}", "away_id": aid, "home_id": hid, "away": "Away1", "home": "Home1",
+            "when": "Nov 23, 2026 8:00 PM ET", "locked_at": "", "result": result}
+
+
+def test_units_break_even_and_closing_value():
+    import bets
+    book = [_audit_bet("Spread", "home", -3.5, -110, "W"), _audit_bet("Total", "under", 150.5, -110, "L", "4", "5"),
+            _audit_bet("ML", "away", None, 150, "W", "6", "7"), _audit_bet("Spread", "away", 2.5, -110, "P", "8", "9"),
+            _audit_bet("Total", "over", 140.5, -110, "", "10", "11")]
+    assert bets.units(book) == pytest.approx(100 / 110 - 1 + 1.5)       # a push and a bet still to play count for nothing
+    assert bets.units(book, "2026-11-22") == 0 and bets.units([]) == 0
+    assert bets.break_even() == pytest.approx(110 / 210) and bets.break_even(150) == pytest.approx(0.4)
+    assert bets.closing_value(book, []) is None
+
+    def led(aid, hid, fav, spread, total):
+        r = {k: "" for k in ledger.FIELDS}
+        r.update(date="2026-11-23", away_id=aid, home_id=hid, away="Away1", home="Home1", close_fav=fav, close_spread=spread, close_total=total)
+        return r
+    rows = [led("2", "3", "Home1", "4.5", "140"),          # bet Home -3.5, closed -4.5: a point better than the close
+            led("4", "5", "Home1", "1", "152.5"),          # bet Under 150.5, closed 152.5: two points worse
+            led("6", "7", "Home1", "3", "150"),            # a moneyline: not counted
+            led("8", "9", "Home1", "2.5", ""),             # bet Away +2.5, closed +2.5: no move
+            led("10", "11", "Home1", "2.5", "150")]        # not graded yet: not counted
+    cv = bets.closing_value(book, rows)
+    assert (cv["n"], cv["beat"], cv["worse"], cv["same"]) == (3, 1, 1, 1) and cv["points"] == pytest.approx((1 - 2 + 0) / 3)
+    # an underdog bet in a game where the favorite flipped: got +2.5, closed laying 1.5 -> four points better
+    flip = [_audit_bet("Spread", "away", 2.5, -110, "W")]
+    assert bets.closing_value(flip, [led("2", "3", "Away1", "1.5", "")])["points"] == pytest.approx(4.0)
+    assert bets.closing_value(flip, [led("2", "3", "Somebody Else", "1.5", "")]) is None        # favorite matches neither team
+    assert bets.closing_value(flip, [led("2", "3", "", "0", "")])["points"] == pytest.approx(2.5)  # closed a pick'em
+    # the measured spreads the chances are worked out with (see bets.py)
+    assert (bets.MARGIN_SD, bets.TOTAL_SD) == (11.3, 16.8)
+
+
+def test_bets_page_shows_units_the_break_even_mark_and_the_closing_line():
+    import bets
+    lost = [_audit_bet("Spread", "home", -3.5, -110, "W", date="2026-11-22"), _audit_bet("Total", "under", 150.5, -110, "L", "4", "5", "2026-11-22"),
+            _audit_bet("Total", "over", 140.5, -110, "L", "6", "7", "2026-11-22")]
+    empty = bets.best([], {})
+    html = site.bets_page(empty, "Monday, Nov 23", "now", {}, lost, "2026-11-23")
+    assert '<b>1-2</b><span>season, 33%</span>' in html
+    assert '<div class="stat loss"><b>−1.1</b><span>units, 1 a bet</span></div>' in html
+    assert "has to win 52.4% of the time just to break even" in html and "Closing lines:" not in html
+    won = [dict(b, result="W") for b in lost[:2]] + [lost[2]]
+    assert '<div class="stat win"><b>+0.8</b><span>units, 1 a bet</span></div>' in site.bets_page(empty, "Monday, Nov 23", "now", {}, won, "2026-11-23")
+    # the closing-line sentence waits for enough bets to mean something
+    few = {"n": site.CLV_MIN_BETS - 1, "beat": 10, "worse": 5, "same": 4, "points": 0.4}
+    assert "Closing lines:" not in site.bets_page(empty, "Monday, Nov 23", "now", {}, lost, "2026-11-23", clv=few)
+    many = {"n": 40, "beat": 22, "worse": 12, "same": 6, "points": 0.4}
+    html = site.bets_page(empty, "Monday, Nov 23", "now", {}, lost, "2026-11-23", clv=many)
+    assert ("Closing lines: of 40 graded spread and total bets, the line moved the bet’s way after it was posted in 22, "
+            "against it in 12 and not at all in 6, an average of 0.4 points in the bets’ favor.") in html
+    against = site.bets_page(empty, "Monday, Nov 23", "now", {}, lost, "2026-11-23", clv=dict(many, points=-0.3))
+    assert "an average of 0.3 points against the bets." in against
+    assert site.bets_page(empty, "Monday, Nov 23", "now", {}, [], "2026-11-23").count("units, 1 a bet") == 0     # no record yet: no tiles
+
+
+# ---------------- Nov 2026 audit: Results is the last few days, each week has a page of its own ----------------
+def _graded_days(first, n):
+    """One graded game a day for n days from `first`: the pick wins on even days, loses on odd ones."""
+    from datetime import timedelta
+    rows = []
+    for i in range(n):
+        d = (first + timedelta(days=i)).isoformat()
+        row = {k: "" for k in ledger.FIELDS}
+        row.update(_r(away_pts="60", home_pts="70" if i % 2 == 0 else "50", pick_correct="1" if i % 2 == 0 else "0",
+                      when=f"Nov {first.day + i}, 2026 8:00 PM ET"))
+        row.update(date=d, game_key=f"{d}|1|2", neutral="", strong_correct="", fh_correct="", total_error="5.0", fh_pick="", fh_margin="")
+        rows.append(row)
+    return rows
+
+
+def test_results_page_keeps_the_last_days_and_every_week_gets_a_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    monkeypatch.setattr(config, "SHOW_RESULTS_STATS", True)
+    rows = _graded_days(date(2026, 11, 2), 16)              # Mon Nov 2 to Tue Nov 17: two full weeks and two days
+    # a site with no week pages (an older build.py): every day stays on the one page, as before
+    everything = site.results_page(rows, "Nov 18, 2026 03:24 AM CT", {})
+    assert everything.count('<div class="day">') == 16 and "Week by week" not in everything
+    assert site.week_start("2026-11-08") == "2026-11-02" and site.week_start("2026-11-09") == "2026-11-09"
+    (tmp_path / "games" / "2026-11-09").mkdir(parents=True)                # one of the sixteen games has a page of its own
+    (tmp_path / "games" / "2026-11-09" / "away-u-vs-home-st.html").write_text("<html></html>")
+    assert site.write_result_weeks(rows, {}) == 3
+    assert sorted(p.name for p in (tmp_path / "results").glob("*.html")) == ["2026-11-02.html", "2026-11-09.html", "2026-11-16.html"]
+    assert site.write_result_weeks(rows, {}) == 0           # nothing changed: nothing written again
+    assert not [p for p in site.COMING if p.startswith("results/")]
+    # results.html: the season's record, the last RESULTS_DAYS game days, then one row per week
+    html = site.results_page(rows, "Nov 18, 2026 03:24 AM CT", {})
+    assert html.count('<div class="day">') == site.RESULTS_DAYS == 3
+    assert "Tuesday, Nov 17" in html and "Sunday, Nov 15" in html and "Saturday, Nov 14" not in html
+    assert "<b>8-8</b><span>all picks, 50%</span>" in html                     # the tiles are still the whole season
+    note = 'Showing the last 3 game days. Every earlier game is on its week’s page: <a href="#weeks">week by week</a>.'
+    assert note in html and html.index(note) < html.index('<div class="day">')
+    assert html.index('<div class="day">') < html.index('id="weeks"') and html.count('<a class="mrow"') == 3
+    assert ('<a class="mrow" href="results/2026-11-16.html"><span class="mn">Nov 16 to Nov 22<small>2 games</small></span>'
+            '<span class="mb"><i style="width:50%"></i></span><span class="mv"><b>50%</b>1-1</span></a>') in html
+    assert ('<a class="mrow" href="results/2026-11-02.html"><span class="mn">Nov 2 to Nov 8<small>7 games</small></span>'
+            '<span class="mb"><i style="width:57%"></i></span><span class="mv"><b>57%</b>4-3</span></a>') in html
+    assert html.index("Nov 16 to Nov 22") < html.index("Nov 9 to Nov 15") < html.index("Nov 2 to Nov 8")       # newest week first
+    # a week's page: only its own days, its own record, links back to the site from one folder down
+    week = (tmp_path / "results" / "2026-11-09.html").read_text()
+    assert "<title>College Basketball Results, Nov 9 to Nov 15, 2026 | " in week
+    assert f'<link rel="canonical" href="{config.SITE_URL}/results/2026-11-09.html">' in week
+    assert week.count('<div class="day">') == 7 and "Sunday, Nov 15" in week and "Monday, Nov 16" not in week and "Sunday, Nov 8" not in week
+    assert "<b>3-4</b><span>all picks, 43%</span>" in week and '<a href="../results.html">Results</a> &rsaquo; Nov 9 to Nov 15' in week
+    assert 'href="../index.html"' in week and '<a href="../results.html" class="on">Results</a>' in week
+    # the game's own page, from one folder down; a game that never got a page (the season's first two) has no dead link
+    assert 'href=../games/2026-11-09/away-u-vs-home-st.html' in week and week.count("Breakdown &rarr;") == 1
+    assert ('<div class="pager"><a href="../results/2026-11-02.html">&lsaquo; Nov 2 to Nov 8</a><a href="../results.html#weeks">All weeks</a>'
+            '<a href="../results/2026-11-16.html">Nov 16 to Nov 22 &rsaquo;</a></div>') in week
+    first_week = (tmp_path / "results" / "2026-11-02.html").read_text()
+    assert '<div class="pager"><span></span><a href="../results.html#weeks">All weeks</a><a href="../results/2026-11-09.html">' in first_week
+    # a finished week's page is dated the day after its last game, not by the build: it never changes again
+    assert "<div>Updated Nov 16, 2026</div>" in week and site._file_date(tmp_path / "results" / "2026-11-09.html") == "2026-11-16"
+    # a new result in the current week rewrites that week's page only
+    more = rows + _graded_days(date(2026, 11, 18), 1)
+    assert site.write_result_weeks(more, {}) == 1 and "Wednesday, Nov 18" in (tmp_path / "results" / "2026-11-16.html").read_text()
+    # the week pages are in the sitemap
+    site.write("<html></html>", html, docs=tmp_path, stamp="Nov 18, 2026 03:24 AM CT")
+    sitemap = (tmp_path / "sitemap.xml").read_text()
+    assert f"<loc>{config.SITE_URL}/results/2026-11-09.html</loc><lastmod>2026-11-16</lastmod>" in sitemap
+    # with the season's record switched off, a week's page shows no totals either
+    monkeypatch.setattr(config, "SHOW_RESULTS_STATS", False)
+    site.write_result_weeks(more, {})
+    assert "all picks" not in (tmp_path / "results" / "2026-11-09.html").read_text()
+
+
+def test_the_build_writes_the_week_pages_and_hands_them_to_the_commit_step(tmp_path, monkeypatch):
+    build, run, calls, games = _hub_world(tmp_path, monkeypatch)
+    docs = tmp_path / "docs"
+    assert "results" in build.HUB_PAGES
+    run("2026-11-09 04:23")
+    assert not (docs / "results").exists()                                 # nothing graded yet: no week to write
+    games[2].update(status="final", awayPoints=60, homePoints=75)           # Wofford at Tennessee, the game picked on Nov 9
+    run("2026-11-10 04:23")
+    week = docs / "results" / "2026-11-09.html"
+    assert week.exists() and "Monday, Nov 9" in week.read_text()
+    res = (docs / "results.html").read_text()
+    assert '<a class="mrow" href="results/2026-11-09.html">' in res and "Week by week" in res
+    assert f"<loc>{config.SITE_URL}/results/2026-11-09.html</loc>" in (docs / "sitemap.xml").read_text()
+    before = week.read_bytes()
+    run("2026-11-10 14:45", "--refresh")
+    assert week.read_bytes() == before                                      # a refresh with no new final leaves the week as it is
+
+
+def test_fonts_come_from_the_site_itself_when_the_files_are_there(tmp_path, monkeypatch):
+    monkeypatch.setattr(site, "DOCS", tmp_path)
+    assert site._fonts() == site.FONTS and "fonts.googleapis.com" in site.page("T", "index.html", "", "now")      # no fonts/ folder
+    (tmp_path / "fonts").mkdir()
+    for _, _, name in site.FONT_FILES[:-1]:
+        (tmp_path / "fonts" / f"{name}.woff2").write_bytes(b"x")
+    assert site._fonts() == site.FONTS                                       # one file missing: Google's copy, never half a set
+    (tmp_path / "fonts" / f"{site.FONT_FILES[-1][2]}.woff2").write_bytes(b"x")
+    head = site.page("T", "index.html", "", "now")
+    assert "fonts.googleapis.com" not in head and "fonts.gstatic.com" not in head
+    assert '<link rel="preload" href="fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>' in head
+    assert ("@font-face{font-family:'Big Shoulders Display';font-style:normal;font-weight:900;font-display:swap;"
+            "src:url(fonts/big-shoulders-display-latin-900-normal.woff2) format('woff2')}") in head
+    assert head.count("@font-face") == 6 and head.count('rel="preload"') == 2
+    # a page one or two folders down finds the same files
+    deep = site.page("T", "results.html", "", "now", root="../../")
+    assert 'href="../../fonts/barlow-latin-400-normal.woff2"' in deep and "src:url(../../fonts/barlow-latin-600-normal.woff2)" in deep
+    # the six files are in the repository, and they are the weights the stylesheet asks Google for
+    from pathlib import Path
+    here = Path(site.__file__).resolve().parent
+    assert all((here / "fonts" / f"{name}.woff2").stat().st_size > 5000 for _, _, name in site.FONT_FILES)
+    assert sorted(w for f, w, _ in site.FONT_FILES if f == "Barlow") == [400, 500, 600] and "Barlow:wght@400;500;600" in site.FONTS
+    assert sorted(w for f, w, _ in site.FONT_FILES if f != "Barlow") == [600, 800, 900] and "Big+Shoulders+Display:wght@600;800;900" in site.FONTS
+
+
+def test_a_game_page_is_saved_again_only_when_something_on_it_changed(tmp_path, monkeypatch):
+    build, run, calls, games = _hub_world(tmp_path, monkeypatch)
+    page = tmp_path / "docs" / "games" / "2026-11-09" / "wofford-vs-tennessee.html"
+    run("2026-11-09 04:23")
+    first = page.read_text()
+    assert "<div>Updated " in first
+    run("2026-11-09 08:45", "--refresh")
+    assert page.read_text() == first                      # nothing new on it: the file is not touched, time and all
+    # the comparison ignores the build time and the share image's cache-buster, and nothing else
+    later = first.replace("<div>Updated ", "<div>Updated later, ", 1).replace("og.png?v=", "og.png?v=X")
+    assert later != first and build._same_but_for_the_time(page, later)
+    assert not build._same_but_for_the_time(page, first.replace("Wofford", "Woffard", 1))
+    assert not build._same_but_for_the_time(tmp_path / "no-such-page.html", first)
+    # the game ends: the page is rewritten with the result
+    games[2].update(status="final", awayPoints=60, homePoints=75)
+    run("2026-11-10 04:23")
+    assert page.read_text() != first and "Final" in page.read_text()

@@ -15,6 +15,7 @@ schedule, see team_hub)."""
 import argparse
 import json
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -396,9 +397,14 @@ def team_hub(today, rat, rk, rows, raw_teams, teams, now, pages=True):
         history = json.loads(hist_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         history = {}
+    # Ranks saved under another rating formula are not comparable with today's (a team would seem
+    # to jump 40 places overnight), so the history starts over when the formula's version changes.
+    version = getattr(config, "MODEL_VERSION", 1)
+    if history.pop("_model", 1) != version:
+        history = {}
     if not REFRESH:
         teamdata.remember(history, today_str, {t: rk[t]["rank"] for t in rat})
-        hist_path.write_text(json.dumps(history, separators=(",", ":")), encoding="utf-8")
+        hist_path.write_text(json.dumps(dict(history, _model=version), separators=(",", ":")), encoding="utf-8")
     sched = teamdata.schedules(rat, played, rows, today_str, week, names)
     return teamdata.profiles(rat, rk, team, opp, raw_stats, teams, sched, history, today_str)
 
@@ -447,7 +453,20 @@ def model_facts(today, rat, rk, rows, n_teams):
     return facts
 
 
-HUB_PAGES = ("rankings.html", "model.html", "teams")
+STAMP_RE = re.compile(r"<div>Updated [^<]*</div>|og\.png\?v=[A-Za-z0-9]*")
+
+
+def _same_but_for_the_time(path, html):
+    """Is the page already saved at `path` the same as `html` once the build time is taken out
+    (the "Updated ..." line and the share image's cache-buster, which is made from it)?"""
+    try:
+        old = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+    return STAMP_RE.sub("", old) == STAMP_RE.sub("", html)
+
+
+HUB_PAGES = ("rankings.html", "model.html", "teams", "results")
 
 
 def stage_hub_pages():
@@ -768,6 +787,10 @@ def main():
     line_map = {k: v for k, v in all_lines.items() if k in pre_tip}
     n_lines = ledger.attach_lines(rows, today_str, line_map)
     log(f"  betting lines found for {n_lines} games")
+    if hasattr(ledger, "track_close"):
+        n_moved = ledger.track_close(rows, today_str, line_map)        # the latest line before tip-off, beside the first
+        if n_moved:
+            log(f"  latest lines saved for {n_moved} games still to tip off")
     ledger.save(rows)
 
     # 4) website
@@ -838,14 +861,21 @@ def main():
         coming.clear()                                      # from here on a page is linked only if its file is there
     by_team = {p["id"]: p for p in hub} if hub else {}
     with_teams = {"profiles": by_team} if by_team and "profiles" in site.game_page.__code__.co_varnames else {}
-    n_pages = 0
+    n_pages = n_same = 0
     for r in recent:
         wu = writeups.get(r["game_key"]) or writeup.game_writeup(r, rat, rk, line_of(r), best["cal"]["scale"])
         out = site.DOCS / site.game_path(r)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(site.game_page(r, teams, wu, stamp, **with_teams), encoding="utf-8")
+        html = site.game_page(r, teams, wu, stamp, **with_teams)
+        # A page that would change in nothing but its "Updated" time is left as it is. Most of the
+        # last three days' pages are like that at every build, and saving a hundred of them again
+        # eleven times a day made each commit a hundred files bigger for no change a visitor could see.
+        if _same_but_for_the_time(out, html):
+            n_same += 1
+            continue
+        out.write_text(html, encoding="utf-8")
         n_pages += 1
-    log(f"  wrote {n_pages} game pages")
+    log(f"  wrote {n_pages} game pages" + (f" ({n_same} more had nothing new)" if n_same else ""))
     # game pages more than a week old are asked out of search results (they stay on the site): each
     # build checks only the days that have just crossed that line, the first one checks them all
     if hasattr(site, "retire_old_games") and not SCORES and not args.date:
@@ -936,9 +966,14 @@ def main():
         ok = [b for b in bets.game_bets(r, bets._lookup(all_lines, r), best["cal"]) if bets.qualifies(b)]
         if ok:
             bets_by_game[r["game_key"]] = max(ok, key=lambda b: b["edge"])
-    bets_html = (site.bets_page(best, label, stamp, teams, book, today_str, finals)
-                 if "finals" in site.bets_page.__code__.co_varnames              # older webpage.py: no final scores
-                 else site.bets_page(best, label, stamp, teams, book, today_str))
+    if "clv" in site.bets_page.__code__.co_varnames:
+        # how the lines moved after the bets were posted (None until a graded bet has a closing line)
+        clv = bets.closing_value(book, rows) if hasattr(bets, "closing_value") else None
+        bets_html = site.bets_page(best, label, stamp, teams, book, today_str, finals, clv=clv)
+    else:
+        bets_html = (site.bets_page(best, label, stamp, teams, book, today_str, finals)
+                     if "finals" in site.bets_page.__code__.co_varnames          # older webpage.py: no final scores
+                     else site.bets_page(best, label, stamp, teams, book, today_str))
     extra = {"feature": feature} if "feature" in site.today_page.__code__.co_varnames else {}     # older webpage.py: no such argument
     if (EARLY_LOOK and not args.date and "early" in site.today_page.__code__.co_varnames
             and not still_to_tip(day_rows, now)):
@@ -946,6 +981,11 @@ def main():
             extra["early"] = early_look(today, rat, rk, season, now)
         except Exception as e:                              # noqa: BLE001 - an extra on the page, never worth a failed build
             log(f"  ! early look: {e}")
+    if hasattr(site, "write_result_weeks"):
+        # each week's graded games have a page of their own; results.html keeps the last few days
+        n_weeks = site.write_result_weeks(rows, teams)
+        if n_weeks:
+            log(f"  wrote {n_weeks} week{'s' if n_weeks != 1 else ''} of results")
     site.write(site.today_page(todays, label, stamp, stats_note, teams, today_str, done_today, writeups, yesterday, gotd, "", bets_by_game, **extra),
                site.results_page(rows, stamp, teams), bets_html,
                stamp=stamp, studio_html=studio,

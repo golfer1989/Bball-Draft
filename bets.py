@@ -21,8 +21,12 @@ from pathlib import Path
 
 import config
 
-MARGIN_SD = 11.0
-TOTAL_SD = 16.0
+# How far real results land from the betting numbers (standard deviation), measured on this
+# season's graded games on Nov 22, 2026: 11.3 points for margins on spreads under 10 (432 games;
+# bigger spreads scatter more, 12.5 to 13.1, and are not bet) and 16.8 for totals (914 games).
+# They were 11.0 and 16.0 by rule of thumb, which made every chance on the page read a little high.
+MARGIN_SD = 11.3
+TOTAL_SD = 16.8
 MODEL_WEIGHT = 0.35
 STD_ODDS = -110
 MIN_CHANCE = 0.55        # model chance a bet needs
@@ -232,6 +236,57 @@ def record(book, date=None):
     """(wins, losses, pushes) over the whole book, or one date."""
     rows = [b for b in book if b["result"] and (date is None or b["date"] == date)]
     return tuple(sum(1 for b in rows if b["result"] == k) for k in "WLP")
+
+
+def units(book, date=None):
+    """Profit or loss in units, one unit staked on every graded bet at its listed price: a win pays
+    the odds (0.91 at -110), a loss costs 1, a push 0. A record like 58-52 reads as a profit; at
+    -110 it is a small loss, and this is the number that says so."""
+    total = 0.0
+    for b in book:
+        if date is not None and b["date"] != date:
+            continue
+        if b.get("result") == "W":
+            total += decimal(b["odds"]) - 1
+        elif b.get("result") == "L":
+            total -= 1
+    return total
+
+
+def break_even(american_odds=STD_ODDS):
+    """Share of bets that has to win at these odds just to break even (52.4% at -110)."""
+    return 1 / decimal(american_odds)
+
+
+def closing_value(book, ledger_rows):
+    """For graded spread and total bets whose game has a closing line saved: did the line move the
+    bet's way after it was posted? A bet on +5.5 that closes +4.5 beat the close by a point; an
+    Under 150.5 that closes 148.5 by two. Returns {"n", "beat", "worse", "same", "points"} (points =
+    the average move in the bet's favor), or None when no bet has a closing line yet.
+    Moneylines are left out: the ledger keeps no closing price for them."""
+    close = {(r["date"], r["away_id"], r["home_id"]): r for r in ledger_rows
+             if r.get("close_spread") or r.get("close_total")}
+    moves = []
+    for b in book:
+        r = close.get((b["date"], str(b["away_id"]), str(b["home_id"])))
+        num = _num(b.get("num"))
+        if not r or not b.get("result") or num is None:
+            continue
+        if b["kind"] == "Total" and r.get("close_total"):
+            moved = float(r["close_total"]) - num                 # the total went up: good for an Over
+            moves.append(moved if b["side"] == "over" else -moved)
+        elif b["kind"] == "Spread" and r.get("close_spread"):
+            spread = float(r["close_spread"])
+            fav_home = r.get("close_fav") == r["home"]
+            if spread and not fav_home and r.get("close_fav") != r["away"]:
+                continue                                           # favorite's name does not match either team
+            home_line = -spread if fav_home else spread            # points added to the home score at the close
+            side_line = home_line if b["side"] == "home" else -home_line
+            moves.append(num - side_line)                          # the bet has more points than the close gives
+    if not moves:
+        return None
+    return {"n": len(moves), "beat": sum(1 for m in moves if m > 0), "worse": sum(1 for m in moves if m < 0),
+            "same": sum(1 for m in moves if m == 0), "points": sum(moves) / len(moves)}
 
 
 def qualifies(b):

@@ -68,11 +68,18 @@ def _get(path, params, tries=4, pause=5):
 def _per_game(u, games, name):
     fg, ft, reb, tov, pts = u["fieldGoals"], u["freeThrows"], u["rebounds"], u["turnovers"], u["points"]
     g = float(games)
+    # Threes made, for effective field goal %: (makes + half the made threes) / attempts, so a three
+    # counts for the extra point it is worth. A feed row without the three-point split counts none.
+    threes = ((u.get("threePointFieldGoals") or {}).get("made")) or 0
     return {
         "name": name, "GP": games,
         "PPG": pts["total"] / g,
         "FGA": fg["attempted"] / g, "FG%": fg["made"] / fg["attempted"],
+        "eFG%": (fg["made"] + 0.5 * threes) / fg["attempted"],
         "FTA": ft["attempted"] / g, "FT%": (ft["made"] / ft["attempted"]) if ft["attempted"] else 0.0,
+        # Free throw rate: free throws made per field goal attempt. It measures how often a team
+        # gets to the line and converts (and, for opponents, how often a defense sends them there).
+        "FTR": ft["made"] / fg["attempted"],
         "ORB": reb["offensive"] / g, "DRB": reb["defensive"] / g,
         "TOV": tov["total"] / g,
     }

@@ -14,10 +14,12 @@ import model
 # The model's eight inputs, in the order of their weight (config.W_SHOOT, W_TOV, W_REB, W_FT).
 # (key, what it is, weight setting, which way is good for the team: +1 higher, -1 lower)
 # The DEFENSE numbers are the opponents' (what teams manage against this one).
-OFFENSE = (("fg", "Field goal %", "W_SHOOT", 1), ("tov", "Turnover rate", "W_TOV", -1),
-           ("orb", "Offensive rebound rate", "W_REB", 1), ("ft", "Free throw %", "W_FT", 1))
-DEFENSE = (("opp_fg", "Field goal %", "W_SHOOT", -1), ("opp_tov", "Turnover rate", "W_TOV", 1),
-           ("opp_orb", "Offensive rebound rate", "W_REB", -1), ("opp_ft", "Free throw %", "W_FT", -1))
+# "fg" is effective field goal % (a made three counts as 1.5 makes) and "ft" is free throws made
+# per 100 shot attempts; the keys kept their names from when they were plain FG% and FT%.
+OFFENSE = (("fg", "Effective field goal %", "W_SHOOT", 1), ("tov", "Turnover rate", "W_TOV", -1),
+           ("orb", "Offensive rebound rate", "W_REB", 1), ("ft", "Free throws made per 100 shots", "W_FT", 1))
+DEFENSE = (("opp_fg", "Effective field goal %", "W_SHOOT", -1), ("opp_tov", "Turnover rate", "W_TOV", 1),
+           ("opp_orb", "Offensive rebound rate", "W_REB", -1), ("opp_ft", "Free throws made per 100 shots", "W_FT", -1))
 MOVE_DAYS = 7          # the Rankings page shows how far a team has moved over this many days
 
 
@@ -57,8 +59,8 @@ def factors(team, opp):
             r = model.team_rating(t, o)
         except (TypeError, ZeroDivisionError, KeyError):
             continue
-        vals[tid] = {"fg": t["FG%"], "tov": r["tov_pct"], "orb": r["reb_pct"], "ft": t["FT%"],
-                     "opp_fg": o["FG%"], "opp_tov": r["opp_tov_pct"], "opp_orb": r["opp_reb_pct"], "opp_ft": o["FT%"],
+        vals[tid] = {"fg": t["eFG%"], "tov": r["tov_pct"], "orb": r["reb_pct"], "ft": t["FTR"],
+                     "opp_fg": o["eFG%"], "opp_tov": r["opp_tov_pct"], "opp_orb": r["opp_reb_pct"], "opp_ft": o["FTR"],
                      "ppg": t["PPG"], "opp_ppg": o["PPG"]}
     out = {t: {} for t in vals}
     for key, _, _, good in OFFENSE + DEFENSE + (("ppg", "", "", 1), ("opp_ppg", "", "", -1)):

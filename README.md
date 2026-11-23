@@ -1,53 +1,55 @@
-# CBB Model
+# Tipoff Edge
 
-College basketball picks rebuilt from `NEWBBALLMODEL2024-FUTURE.xlsm`, with the spreadsheet's formula mistakes fixed.
-Every morning GitHub Actions pulls fresh stats, grades yesterday's games, locks today's picks, and publishes the site.
+The code and the pages of [tipoffedge.com](https://tipoffedge.com): college basketball predictions from a four-factor
+model, posted before tip-off, locked, and graded in public against the final score.
 
-## What runs where
+It began as a spreadsheet (`NEWBBALLMODEL2024-FUTURE.xlsm`). The same idea now runs by itself every day.
 
-| Spreadsheet | Here |
+## How it runs
+
+The site is this repository's top folder, served by GitHub Pages. One workflow, **Daily picks**
+(`.github/workflows/daily.yml`), builds it. A Cloudflare Worker (`tipoffedge-timer`) starts that workflow on time;
+GitHub's own schedule is the backup. Each run checks what is due and stops in seconds when nothing is.
+
+| When (Central) | What the run does |
 |---|---|
-| Power Query: RealGM Team Totals / Opponent Totals | `cbb/fetch.py` → `realgm_stats()` |
-| Power Query: RealGM schedule (`Table 0`) | `cbb/fetch.py` → `realgm_schedule()` (also used for final scores) |
-| Power Query: TeamRankings 1st-half PPG (`First`) | `cbb/fetch.py` → `tr_first_half()` |
-| Power Query: TeamRankings strength of schedule | not used: no formula in the sheet referenced it |
-| TEAMSORT macro (copy + sort) | not needed: teams are matched by RealGM team id |
-| Combined Stats sheet | `cbb/model.py` → `team_rating()` |
-| WINNERS sheet | `cbb/model.py` → `predict()` |
-| DailyReport (macro appends each day) | `data/ledger.csv` + Season Results page |
+| About 3:23 AM | Overnight build: grades yesterday, downloads fresh team stats, locks the day's picks, rewrites every page |
+| Before 9 AM, 11 AM, 2 PM, 5 PM and 8 PM | Refresh: current betting lines, picks for games added late, results of games that have ended |
+| 8:30 PM to 12:30 AM, once an hour | Score update: grades the games that have gone final |
 
-## Fixes vs the spreadsheet
+The data comes from the CollegeBasketballData API. Its key is the repository secret `CBBD_API_KEY` and appears nowhere
+in the code.
 
-1. **Turnover %** is now `TOV / (FGA + 0.44·FTA + TOV)`. Because of a misplaced parenthesis, the sheet computed `TOV / (FGA + FTA + APG/100)`.
-2. **Offense rebounding weight** is now 0.2, matching defense. The sheet had 2, so offensive rebounding made up about 60% of every Offense rating.
-3. **ppg / TOTAL** is now (points scored + points allowed) / 2 per team. A misplaced parenthesis had moved the average into the VLOOKUP's match argument, so the sheet used points scored only.
-4. **Lookups**: teams now match exactly by id. The sheet's ranges stopped at row 362 of 366.
-5. **Strong Pick** (the sheet called it "99.5% Winner") now triggers when the gap is > 0.055. That flags the same ~12% of games the sheet's 0.2 cutoff did, on the corrected scale.
+## The files
 
-Backtest: 2,319 games played after the workbook's Jan 21, 2026 stats snapshot, so the stats came before every game. Results are straight-up winners. There's no betting-line comparison.
+| File | What it is |
+|---|---|
+| `build.py` | One run from start to finish: download, grade, rate, pick, write the pages |
+| `fetch.py` | The data feed and the code that reads its answers |
+| `model.py` | The ratings, the schedule adjustment, the early-season blend and the prediction |
+| `config.py` | Every setting, with the evidence behind each one |
+| `ledger.py` | `data/ledger.csv`: every pick, written once and graded once |
+| `bets.py` | Best Bets: the model's numbers against the betting lines |
+| `writeup.py` | The plain-English reasons under each pick |
+| `teamdata.py` | What the Rankings and the team pages show |
+| `webpage.py` | Every page of the site |
+| `share.py`, `video.py` | The share image and the daily clip |
+| `tests.py` | The tests |
 
-| | Spreadsheet formulas | Corrected |
-|---|---|---|
-| Pick accuracy | 60.9% | **64.1%** |
-| Strong-pick accuracy (12% of games) | 70.6% | **84.5%** |
-| Rating gap vs final margin (correlation) | 0.32 | **0.44** |
-| Total, average miss | 15.4 pts | **14.6 pts** |
+## The model in short
 
-## Settings
+Every Division I team is rated on four things on offense and the same four on defense: shooting (effective field goal
+%), turnovers, offensive rebounding and free throws made per shot attempt, weighted 42 / 37 / 14 / 7. The rating is
+adjusted for the strength of the schedule, last season's rating fades out over a team's first 20 games, and the gap
+between two ratings plus home court becomes a projected margin and score. The full account, written from the code, is
+the site's [How the model works](https://tipoffedge.com/model.html) page.
 
-Everything adjustable lives in `cbb/config.py`: weights, the strong-pick cutoff, the 1H column, and the early-season rule. Until the median team has played 3 games, the model uses last season's final stats.
-
-## Run it by hand
+## Checking a change
 
 ```
-pip install -r requirements.txt
-python run_daily.py                 # today
-python run_daily.py --date 2026-11-15
-python -m pytest -q tests           # checks (needs pytest)
+pip install -r requirements.txt pytest
+python -m pytest -q tests.py
 ```
 
-## Team names
-
-RealGM stats and the RealGM schedule share team ids, so they always match.
-TeamRankings names map through `data/teamrankings_names.csv` (all 365 matched for 2025-26).
-If TeamRankings adds or renames a team, the Actions log prints the unmatched name. Add a row to that CSV to fix it.
+`python build.py` runs a full build (it needs the data key in the `CBBD_API_KEY` environment variable);
+`--refresh` and `--scores` run the two lighter kinds.
