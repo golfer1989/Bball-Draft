@@ -97,7 +97,7 @@ STUDIO_PAGE = "studio-95ea9e.html"
 # Whatever is typed between these quotes is published on the site, so use a name and an address
 # you are happy to make public. Left empty, nothing is shown.
 OWNER_NAME = ""          # e.g. "Cory" or a full name: "built and run by ..."
-CONTACT_EMAIL = ""       # e.g. "contact@tipoffedge.com": shown on the About and Privacy pages
+CONTACT_EMAIL = "contact@tipoffedge.com"   # shown on the About and Privacy pages; forwards to your inbox (Cloudflare Email Routing)
 # Accounts the About page links to. Remove a line to drop the link, add one in the same shape.
 SOCIAL_LINKS = {
     "TikTok": "https://www.tiktok.com/@tipoffedge",
