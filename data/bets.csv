@@ -118,7 +118,7 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-23,5,Total,over,Over 133.5,-110,0.581,0.057,133.5,277,9,St. Bonaventure,App State,"Nov 23, 2026 11:00 AM ET","Nov 23, 2026 03:23 AM CT",W
 2026-11-23,6,Total,over,Over 133.5,-110,0.576,0.053,133.5,159,361,Maryland Eastern Shore,Youngstown State,"Nov 23, 2026 6:30 PM ET","Nov 23, 2026 03:23 AM CT",W
 2026-11-24,1,ML,away,Michigan ML,-230,0.803,0.106,,170,61,Michigan,Creighton,"Nov 24, 2026 5:30 PM ET","Nov 24, 2026 03:23 AM CT",L
-2026-11-24,2,Total,under,Under 159.5,-110,0.625,0.102,159.5,337,264,Vermont,Siena,"Nov 24, 2026 7:00 PM ET","Nov 24, 2026 03:23 AM CT",
+2026-11-24,2,Total,under,Under 159.5,-110,0.625,0.102,159.5,337,264,Vermont,Siena,"Nov 24, 2026 7:00 PM ET","Nov 24, 2026 03:23 AM CT",L
 2026-11-24,3,Spread,home,Northern Colorado −3.5,-110,0.615,0.091,-3.5,246,207,SE Louisiana,Northern Colorado,"Nov 24, 2026 12:30 PM ET","Nov 24, 2026 03:23 AM CT",L
 2026-11-24,4,ML,away,Purdue ML,-185,0.733,0.084,,236,65,Purdue,DePaul,"Nov 24, 2026 6:00 PM ET","Nov 24, 2026 03:23 AM CT",L
 2026-11-24,5,Total,under,Under 166.5,-110,0.607,0.083,166.5,104,252,Grand Canyon,Saint Louis,"Nov 24, 2026 9:30 PM ET","Nov 24, 2026 03:23 AM CT",
