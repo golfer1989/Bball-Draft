@@ -135,3 +135,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-26,4,Total,over,Over 142.5,-110,0.583,0.059,142.5,236,217,Purdue,Oklahoma,"Nov 26, 2026 12:00 PM ET","Nov 26, 2026 02:04 AM CT",L
 2026-11-26,5,Spread,away,SMU +5.5,-110,0.582,0.059,5.5,248,136,SMU,LSU,"Nov 26, 2026 7:00 PM ET","Nov 26, 2026 02:04 AM CT",L
 2026-11-26,6,Total,under,Under 164.5,-110,0.567,0.043,164.5,329,323,Utah State,USC,"Nov 26, 2026 4:30 PM ET","Nov 26, 2026 02:04 AM CT",W
+2026-11-27,1,Total,under,Under 176.5,-110,0.657,0.133,176.5,350,118,Western Kentucky,Illinois,"Nov 27, 2026 6:00 PM ET","Nov 27, 2026 02:14 AM CT",
+2026-11-27,2,Spread,away,Wake Forest +2.5,-110,0.606,0.083,2.5,342,163,Wake Forest,Memphis,"Nov 27, 2026 1:30 PM ET","Nov 27, 2026 02:14 AM CT",
+2026-11-27,3,ML,home,Lafayette ML,-205,0.754,0.081,,194,138,Niagara,Lafayette,"Nov 27, 2026 4:30 PM ET","Nov 27, 2026 02:14 AM CT",
+2026-11-27,4,Spread,home,Louisiana Tech +4.5,-110,0.596,0.072,4.5,297,149,Texas State,Louisiana Tech,"Nov 27, 2026 3:00 PM ET","Nov 27, 2026 02:14 AM CT",
+2026-11-27,5,ML,home,Kentucky ML,-175,0.707,0.071,,352,135,Wichita State,Kentucky,"Nov 27, 2026 9:00 PM ET","Nov 27, 2026 02:14 AM CT",
+2026-11-27,6,Spread,home,Le Moyne +1.5,-110,0.591,0.067,1.5,154,140,Maine,Le Moyne,"Nov 27, 2026 2:00 PM ET","Nov 27, 2026 02:14 AM CT",
