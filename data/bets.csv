@@ -141,3 +141,9 @@ date,rank,kind,side,label,odds,chance,edge,num,away_id,home_id,away,home,when,lo
 2026-11-27,4,Spread,home,Louisiana Tech +4.5,-110,0.596,0.072,4.5,297,149,Texas State,Louisiana Tech,"Nov 27, 2026 3:00 PM ET","Nov 27, 2026 02:14 AM CT",L
 2026-11-27,5,ML,home,Kentucky ML,-175,0.707,0.071,,352,135,Wichita State,Kentucky,"Nov 27, 2026 9:00 PM ET","Nov 27, 2026 02:14 AM CT",L
 2026-11-27,6,Spread,home,Le Moyne +1.5,-110,0.591,0.067,1.5,154,140,Maine,Le Moyne,"Nov 27, 2026 2:00 PM ET","Nov 27, 2026 02:14 AM CT",L
+2026-11-28,1,ML,home,Hofstra ML,-125,0.683,0.127,,166,110,Merrimack,Hofstra,"Nov 28, 2026 3:30 PM ET","Nov 28, 2026 03:23 AM CT",
+2026-11-28,2,Total,under,Under 156.5,-110,0.638,0.114,156.5,264,263,Siena,Seton Hall,"Nov 28, 2026 12:00 PM ET","Nov 28, 2026 03:23 AM CT",
+2026-11-28,3,Spread,home,Eastern Kentucky +4.5,-110,0.624,0.101,4.5,291,78,Tennessee Tech,Eastern Kentucky,"Nov 28, 2026 4:00 PM ET","Nov 28, 2026 03:23 AM CT",
+2026-11-28,4,ML,home,Purdue Fort Wayne ML,-135,0.662,0.087,,356,237,Wofford,Purdue Fort Wayne,"Nov 28, 2026 1:00 PM ET","Nov 28, 2026 03:23 AM CT",
+2026-11-28,5,Total,under,Under 157.5,-110,0.609,0.086,157.5,30,2,Brown,Air Force,"Nov 28, 2026 3:00 PM ET","Nov 28, 2026 03:23 AM CT",
+2026-11-28,6,Total,under,Under 162.5,-110,0.602,0.078,162.5,7,101,Alcorn State,Georgia Tech,"Nov 28, 2026 1:00 PM ET","Nov 28, 2026 03:23 AM CT",
